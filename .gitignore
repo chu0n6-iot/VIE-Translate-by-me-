@@ -147,3 +147,15 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+# Secrets: never commit these
+.env
+config.local.js
+*.key
+
+# Python (for the Whisper part later)
+__pycache__/
+venv/
+.venv/
+
+# Windows junk
+Thumbs.db
