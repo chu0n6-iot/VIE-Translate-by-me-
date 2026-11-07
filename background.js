@@ -18,29 +18,41 @@ async function translate(text) {
   if (!apiKey) return { error: "Chưa nhập API key" };
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    // Gọi model gemini-2.5-flash với Auth Key truyền qua header
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent";
+    const res = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true"
+        "x-goog-api-key": apiKey
       },
       body: JSON.stringify({
-        model: "claude-haiku-5-5",
-        max_tokens: 300,
-        system: "Dịch phụ đề sang tiếng Việt tự nhiên, ngắn gọn. Chỉ trả về bản dịch.",
-        messages: [{ role: "user", content: cleanText }]
+        systemInstruction: {
+          parts: [{ text: "Bạn là dịch giả phụ đề phim chuyên nghiệp. Hãy dịch câu sau sang tiếng Việt ngắn gọn, tự nhiên. Chỉ trả về duy nhất bản dịch tiếng Việt, không kèm giải thích hay ghi chú gì thêm." }]
+        },
+        contents: [
+          { role: "user", parts: [{ text: cleanText }] }
+        ],
+        generationConfig: {
+          maxOutputTokens: 200,
+          temperature: 0.3
+        }
       })
     });
 
     const data = await res.json();
-    const vi = data.content?.[0]?.text ?? "";
+    if (data.error) {
+      console.error("Lỗi từ Gemini:", data.error);
+      return { error: data.error.message };
+    }
+
+    const vi = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
     if (vi) {
       cache.set(cleanText, vi);
     }
     return { vi };
   } catch (err) {
+    console.error("Lỗi mạng:", err);
     return { error: err.message || "Lỗi gọi API" };
   }
 }

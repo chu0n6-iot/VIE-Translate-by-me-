@@ -4,7 +4,7 @@
   "version": "0.2.0",
   "description": "Context-aware Vietnamese subtitle translator",
   "permissions": ["storage"],
-  "host_permissions": ["https://api.anthropic.com/*"],
+  "host_permissions": ["https://generativelanguage.googleapis.com/*"],
   "background": { "service_worker": "background.js" },
   "options_page": "options.html",
   "content_scripts": [
