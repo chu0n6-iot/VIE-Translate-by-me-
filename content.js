@@ -1,12 +1,17 @@
-function addOverlay() {
-  const player = document.querySelector(".html5-video-player");
-  if (!player || document.getElementById("vie-overlay")) return;
+function watchVideo(video) {
+  if (video.dataset.vieWatched) return;
+  video.dataset.vieWatched = "1";
 
-  const box = document.createElement("div");
-  box.id = "vie-overlay";
-  box.textContent = "Hí anh em! VIE-Translate đang hoạt động.";
-  player.appendChild(box);
+  for (const track of video.textTracks) {
+    if (track.kind !== "subtitles" && track.kind !== "captions") continue;
+    track.mode = "hidden"; // vẫn nhận cue nhưng không hiện bản gốc
+    track.addEventListener("cuechange", () => {
+      const text = [...(track.activeCues || [])].map(c => c.text).join(" ");
+      if (text) translateAndShow(video, text);
+    });
+  }
 }
 
-// YouTube loads pages dynamically, so keep checking
-setInterval(addOverlay, 1000);
+setInterval(() => {
+  document.querySelectorAll("video").forEach(watchVideo);
+}, 1000);

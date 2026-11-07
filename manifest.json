@@ -1,13 +1,8 @@
-{
-  "manifest_version": 3,
-  "name": "VIE-Translate",
-  "version": "0.1.0",
-  "description": "Context-aware Vietnamese subtitle translator",
-  "content_scripts": [
-    {
-      "matches": ["https://www.youtube.com/*"],
-      "js": ["content.js"],
-      "css": ["overlay.css"]
-    }
-  ]
-}
+"content_scripts": [
+  {
+    "matches": ["<all_urls>"],
+    "all_frames": true,
+    "js": ["content.js"],
+    "css": ["overlay.css"]
+  }
+]
