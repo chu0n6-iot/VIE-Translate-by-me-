@@ -11,8 +11,10 @@ function ensureOverlay() {
   wrap.appendChild(box);
 }
 
+// Đặt khung bao khớp đúng vị trí và kích thước của video
 function placeOverlay(video) {
   const fs = document.fullscreenElement;
+  // Không thể gắn phần tử con vào chính thẻ <video>, nên dùng phần tử cha
   const host = fs && fs !== video && fs.contains(video) ? fs : video.parentElement;
   if (getComputedStyle(host).position === "static") {
     host.style.position = "relative";
@@ -34,12 +36,13 @@ function getOverlay(video) {
     currentVideo = video;
     resizeObs?.disconnect();
     resizeObs = new ResizeObserver(() => placeOverlay(video));
-    resizeObs.observe(video);
+    resizeObs.observe(video); // video đổi kích thước thì overlay đổi theo
   }
   placeOverlay(video);
   return box;
 }
 
+// Vào hoặc thoát toàn màn hình, hoặc đổi cỡ cửa sổ
 document.addEventListener("fullscreenchange", () => {
   if (currentVideo) placeOverlay(currentVideo);
 });
@@ -63,7 +66,7 @@ async function translateAndShow(video, text) {
 // ===== Lớp 1: chuẩn chung cho mọi thẻ <video> =====
 function hookTrack(video, track) {
   if (track.kind !== "subtitles" && track.kind !== "captions") return;
-  track.mode = "hidden";
+  track.mode = "hidden"; // vẫn nhận phụ đề nhưng không hiện bản gốc
   track.addEventListener("cuechange", () => {
     const text = [...(track.activeCues || [])]
       .map(c => c.text.replace(/<[^>]+>/g, ""))
@@ -77,6 +80,7 @@ function watchVideo(video) {
   if (video.dataset.vieWatched) return;
   video.dataset.vieWatched = "1";
   for (const track of video.textTracks) hookTrack(video, track);
+  // nhiều trang nạp phụ đề muộn hơn video
   video.textTracks.addEventListener("addtrack", e => hookTrack(video, e.track));
 }
 

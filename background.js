@@ -10,7 +10,6 @@ async function translate(text) {
   const cleanText = (text || "").trim();
   if (!cleanText) return { vi: "" };
 
-  // Kiểm tra bộ nhớ đệm (cache) để không dịch lại câu đã dịch
   if (cache.has(cleanText)) {
     return { vi: cache.get(cleanText) };
   }
@@ -42,6 +41,6 @@ async function translate(text) {
     }
     return { vi };
   } catch (err) {
-    return { error: err.message || "Lỗi kết nối API" };
+    return { error: err.message || "Lỗi gọi API" };
   }
 }
