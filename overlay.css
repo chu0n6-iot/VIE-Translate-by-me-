@@ -1,0 +1,17 @@
+#vie-overlay {
+  position: absolute;
+  left: 50%;
+  bottom: 12%;
+  transform: translateX(-50%);
+  max-width: 80%;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #ffffff;
+  font-size: 24px;
+  font-family: Arial, sans-serif;
+  text-align: center;
+  text-shadow: 1px 1px 2px #000;
+  border-radius: 6px;
+  z-index: 9999;
+  pointer-events: none;
+}
