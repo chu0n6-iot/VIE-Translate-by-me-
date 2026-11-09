@@ -9,21 +9,26 @@ const FONT_FAMILY_MAP = {
 };
 
 const SAMPLE_SENTENCES = {
-  orig: "Welcome back! Today we'll explore something amazing.",
-  vi: "Chào mừng quay trở lại! Hôm nay chúng ta sẽ khám phá điều tuyệt vời.",
-  en: "Welcome back! Today we will explore something amazing.",
-  fr: "Bon retour ! Aujourd'hui, nous allons explorer quelque chose d'incroyable.",
-  ja: "おかえりなさい！今日は素晴らしいものを探求しましょう。",
-  ko: "돌아오신 것을 환영합니다! 오늘 우리는 놀라운 것을 탐험할 것입니다.",
-  "zh-CN": "欢迎回来！今天我们将探索一些令人惊叹的事物。",
-  "zh-TW": "歡迎回來！今天我們將探索一些令人驚嘆的事物。",
-  de: "Willkommen zurück! Heute werden wir etwas Erstaunliches entdecken.",
-  es: "¡Bienvenidos de nuevo! Hoy exploraremos algo increíble.",
-  ru: "С возвращением! Сегодня мы исследуем кое-что удивительное.",
-  th: "ยินดีต้อนรับกลับมา! วันนี้เราจะมาสำรวจสิ่งที่น่าทึ่งกัน"
+  orig: "Welcome back! Today I'll show you something amazing.",
+  vi: "Chào mừng các bạn quay lại! Hôm nay mình sẽ cho các bạn xem điều tuyệt vời.",
+  vi_minh: "Chào mừng các bạn quay lại! Hôm nay mình sẽ cho các bạn xem điều tuyệt vời.",
+  vi_toi: "Chào mừng các bạn quay lại! Hôm nay tôi sẽ cho các bạn xem điều tuyệt vời.",
+  vi_anh: "Chào mừng em quay lại! Hôm nay anh sẽ cho em xem điều tuyệt vời.",
+  en: "Welcome back! Today I will show you something amazing.",
+  fr: "Bon retour ! Aujourd'hui, je vais vous montrer quelque chose d'incroyable.",
+  ja: "おかえりなさい！今日は素晴らしいものをお見せしましょう。",
+  ko: "돌아오신 것을 환영합니다! 오늘 놀라운 것을 보여드리겠습니다.",
+  "zh-CN": "欢迎回来！今天我将向大家展示一些令人惊叹的事物。",
+  "zh-TW": "歡迎回來！今天我將向大家展示一些令人驚嘆的事物。",
+  de: "Willkommen zurück! Heute zeige ich euch etwas Erstaunliches.",
+  es: "¡Bienvenidos de nuevo! Hoy les mostraré algo increíble.",
+  ru: "С возвращением! Сегодня я покажу вам кое-что удивительное.",
+  th: "ยินดีต้อนรับกลับมา! วันนี้ฉันจะแสดงสิ่งที่น่าทึ่งให้คุณดู"
 };
 
 document.addEventListener("DOMContentLoaded", async () => {
+  const microToast = document.getElementById("microToast");
+  const toadAvatarWrap = document.getElementById("toadAvatarWrap");
   const toadSpeech = document.getElementById("toadSpeech");
   const enabledInput = document.getElementById("enabled");
   const dualSubInput = document.getElementById("dualSub");
@@ -43,12 +48,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   const autoAudioNoCCInput = document.getElementById("autoAudioNoCC");
   const softenProfanityInput = document.getElementById("softenProfanity");
 
-  // Ngôn ngữ & Phong cách
+  // Ngôn ngữ, Xưng hô & Phong cách
   const targetLangSelect = document.getElementById("targetLang");
   const secondaryLangSelect = document.getElementById("secondaryLang");
+  const pronounStyleSelect = document.getElementById("pronounStyle");
   const translationStyleSelect = document.getElementById("translationStyle");
 
   // Tùy chỉnh giao diện phụ đề
+  const previewStage = document.getElementById("previewStage");
   const previewBox = document.getElementById("previewBox");
   const previewOrig = document.getElementById("previewOrig");
   const previewVi = document.getElementById("previewVi");
@@ -72,6 +79,45 @@ document.addEventListener("DOMContentLoaded", async () => {
   let keysByProvider = { groq: "", gemini: "" };
   let verifiedKey = "";
   let verifyToken = 0;
+  let toastTimer = null;
+
+  function triggerMicroToast(msg = "✨ Đã áp dụng!") {
+    if (!microToast) return;
+    microToast.textContent = msg;
+    microToast.classList.add("show");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      microToast.classList.remove("show");
+    }, 1350);
+  }
+
+  function triggerToadHop() {
+    if (!toadAvatarWrap) return;
+    toadAvatarWrap.classList.remove("toad-hop");
+    void toadAvatarWrap.offsetWidth;
+    toadAvatarWrap.classList.add("toad-hop");
+  }
+
+  function flashPreviewStage() {
+    if (!previewStage) return;
+    previewStage.classList.remove("preview-flash");
+    void previewStage.offsetWidth;
+    previewStage.classList.add("preview-flash");
+    setTimeout(() => previewStage.classList.remove("preview-flash"), 450);
+  }
+
+  function animateTickRow(inputEl, labelText = "") {
+    const row = inputEl?.closest(".checkbox-row, .pill-toggle");
+    if (row) {
+      row.classList.remove("tick-anim");
+      void row.offsetWidth;
+      row.classList.add("tick-anim");
+    }
+    triggerToadHop();
+    if (labelText) {
+      triggerMicroToast(`${inputEl.checked ? "✓ Bật" : "○ Tắt"}: ${labelText}`);
+    }
+  }
 
   // Chuyển Tab
   document.querySelectorAll(".tab-btn").forEach((btn) => {
@@ -81,6 +127,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       btn.classList.add("active");
       const pane = document.getElementById(btn.dataset.tab);
       if (pane) pane.classList.add("active");
+      triggerToadHop();
       updateLivePreview();
     });
   });
@@ -106,11 +153,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!previewBox) return;
     const tLang = targetLangSelect.value || "vi";
     const sLang = secondaryLangSelect.value || "orig";
+    const pStyle = pronounStyleSelect ? pronounStyleSelect.value : "auto";
     const showDual = dualSubInput.checked && sLang !== "none";
 
     previewOrig.style.display = showDual ? "block" : "none";
     previewOrig.textContent = SAMPLE_SENTENCES[sLang] || SAMPLE_SENTENCES.orig;
-    previewVi.textContent = SAMPLE_SENTENCES[tLang] || SAMPLE_SENTENCES.vi;
+
+    if (tLang === "vi") {
+      if (pStyle === "toi_ban") previewVi.textContent = SAMPLE_SENTENCES.vi_toi;
+      else if (pStyle === "anh_em") previewVi.textContent = SAMPLE_SENTENCES.vi_anh;
+      else previewVi.textContent = SAMPLE_SENTENCES.vi_minh;
+    } else {
+      previewVi.textContent = SAMPLE_SENTENCES[tLang] || SAMPLE_SENTENCES.vi;
+    }
 
     const fontStack = FONT_FAMILY_MAP[subFontSelect.value] || FONT_FAMILY_MAP.default;
     const scale = (parseFloat(subSizeInput.value) || 100) / 100;
@@ -170,8 +225,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function showModelList(models, activeModel, preferredSetting = "auto") {
     if (!modelField) return;
-    const list = Array.isArray(models) ? [...models] : [];
-    if (activeModel && activeModel !== "auto" && !list.includes(activeModel)) {
+    const list = Array.isArray(models)
+      ? models.filter((m) => m && !m.includes("gemini-1.5") && !m.includes("gemini-1.0"))
+      : [];
+    if (
+      activeModel &&
+      activeModel !== "auto" &&
+      !activeModel.includes("gemini-1.5") &&
+      !list.includes(activeModel)
+    ) {
       list.unshift(activeModel);
     }
 
@@ -216,7 +278,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       getKeyLink.href = "https://console.groq.com/keys";
       if (!keepCurrentKeyInput) apiKeyInput.value = keysByProvider.groq || "";
     } else if (provider === "gemini") {
-      apiKeyLabel.textContent = "Gemini API Key (AQ. / AIza...):";
+      apiKeyLabel.textContent = "Gemini API Key (AIza... / AQ.):";
       getKeyLink.textContent = "Lấy key Gemini Free ↗";
       getKeyLink.href = "https://aistudio.google.com/apikey?vie_auto_import=1";
       if (!keepCurrentKeyInput) apiKeyInput.value = keysByProvider.gemini || "";
@@ -246,6 +308,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     softenProfanity: true,
     targetLang: "vi",
     secondaryLang: "orig",
+    pronounStyle: "auto",
     translationStyle: "natural",
     subFont: "default",
     overlayWidth: 72,
@@ -274,6 +337,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   targetLangSelect.value = stored.targetLang || "vi";
   secondaryLangSelect.value = stored.secondaryLang || "orig";
+  if (pronounStyleSelect) pronounStyleSelect.value = stored.pronounStyle || "auto";
   translationStyleSelect.value = stored.translationStyle || "natural";
 
   subBgStyleSelect.value = stored.subBgStyle || "toad";
@@ -329,6 +393,8 @@ document.addEventListener("DOMContentLoaded", async () => {
           apiKeyInput.value = s.apiKey;
           verifiedKey = s.verifiedKey;
           showModelList(s.availableModels, s.detectedModel, s.model || "auto");
+          triggerToadHop();
+          triggerMicroToast("🎉 Đã tự động nạp Key!");
           setToadSay(`Ộp ộp! Đã tự động lấy Key thành công: [${s.detectedModel}] 🐸✨`);
           showStatus(
             `✓ Đã tự động nhận & kích hoạt API Key từ Google AI Studio! Đang dùng [${s.detectedModel}].`,
@@ -354,6 +420,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     updateProviderUI(p);
     hideModelList();
     showStatus("");
+    triggerToadHop();
+    triggerMicroToast(`⚡ Chuyển bộ máy: ${p.toUpperCase()}`);
     const key = apiKeyInput.value.trim();
     if (p !== "gtx" && key && key === verifiedKey) {
       chrome.storage.local
@@ -389,7 +457,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Tự động áp dụng ngay mọi thay đổi về ngôn ngữ, phong cách, phông chữ, màu sắc
+  // Tự động áp dụng ngay mọi thay đổi về ngôn ngữ, xưng hô, phong cách, phông chữ, màu sắc
   function syncInstantPreferences() {
     updateLivePreview();
     chrome.storage.local.set({
@@ -400,6 +468,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       softenProfanity: softenProfanityInput ? softenProfanityInput.checked : true,
       targetLang: targetLangSelect.value,
       secondaryLang: secondaryLangSelect.value,
+      pronounStyle: pronounStyleSelect ? pronounStyleSelect.value : "auto",
       translationStyle: translationStyleSelect.value,
       subBgStyle: subBgStyleSelect.value,
       subFont: subFontSelect.value,
@@ -413,33 +482,75 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
+  // Hiệu ứng khi tick từng checkbox
+  const checkboxConfigs = [
+    [enabledInput, "Dịch phụ đề"],
+    [dualSubInput, "Song ngữ 2 dòng"],
+    [fallbackInput, "Dự phòng Google Translate"],
+    [autoAudioNoCCInput, "AI Nghe & Dịch"],
+    [softenProfanityInput, "Chế độ thân thiện"]
+  ];
+  checkboxConfigs.forEach(([el, label]) => {
+    if (!el) return;
+    el.addEventListener("change", () => {
+      syncInstantPreferences();
+      animateTickRow(el, label);
+    });
+  });
+
+  // Hiệu ứng khi đổi ngôn ngữ / xưng hô / phong cách / giao diện
   [
-    enabledInput,
-    dualSubInput,
-    fallbackInput,
-    autoAudioNoCCInput,
-    softenProfanityInput,
     targetLangSelect,
     secondaryLangSelect,
+    pronounStyleSelect,
     translationStyleSelect,
     subBgStyleSelect,
-    subFontSelect,
-    overlayWidthInput,
-    subSizeInput,
-    subBottomPosInput,
-    subColorInput,
-    subSecondColorInput
+    subFontSelect
   ]
     .filter(Boolean)
     .forEach((el) => {
-      el.addEventListener("input", syncInstantPreferences);
-      el.addEventListener("change", syncInstantPreferences);
+      el.addEventListener("change", () => {
+        syncInstantPreferences();
+        flashPreviewStage();
+        triggerToadHop();
+        if (el === pronounStyleSelect) {
+          chrome.runtime.sendMessage({ type: "CLEAR_CACHE" }, () => void chrome.runtime.lastError);
+          triggerMicroToast("🗣️ Đã đồng bộ ngôi xưng mới!");
+          setToadSay("Ộp! Cóc đã khóa ngôi xưng xuyên suốt cho bạn! 🐸🗣️");
+        } else {
+          triggerMicroToast("✨ Đã cập nhật tùy chỉnh!");
+        }
+      });
+    });
+
+  [overlayWidthInput, subSizeInput, subBottomPosInput, subColorInput, subSecondColorInput]
+    .filter(Boolean)
+    .forEach((el) => {
+      el.addEventListener("input", () => {
+        syncInstantPreferences();
+        flashPreviewStage();
+      });
+      el.addEventListener("change", () => {
+        syncInstantPreferences();
+        if (el === subColorInput || el === subSecondColorInput) {
+          triggerToadHop();
+          triggerMicroToast(`🎨 Đã đổi màu ${el.value.toUpperCase()}`);
+        } else {
+          triggerMicroToast("📐 Đã cập nhật kích thước!");
+        }
+      });
     });
 
   swatches.forEach((sw) => {
     sw.addEventListener("click", () => {
       subColorInput.value = sw.dataset.color;
+      sw.classList.remove("swatch-pop");
+      void sw.offsetWidth;
+      sw.classList.add("swatch-pop");
       syncInstantPreferences();
+      flashPreviewStage();
+      triggerToadHop();
+      triggerMicroToast(`🎨 Đã chọn màu ${sw.title || sw.dataset.color}`);
     });
   });
 
@@ -452,6 +563,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     subColorInput.value = "#fef08a";
     subSecondColorInput.value = "#e2e8f0";
     syncInstantPreferences();
+    flashPreviewStage();
+    triggerToadHop();
+    triggerMicroToast("↺ Đã khôi phục mặc định!");
     showStatus("✓ Đã khôi phục giao diện phụ đề Translate Toad mặc định!", "ok");
   });
 
@@ -464,6 +578,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     chrome.runtime.sendMessage({ type: "CLEAR_CACHE" }, () => void chrome.runtime.lastError);
     detectedModelBadge.textContent = `✓ Đang dùng model: ${m}`;
     detectedModelBadge.style.display = "inline-block";
+    triggerToadHop();
+    triggerMicroToast(`🤖 Model: ${m}`);
     showStatus(`✓ Đã chọn model [${m}]. Nếu model lỗi, Cóc tự chuyển sang model khác!`, "ok");
   });
 
@@ -577,8 +693,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     if (!silent) {
+      triggerToadHop();
+      triggerMicroToast("💾 Đã lưu cài đặt!");
       setToadSay("Ộp ộp! Đã lưu mọi tùy chỉnh phụ đề của bạn! 🐸💛");
       showStatus("✓ Đã lưu toàn bộ cài đặt thành công!", "ok");
+      if (saveBtn) {
+        const origText = saveBtn.textContent;
+        saveBtn.classList.add("btn-saved-anim");
+        saveBtn.textContent = "✨ Đã lưu thành công!";
+        setTimeout(() => {
+          saveBtn.classList.remove("btn-saved-anim");
+          saveBtn.textContent = origText;
+        }, 1250);
+      }
     }
   }
 
@@ -586,7 +713,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const key = (keyToTest || apiKeyInput.value || "").trim();
     if (!key) {
       showStatus(
-        "⚠ Vui lòng nhập API Key hoặc bấm '⚡ Tự động lấy Key từ Google AI Studio' ở trên.",
+        "⚠ Vui lòng nhập API Key hoặc bấm '🚀 Tự động lấy Key từ Google AI Studio' ở trên.",
         "err"
       );
       return;
@@ -643,6 +770,8 @@ document.addEventListener("DOMContentLoaded", async () => {
           model: preferred || "auto"
         });
 
+        triggerToadHop();
+        triggerMicroToast(`🐸 Kết nối: ${res.modelUsed}`);
         setToadSay(`Tuyệt vời! Cóc đang dịch bằng [${res.modelUsed}] 🐸🎧`);
         showStatus(
           `✓ API Key hợp lệ! Tìm thấy ${(res.availableModels || []).length} model. Đang dùng [${res.modelUsed}] (Tự động chuyển model khác nếu hết Quota).\nDịch thử: "${res.sample}"`,
