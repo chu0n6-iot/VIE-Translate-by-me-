@@ -24,7 +24,6 @@ let settings = {
   subColor: "#fef08a",
   subSecondColor: "#e2e8f0",
   subBgStyle: "toad",
-  subAlign: "left",
   subBottomPos: "12",
   overlayWidth: 72,
   overlayScale: 100,
@@ -179,7 +178,6 @@ function applyOverlayVisualStyle(overlay) {
   overlay.style.setProperty("--vie-primary-color", settings.subColor || "#fef08a");
   overlay.style.setProperty("--vie-second-color", settings.subSecondColor || "#e2e8f0");
   overlay.setAttribute("data-bg-style", settings.subBgStyle || "toad");
-  overlay.setAttribute("data-align", settings.subAlign || "left");
 
   const origEl = overlay.querySelector(".vie-orig");
   if (origEl) {
@@ -690,28 +688,13 @@ function escapeHtml(str) {
 
 function renderInteractiveWords(origEl, text) {
   if (!origEl) return;
-  if (origEl.dataset.rawText === text && origEl.childNodes.length > 0) return;
+  if (origEl.dataset.rawText === text && origEl.children.length > 0) return;
   origEl.dataset.rawText = text;
+  origEl.innerHTML = "";
 
-  const tokens = (text || "").split(/(\s+)/).filter(Boolean);
-  const existingNodes = Array.from(origEl.childNodes);
-
-  let matchCount = 0;
-  while (
-    matchCount < existingNodes.length &&
-    matchCount < tokens.length &&
-    existingNodes[matchCount].textContent === tokens[matchCount]
-  ) {
-    matchCount++;
-  }
-
-  for (let i = existingNodes.length - 1; i >= matchCount; i--) {
-    origEl.removeChild(existingNodes[i]);
-  }
-
-  const animateNew = matchCount > 0;
-  for (let i = matchCount; i < tokens.length; i++) {
-    const tok = tokens[i];
+  const tokens = (text || "").split(/(\s+)/);
+  for (const tok of tokens) {
+    if (!tok) continue;
     if (/^\s+$/.test(tok)) {
       origEl.appendChild(document.createTextNode(tok));
       continue;
@@ -722,97 +705,11 @@ function renderInteractiveWords(origEl, text) {
       continue;
     }
     const span = document.createElement("span");
-    span.className = animateNew ? "vie-word vie-word-appear" : "vie-word";
+    span.className = "vie-word";
     span.dataset.word = cleanWord;
     span.textContent = tok;
     origEl.appendChild(span);
   }
-}
-
-function renderStableViText(viEl, text) {
-  if (!viEl) return;
-  if (viEl.dataset.rawText === text && viEl.childNodes.length > 0) return;
-  viEl.dataset.rawText = text;
-
-  const tokens = (text || "").split(/(\s+)/).filter(Boolean);
-  const existingNodes = Array.from(viEl.childNodes);
-
-  let matchCount = 0;
-  while (
-    matchCount < existingNodes.length &&
-    matchCount < tokens.length &&
-    existingNodes[matchCount].textContent === tokens[matchCount]
-  ) {
-    matchCount++;
-  }
-
-  for (let i = existingNodes.length - 1; i >= matchCount; i--) {
-    viEl.removeChild(existingNodes[i]);
-  }
-
-  const animateNew = matchCount > 0;
-  for (let i = matchCount; i < tokens.length; i++) {
-    const tok = tokens[i];
-    if (/^\s+$/.test(tok)) {
-      viEl.appendChild(document.createTextNode(tok));
-      continue;
-    }
-    const span = document.createElement("span");
-    span.className = animateNew ? "vie-vi-word vie-word-appear" : "vie-vi-word";
-    span.textContent = tok;
-    viEl.appendChild(span);
-  }
-}
-
-function stabilizeStreamingTranslation(prevOrig, prevVi, newOrig, newVi) {
-  if (!prevOrig || !prevVi || !newOrig || !newVi) return newVi;
-
-  const cleanPrevOrig = prevOrig.trim().toLowerCase();
-  const cleanNewOrig = newOrig.trim().toLowerCase();
-
-  // Chỉ khóa tiền tố khi câu gốc mới là phần nối dài của câu gốc đang nói dở
-  if (!cleanNewOrig.startsWith(cleanPrevOrig) || cleanNewOrig === cleanPrevOrig) {
-    return newVi;
-  }
-
-  const basePrevVi = prevVi.replace(/[.,!?;:…]+$/g, "").trim();
-  const cleanNewVi = newVi.trim();
-  if (!basePrevVi || !cleanNewVi) return newVi;
-
-  if (cleanNewVi.toLowerCase().startsWith(basePrevVi.toLowerCase())) {
-    return cleanNewVi;
-  }
-
-  const prevWords = basePrevVi.split(/\s+/);
-  const newWords = cleanNewVi.split(/\s+/);
-  if (prevWords.length < 2) return cleanNewVi;
-
-  const norm = (w) => w.replace(/^[.,!?;:"“”'‘’()]+|[.,!?;:"“”'‘’()]+$/g, "").toLowerCase();
-
-  for (let dropTail = 0; dropTail <= Math.min(2, prevWords.length - 2); dropTail++) {
-    const lockLen = prevWords.length - dropTail;
-    const anchorW2 = norm(prevWords[lockLen - 1]);
-    const anchorW1 = lockLen >= 2 ? norm(prevWords[lockLen - 2]) : "";
-    if (!anchorW2) continue;
-
-    const minIdx = Math.max(0, lockLen - 4);
-    const maxIdx = Math.min(newWords.length - 1, lockLen + 3);
-
-    for (let idx = maxIdx; idx >= minIdx; idx--) {
-      if (norm(newWords[idx]) === anchorW2) {
-        const twoWordMatch = !anchorW1 || (idx >= 1 && norm(newWords[idx - 1]) === anchorW1);
-        if (twoWordMatch) {
-          const suffixWords = newWords.slice(idx + 1);
-          if (suffixWords.length > dropTail) {
-            const lockedPrefix = prevWords.slice(0, lockLen).join(" ");
-            return `${lockedPrefix} ${suffixWords.join(" ")}`.trim();
-          }
-        }
-      }
-    }
-  }
-
-  return cleanNewVi;
 }
 
 function bindInteractiveOverlayEvents(video, overlay, origEl, viEl, dictCard, learnBar) {
@@ -982,11 +879,6 @@ function getVideoState(video) {
   if (!state) {
     state = {
       lastText: "",
-      renderedOrigText: "",
-      renderedViText: "",
-      ytPageFirstLine: "",
-      ytPageSecondLine: "",
-      ytConsumedLine: "",
       reqSeq: 0,
       lastRenderedSeq: 0,
       lastSendAt: 0,
@@ -1078,22 +970,12 @@ function formatSubtitleDecorations(origText, viText, isMusicOrLyrics = false) {
 }
 
 function renderTranslation(video, origText, viText, sub2Text = "", isPreview = false, isError = false) {
-  const state = getVideoState(video);
   const overlay = getOrCreateOverlay(video);
   const origEl = overlay.querySelector(".vie-orig");
   const viEl = overlay.querySelector(".vie-vi");
 
   const isMusic = ytCueState.isLyrics || looksLikeMusicVideo(getVideoTitle());
   const { formattedOrig, formattedVi } = formatSubtitleDecorations(origText, viText, isMusic);
-
-  const finalViText = !isError
-    ? stabilizeStreamingTranslation(state.renderedOrigText, state.renderedViText, formattedOrig, formattedVi)
-    : formattedVi;
-
-  if (!isError && formattedOrig && finalViText) {
-    state.renderedOrigText = formattedOrig;
-    state.renderedViText = finalViText;
-  }
 
   const showSecondary = Boolean(settings.dualSub) && settings.secondaryLang !== "none";
   if (origEl) {
@@ -1103,7 +985,7 @@ function renderTranslation(video, origText, viText, sub2Text = "", isPreview = f
   }
 
   if (viEl) {
-    renderStableViText(viEl, finalViText);
+    viEl.textContent = isError ? viText : formattedVi;
     viEl.classList.toggle("vie-preview", Boolean(isPreview));
     viEl.classList.toggle("vie-error", Boolean(isError));
   }
@@ -1133,8 +1015,6 @@ function scheduleTranslate(video, rawText, immediate = false) {
     state.hideTimer = setTimeout(() => {
       if (state.isHoveringOverlay || state.isDictPinned) return;
       state.lastText = "";
-      state.renderedOrigText = "";
-      state.renderedViText = "";
       state.reqSeq++;
       state.lastRenderedSeq = state.reqSeq;
       hideOverlay(video);
@@ -1158,6 +1038,12 @@ function scheduleTranslate(video, rawText, immediate = false) {
     return;
   }
 
+  const isStreamingGrowth =
+    !immediate &&
+    state.lastText &&
+    (cleanText.startsWith(state.lastText) ||
+      cleanText.includes(state.lastText.slice(-20)));
+
   state.lastText = cleanText;
 
   if (immediate) {
@@ -1170,28 +1056,26 @@ function scheduleTranslate(video, rawText, immediate = false) {
     return;
   }
 
-  // Dịch tức thì từng từ ngay khi xuất hiện (nhịp 45ms, không đợi chữ sau mới dịch)
   const now = Date.now();
   const elapsed = now - state.lastSendAt;
-  const THROTTLE_MS = 45;
-  const useFastStream = settings.provider !== "gtx";
+  const THROTTLE_MS = 110;
 
   if (elapsed >= THROTTLE_MS) {
     state.lastSendAt = now;
-    translateAndShow(video, cleanText, useFastStream);
+    translateAndShow(video, cleanText, isStreamingGrowth && settings.provider !== "gtx");
   } else if (!state.throttleTimer) {
     state.throttleTimer = setTimeout(() => {
       state.throttleTimer = null;
       state.lastSendAt = Date.now();
       if (state.lastText) {
-        translateAndShow(video, state.lastText, useFastStream);
+        translateAndShow(video, state.lastText, false);
       }
     }, THROTTLE_MS - elapsed);
   }
 
   if (settings.provider !== "gtx") {
     if (state.aiRefineTimer) clearTimeout(state.aiRefineTimer);
-    const endsWithPunct = /[.,!?;:…]$/.test(cleanText);
+    const endsWithPunct = /[.,!?;:]$/.test(cleanText);
     state.aiRefineTimer = setTimeout(
       () => {
         state.aiRefineTimer = null;
@@ -1199,7 +1083,7 @@ function scheduleTranslate(video, rawText, immediate = false) {
           translateAndShow(video, state.lastText, false);
         }
       },
-      endsWithPunct ? 85 : 280
+      endsWithPunct ? 70 : 240
     );
   }
 }
@@ -1208,10 +1092,17 @@ function translateAndShow(video, text, fastStreamMode = false) {
   const state = getVideoState(video);
   const currentSeq = ++state.reqSeq;
 
+  const overlay = getOrCreateOverlay(video);
+  const origEl = overlay.querySelector(".vie-orig");
+  if (origEl && settings.secondaryLang === "orig") {
+    renderInteractiveWords(origEl, text);
+    origEl.style.display = settings.dualSub ? "block" : "none";
+  }
+
   let settled = false;
 
   // Song song hiển thị ngay bản dịch tức thời (0ms delay) để người dùng đọc kịp ngay lập tức,
-  // đồng bộ cả dòng gốc lẫn dòng dịch cùng lúc (không để chữ gốc nhảy ra trước bắt chờ dòng dịch)
+  // sau đó bản dịch AI chuẩn ngữ cảnh sẽ tự động nâng cấp đè lên khi hoàn tất
   if (!fastStreamMode && settings.provider !== "gtx") {
     if (state.previewTimer) {
       clearTimeout(state.previewTimer);
@@ -1344,8 +1235,8 @@ function mergeEventsIntoSentences(events) {
   for (const ev of events) {
     if (cur) {
       const gap = ev.start - cur.end;
-      const tooLong = cur.text.length >= 68 || ev.end - cur.start > 5.2;
-      if (gap > 0.7 || tooLong || /[.?!…]$/.test(cur.text)) flush();
+      const tooLong = cur.text.length >= 90 || ev.end - cur.start > 8;
+      if (gap > 0.9 || tooLong || /[.?!…]$/.test(cur.text)) flush();
     }
     if (!cur) {
       cur = { start: ev.start, end: ev.end, text: ev.text };
@@ -1924,11 +1815,6 @@ function handleVideoSourceOrPageChange(video) {
 
   // Dọn phụ đề cũ của video trước
   state.lastText = "";
-  state.renderedOrigText = "";
-  state.renderedViText = "";
-  state.ytPageFirstLine = "";
-  state.ytPageSecondLine = "";
-  state.ytConsumedLine = "";
   state.reqSeq++;
   state.lastRenderedSeq = state.reqSeq;
   state.hasReceivedAnySubtitle = false;
@@ -2018,53 +1904,6 @@ function autoUnlockHiddenTracks(video) {
   }
 }
 
-function extractYouTubeStreamingText(video, captionContainer, segmentSelector) {
-  const state = getVideoState(video);
-  const lines = captionContainer.querySelectorAll(".ytp-caption-line");
-
-  if (lines.length === 0) {
-    const segments = captionContainer.querySelectorAll(segmentSelector);
-    return Array.from(segments)
-      .map((seg) => seg.textContent || "")
-      .join(" ");
-  }
-
-  if (lines.length === 1) {
-    const l0 = normalizeSubtitleText(lines[0].textContent || "");
-    state.ytPageFirstLine = l0;
-    state.ytPageSecondLine = "";
-    state.ytConsumedLine = "";
-    return l0;
-  }
-
-  const l0 = normalizeSubtitleText(lines[lines.length - 2].textContent || "");
-  const l1 = normalizeSubtitleText(lines[lines.length - 1].textContent || "");
-  if (!l0) return l1;
-
-  // Khi YouTube cuộn dòng 2 của trang trước (ytPageSecondLine) lên làm dòng 1 (l0),
-  // đánh dấu l0 đã hiển thị xong để trang mới bắt đầu cố định từ l1 (không kéo ngược l0 về đầu câu)
-  if (
-    state.ytPageFirstLine &&
-    l0 !== state.ytPageFirstLine &&
-    state.ytPageSecondLine &&
-    (l0 === state.ytPageSecondLine || l0.startsWith(state.ytPageSecondLine))
-  ) {
-    state.ytConsumedLine = l0;
-    state.ytPageFirstLine = "";
-    state.ytPageSecondLine = "";
-    state.renderedOrigText = "";
-    state.renderedViText = "";
-  }
-
-  if (state.ytConsumedLine && l0 === state.ytConsumedLine) {
-    return l1 || l0;
-  }
-
-  state.ytPageFirstLine = l0;
-  state.ytPageSecondLine = l1;
-  return l1 ? `${l0} ${l1}` : l0;
-}
-
 function observePlatformCaptions(video) {
   const scopeRoot = getContainer(video) || document;
 
@@ -2086,7 +1925,16 @@ function observePlatformCaptions(video) {
 
       let text = "";
       if (cfg.name === "youtube") {
-        text = extractYouTubeStreamingText(video, captionContainer, cfg.segmentSelector);
+        const lines = captionContainer.querySelectorAll(".ytp-caption-line");
+        if (lines.length > 0) {
+          const recentLines = Array.from(lines).slice(-2);
+          text = recentLines.map((l) => l.textContent || "").join(" ");
+        } else {
+          const segments = captionContainer.querySelectorAll(cfg.segmentSelector);
+          text = Array.from(segments)
+            .map((seg) => seg.textContent || "")
+            .join(" ");
+        }
       } else if (cfg.segmentSelector) {
         const segments = captionContainer.querySelectorAll(cfg.segmentSelector);
         if (segments.length > 0) {
