@@ -5,6 +5,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const geminiSection = document.getElementById("geminiSection");
   const apiKeyInput = document.getElementById("apiKey");
   const modelSelect = document.getElementById("model");
+  const detectedModelBadge = document.getElementById("detectedModelBadge");
   const fallbackInput = document.getElementById("fallbackToFree");
   const saveBtn = document.getElementById("saveBtn");
   const testBtn = document.getElementById("testBtn");
@@ -13,6 +14,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   function showStatus(msg, isError = false) {
     status.textContent = msg;
     status.className = isError ? "status-err" : "status-ok";
+  }
+
+  function showDetectedModel(modelName) {
+    if (modelName && modelSelect.value === "auto") {
+      detectedModelBadge.textContent = `✓ Đang dùng model free: ${modelName}`;
+      detectedModelBadge.style.display = "inline-block";
+    } else {
+      detectedModelBadge.style.display = "none";
+    }
   }
 
   function updateProviderUI() {
@@ -26,7 +36,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     dualSub: true,
     provider: "gemini",
     apiKey: "",
-    model: "gemini-2.5-flash",
+    model: "auto",
+    detectedModel: "",
     fallbackToFree: true
   });
 
@@ -34,13 +45,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   dualSubInput.checked = Boolean(stored.dualSub);
   providerSelect.value = stored.provider || "gemini";
   apiKeyInput.value = stored.apiKey || "";
-  modelSelect.value = stored.model || "gemini-2.5-flash";
+
+  // Nếu giá trị model cũ đã bị khai tử (không nằm trong danh sách mới), chuyển về "auto"
+  const validModels = Array.from(modelSelect.options).map((o) => o.value);
+  modelSelect.value = validModels.includes(stored.model) ? stored.model : "auto";
+
   fallbackInput.checked = Boolean(stored.fallbackToFree);
   updateProviderUI();
+  showDetectedModel(stored.detectedModel);
 
   providerSelect.addEventListener("change", updateProviderUI);
+  modelSelect.addEventListener("change", () => {
+    showDetectedModel(stored.detectedModel);
+  });
 
-  // Tự động cập nhật ngay khi bật/tắt công tắc
   enabledInput.addEventListener("change", () => {
     chrome.storage.local.set({ enabled: enabledInput.checked });
   });
@@ -74,7 +92,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
-    showStatus("Đang kiểm tra kết nối Gemini API...");
+    showStatus("⏳ Đang tự động dò tìm model miễn phí tốt nhất cho Key của bạn...");
     testBtn.disabled = true;
 
     chrome.runtime.sendMessage(
@@ -90,7 +108,10 @@ document.addEventListener("DOMContentLoaded", async () => {
           return;
         }
         if (res?.ok) {
-          showStatus(`✓ Kết nối thành công! Dịch thử: "${res.sample}"`);
+          showDetectedModel(res.modelUsed);
+          showStatus(
+            `✓ Thành công! Đã chọn model [${res.modelUsed}]. Dịch thử: "${res.sample}"`
+          );
         } else {
           showStatus(`✗ Lỗi API: ${res?.error || "Không xác định"}`, true);
         }
