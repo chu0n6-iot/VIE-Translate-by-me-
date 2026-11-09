@@ -396,6 +396,13 @@ async function saveWordToVocab(item, saveBtnEl) {
       pron: item.pron || "",
       pos: item.pos || "",
       meaning: item.meaning || "",
+      examples: Array.isArray(item.examples)
+        ? item.examples
+        : (item.examples ? [item.examples] : []),
+      fact: item.fact || "",
+      synonyms: Array.isArray(item.synonyms)
+        ? item.synonyms
+        : (typeof item.synonyms === "string" ? item.synonyms.split(",").map((s) => s.trim()).filter(Boolean) : []),
       note: item.note || "",
       lang: detectLanguageForSpeech(item.word),
       sentence: item.sentence || "",
@@ -581,6 +588,18 @@ function openSceneExplanation(video, overlay, dictCard, sentence, viText, focusW
   );
 }
 
+function getPosClass(posText) {
+  const p = (posText || "").toLowerCase();
+  if (/động từ|\bverb\b/.test(p)) return "vie-pos-verb";
+  if (/danh từ|\bnoun\b/.test(p)) return "vie-pos-noun";
+  if (/tính từ|\badj/.test(p)) return "vie-pos-adj";
+  if (/trạng từ|\badv/.test(p)) return "vie-pos-adv";
+  if (/thành ngữ|\bidiom\b/.test(p)) return "vie-pos-idiom";
+  if (/lóng|\bslang\b/.test(p)) return "vie-pos-slang";
+  if (/cụm động từ|phrasal/.test(p)) return "vie-pos-phrasal";
+  return "";
+}
+
 function openWordLookup(video, overlay, dictCard, word, sentence, viText, wordSpan) {
   const state = getVideoState(video);
   state.isDictPinned = true;
@@ -600,7 +619,7 @@ function openWordLookup(video, overlay, dictCard, word, sentence, viText, wordSp
     <div class="vie-dict-header">
       <div class="vie-dict-title">
         <span class="vie-dict-word">${escapeHtml(word)}</span>
-        <span class="vie-dict-loading">⏳ Cóc đang tra từ điển theo ngữ cảnh...</span>
+        <span class="vie-dict-loading">⏳ Cóc đang phân tích từ loại, ví dụ &amp; fact thú vị...</span>
       </div>
       <button type="button" class="vie-dict-close" title="Đóng">✕</button>
     </div>
@@ -634,21 +653,78 @@ function openWordLookup(video, overlay, dictCard, word, sentence, viText, wordSp
         return;
       }
 
+      const posClass = getPosClass(res.pos);
+      const examplesList = Array.isArray(res.examples) ? res.examples : [];
+      const synonymList = Array.isArray(res.synonyms)
+        ? res.synonyms
+        : (typeof res.synonyms === "string" ? res.synonyms.split(",").map((s) => s.trim()).filter(Boolean) : []);
+
       dictCard.innerHTML = `
         <div class="vie-dict-header">
           <div class="vie-dict-title">
             <span class="vie-dict-word">${escapeHtml(res.word || word)}</span>
             ${res.pron ? `<span class="vie-dict-pron">/${escapeHtml(res.pron.replace(/^\/|\/$/g, ""))}/</span>` : ""}
-            ${res.pos ? `<span class="vie-dict-pos">${escapeHtml(res.pos)}</span>` : ""}
-            <button type="button" class="vie-dict-speak" title="Nghe phát âm">🔊</button>
+            ${res.pos ? `<span class="vie-dict-pos ${posClass}">${escapeHtml(res.pos)}</span>` : ""}
+            <button type="button" class="vie-dict-speak" title="Nghe phát âm từ này">🔊</button>
           </div>
           <div class="vie-dict-actions">
             <button type="button" class="vie-dict-save" title="Lưu vào Sổ từ vựng để ôn tập">⭐ Lưu từ</button>
             <button type="button" class="vie-dict-close" title="Đóng">✕</button>
           </div>
         </div>
-        <div class="vie-dict-meaning">🎯 ${escapeHtml(res.meaning || "")}</div>
-        ${res.note ? `<div class="vie-dict-note">💡 ${escapeHtml(res.note)}</div>` : ""}
+
+        <div class="vie-dict-meaning-box">
+          <div class="vie-dict-meaning-label">🎯 Nghĩa trong ngữ cảnh câu này:</div>
+          <div class="vie-dict-meaning">${escapeHtml(res.meaning || "")}</div>
+        </div>
+
+        ${
+          examplesList.length > 0
+            ? `
+        <div class="vie-dict-section">
+          <div class="vie-dict-section-title">🗣️ Ví dụ thực tế khác ngoài đời:</div>
+          <div class="vie-dict-examples-list">
+            ${examplesList
+              .map(
+                (ex) => `
+              <div class="vie-dict-example-item">
+                <div class="vie-dict-example-orig">
+                  <button type="button" class="vie-dict-mini-speak" data-text="${escapeHtml(ex.orig || "")}" title="Nghe câu ví dụ">🔊</button>
+                  <span>${escapeHtml(ex.orig || "")}</span>
+                </div>
+                ${ex.trans ? `<div class="vie-dict-example-trans">➔ ${escapeHtml(ex.trans)}</div>` : ""}
+              </div>`
+              )
+              .join("")}
+          </div>
+        </div>`
+            : ""
+        }
+
+        ${
+          res.fact
+            ? `
+        <div class="vie-dict-fact-box">
+          <div class="vie-dict-fact-title">✨ Fact thú vị &amp; Mẹo nhớ siêu tốc:</div>
+          <div class="vie-dict-fact-body">${escapeHtml(res.fact)}</div>
+        </div>`
+            : res.note
+            ? `<div class="vie-dict-note">💡 ${escapeHtml(res.note)}</div>`
+            : ""
+        }
+
+        ${
+          synonymList.length > 0
+            ? `
+        <div class="vie-dict-synonyms-box">
+          <span class="vie-dict-syn-label">🧩 Đồng nghĩa / Đi kèm:</span>
+          <div class="vie-dict-syn-tags">
+            ${synonymList.map((s) => `<span class="vie-dict-syn-tag">${escapeHtml(s)}</span>`).join("")}
+          </div>
+        </div>`
+            : ""
+        }
+
         <button type="button" class="vie-dict-more-btn">
           🎓 Xem thêm: Tại sao cả câu dịch như vậy &amp; Cách dùng thực tế ➔
         </button>
@@ -657,6 +733,14 @@ function openWordLookup(video, overlay, dictCard, word, sentence, viText, wordSp
       dictCard.querySelector(".vie-dict-speak")?.addEventListener("click", (e) => {
         e.stopPropagation();
         speakWord(res.word || word);
+      });
+
+      dictCard.querySelectorAll(".vie-dict-mini-speak").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const t = btn.getAttribute("data-text");
+          if (t) speakWord(t);
+        });
       });
 
       const saveBtn = dictCard.querySelector(".vie-dict-save");

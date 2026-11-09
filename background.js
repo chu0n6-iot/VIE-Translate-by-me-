@@ -2106,7 +2106,7 @@ async function handleLookupWord(rawWord, sentence, videoTitle) {
   const targetLang = settings.targetLang || "vi";
   const langLabel = LANGUAGE_NAMES[targetLang] || "Tiếng Việt";
 
-  const cacheKey = `dict:${effectiveProvider}:${targetLang}:${word.toLowerCase()}:${(sentence || "").slice(0, 60)}`;
+  const cacheKey = `dict_v2:${effectiveProvider}:${targetLang}:${word.toLowerCase()}:${(sentence || "").slice(0, 60)}`;
   const cached = getCached(cacheKey);
   if (cached) {
     try {
@@ -2117,14 +2117,16 @@ async function handleLookupWord(rawWord, sentence, videoTitle) {
   }
 
   const prompt =
-    `Giải thích từ/cụm từ "${word}" xuất hiện trong câu phụ đề: "${sentence}"` +
+    `Bạn là chuyên gia ngôn ngữ học & giáo viên bản xứ. Hãy phân tích chi tiết từ/cụm từ "${word}" trong câu phụ đề: "${sentence}"` +
     (videoTitle ? ` (Video: "${videoTitle}")` : "") +
-    ` sang ${langLabel} để người học ngoại ngữ hiểu rõ.\n` +
-    `Trả về ĐÚNG 4 dòng ngắn gọn theo định dạng sau (không dùng markdown **, không giải thích thừa):\n` +
-    `PRON: [Phiên âm IPA hoặc cách đọc dễ hiểu]\n` +
-    `POS: [Từ loại: danh từ / động từ / tính từ / cụm từ / tiếng lóng...]\n` +
-    `MEANING: [Nghĩa chính xác nhất của "${word}" trong ngữ cảnh câu này bằng ${langLabel}]\n` +
-    `NOTE: [Mẹo nhớ nhanh hoặc 1 ví dụ ngắn kèm dịch ${langLabel}]`;
+    ` sang ${langLabel} để người xem học sâu, nhớ lâu và biết dùng ngoài đời.\n` +
+    `Trả về ĐÚNG các dòng sau theo định dạng chuẩn (không dùng dấu markdown ** hay giải thích ngoài lề):\n` +
+    `PRON: [Phiên âm chuẩn quốc tế IPA]\n` +
+    `POS: [Từ loại song ngữ rõ ràng, ví dụ: Động từ (Verb) / Danh từ (Noun) / Tính từ (Adjective) / Trạng từ (Adverb) / Cụm động từ (Phrasal Verb) / Thành ngữ (Idiom) / Tiếng lóng (Slang)]\n` +
+    `MEANING: [Nghĩa tự nhiên, chuẩn xác nhất của từ trong ngữ cảnh câu này bằng ${langLabel}]\n` +
+    `EXAMPLES: [2 câu ví dụ thực tế khác ngoài đời kèm dịch ${langLabel}, định dạng: Ví dụ 1 | Dịch 1 // Ví dụ 2 | Dịch 2]\n` +
+    `FACT: [1 Fact thú vị hoặc Mẹo nhớ: Nguồn gốc từ nguyên độc lạ, văn hóa bản xứ, cách dùng hài hước hoặc mẹo nhớ siêu tốc]\n` +
+    `SYNONYMS: [2-4 từ đồng nghĩa hoặc cụm collocation hay đi cùng, cách nhau bởi dấu phẩy]`;
 
   if (effectiveProvider !== "gtx" && rawKey) {
     try {
@@ -2170,8 +2172,11 @@ async function handleLookupWord(rawWord, sentence, videoTitle) {
   const fallbackRes = {
     word,
     pron: "",
-    pos: "Từ vựng",
+    pos: "Từ vựng (Word)",
     meaning: wordMeaning || word,
+    examples: sentence ? [{ orig: sentence, trans: sentenceMeaning }] : [],
+    fact: "",
+    synonyms: [],
     note: sentenceMeaning ? `Nghĩa cả câu: "${sentenceMeaning}"` : ""
   };
   setCached(cacheKey, JSON.stringify(fallbackRes));
@@ -2188,35 +2193,108 @@ function parseLookupOutput(word, rawText) {
   let pos = "";
   let meaning = "";
   let note = "";
+  let fact = "";
+  let rawExamples = "";
+  let synonyms = "";
+
+  let currentSection = "";
 
   for (const line of lines) {
     const mPron = line.match(/^(?:PRON|Phiên âm|Cách đọc)\s*:\s*(.+)$/i);
     if (mPron) {
       pron = mPron[1].trim();
+      currentSection = "pron";
       continue;
     }
     const mPos = line.match(/^(?:POS|Từ loại)\s*:\s*(.+)$/i);
     if (mPos) {
       pos = mPos[1].trim();
+      currentSection = "pos";
       continue;
     }
     const mMean = line.match(/^(?:MEANING|Nghĩa)\s*:\s*(.+)$/i);
     if (mMean) {
       meaning = mMean[1].trim();
+      currentSection = "meaning";
       continue;
     }
-    const mNote = line.match(/^(?:NOTE|Ví dụ|Ghi chú)\s*:\s*(.+)$/i);
+    const mEx = line.match(/^(?:EXAMPLES?|Ví dụ|Ví dụ khác)\s*:\s*(.+)$/i);
+    if (mEx) {
+      rawExamples = mEx[1].trim();
+      currentSection = "examples";
+      continue;
+    }
+    const mFact = line.match(/^(?:FACT|Fun fact|Fact thú vị|Mẹo nhớ|Nguồn gốc)\s*:\s*(.+)$/i);
+    if (mFact) {
+      fact = mFact[1].trim();
+      currentSection = "fact";
+      continue;
+    }
+    const mSyn = line.match(/^(?:SYNONYMS?|Collocations?|Từ đồng nghĩa|Cụm đi kèm)\s*:\s*(.+)$/i);
+    if (mSyn) {
+      synonyms = mSyn[1].trim();
+      currentSection = "synonyms";
+      continue;
+    }
+    const mNote = line.match(/^(?:NOTE|Ghi chú)\s*:\s*(.+)$/i);
     if (mNote) {
       note = mNote[1].trim();
+      currentSection = "note";
       continue;
+    }
+
+    if (currentSection === "examples") {
+      rawExamples = (rawExamples ? rawExamples + " // " : "") + line;
+    } else if (currentSection === "fact") {
+      fact = (fact ? fact + " " : "") + line;
+    } else if (currentSection === "meaning" && !meaning) {
+      meaning = line;
     }
   }
 
-  if (!meaning) {
-    meaning = lines.join(" • ");
+  // Parse examples into structured array: [{ orig: "...", trans: "..." }]
+  const examples = [];
+  if (rawExamples) {
+    const items = rawExamples.split(/\s*(?:\/{2,}|;|\n)\s*/).filter(Boolean);
+    for (const item of items) {
+      const parts = item.split(/\s*[|:–—]\s*/);
+      if (parts.length >= 2) {
+        examples.push({
+          orig: parts[0].replace(/^\d+[\.\)]\s*/, "").trim(),
+          trans: parts.slice(1).join(" - ").trim()
+        });
+      } else if (item.trim()) {
+        examples.push({
+          orig: item.replace(/^\d+[\.\)]\s*/, "").trim(),
+          trans: ""
+        });
+      }
+    }
   }
 
-  return { word, pron, pos, meaning, note };
+  const synonymList = (synonyms || "")
+    .split(/[,;•/]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (!meaning) {
+    meaning = lines.slice(0, 2).join(" • ");
+  }
+
+  if (!note) {
+    note = fact || (examples[0] ? `${examples[0].orig}: ${examples[0].trans}` : "");
+  }
+
+  return {
+    word,
+    pron,
+    pos: pos || "Từ vựng (Word)",
+    meaning,
+    examples,
+    fact,
+    synonyms: synonymList,
+    note
+  };
 }
 
 async function handleExplainScene({ sentence, vi, focusWord, videoTitle, tabId }) {

@@ -924,6 +924,26 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ============================================================================
   // SỔ TỪ VỰNG HỌC NGOẠI NGỮ (VOCABULARY NOTEBOOK)
   // ============================================================================
+  function escapeHtml(str) {
+    return String(str || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function getVocabPosClass(posText) {
+    const p = (posText || "").toLowerCase();
+    if (/động từ|\bverb\b/.test(p)) return "pos-verb";
+    if (/danh từ|\bnoun\b/.test(p)) return "pos-noun";
+    if (/tính từ|\badj/.test(p)) return "pos-adj";
+    if (/trạng từ|\badv/.test(p)) return "pos-adv";
+    if (/thành ngữ|\bidiom\b/.test(p)) return "pos-idiom";
+    if (/lóng|\bslang\b/.test(p)) return "pos-slang";
+    if (/cụm động từ|phrasal/.test(p)) return "pos-phrasal";
+    return "";
+  }
+
   function renderVocabNotebook(vocabArr) {
     const list = Array.isArray(vocabArr) ? vocabArr : [];
     if (vocabCountBadge) {
@@ -935,7 +955,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       vocabListEl.innerHTML = `
         <div class="vocab-empty">
           🐸 <b>Sổ từ vựng của bạn đang trống!</b><br>
-          Khi xem video có bật <b>Song ngữ 2 dòng</b>, hãy rê chuột vào khung phụ đề (video sẽ tự dừng) và <b>bấm vào bất kỳ từ nào</b> để nghe phát âm, xem nghĩa ngữ cảnh & lưu từ vào đây nhé!
+          Khi xem video có bật <b>Song ngữ 2 dòng</b>, hãy rê chuột vào khung phụ đề (video sẽ tự dừng) và <b>bấm vào bất kỳ từ nào</b> để nghe phát âm giọng bản xứ, xem từ loại, ví dụ thực tế &amp; lưu từ vào đây nhé!
         </div>
       `;
       return;
@@ -945,21 +965,61 @@ document.addEventListener("DOMContentLoaded", async () => {
     list.forEach((item, idx) => {
       const card = document.createElement("div");
       card.className = "vocab-item";
+      const posClass = getVocabPosClass(item.pos);
+      const examplesList = Array.isArray(item.examples) ? item.examples : [];
+      const synonymList = Array.isArray(item.synonyms)
+        ? item.synonyms
+        : (typeof item.synonyms === "string" ? item.synonyms.split(",").map((s) => s.trim()).filter(Boolean) : []);
+
       card.innerHTML = `
         <div class="vocab-item-top">
-          <div>
-            <span class="vocab-word" title="Bấm để nghe phát âm giọng bản xứ">🔊 ${item.word || ""}</span>
-            ${item.pron ? `<span class="vocab-pron">/${item.pron.replace(/^\/|\/$/g, "")}/</span>` : ""}
-            ${item.pos ? `<span class="vocab-pos">${item.pos}</span>` : ""}
+          <div class="vocab-word-group">
+            <span class="vocab-word" title="Bấm để nghe phát âm giọng bản xứ">🔊 ${escapeHtml(item.word || "")}</span>
+            ${item.pron ? `<span class="vocab-pron">/${escapeHtml(item.pron.replace(/^\/|\/$/g, ""))}/</span>` : ""}
+            ${item.pos ? `<span class="vocab-pos ${posClass}">${escapeHtml(item.pos)}</span>` : ""}
           </div>
-          <button type="button" class="btn-toggle-key vocab-del-btn" data-idx="${idx}" style="padding:2px 6px;font-size:10.5px;">✕</button>
+          <button type="button" class="btn-toggle-key vocab-del-btn" data-idx="${idx}" style="padding:2px 6px;font-size:10.5px;" title="Xóa từ này">✕</button>
         </div>
-        <div class="vocab-meaning">${item.meaning || ""}</div>
-        ${item.sentence ? `<div class="vocab-ctx">"${item.sentence}"</div>` : ""}
+        <div class="vocab-meaning">🎯 ${escapeHtml(item.meaning || "")}</div>
+        ${item.sentence ? `<div class="vocab-ctx">🎬 Ngữ cảnh phim: "${escapeHtml(item.sentence)}"</div>` : ""}
+        ${
+          examplesList.length > 0
+            ? `
+        <div class="vocab-examples-box">
+          <div class="vocab-section-heading">🗣️ Ví dụ khác ngoài đời:</div>
+          ${examplesList
+            .map(
+              (ex) => `
+            <div class="vocab-ex-item">
+              <span class="vocab-ex-orig" title="Bấm để nghe đọc câu này">🔊 ${escapeHtml(ex.orig || "")}</span>
+              ${ex.trans ? `<span class="vocab-ex-trans">➔ ${escapeHtml(ex.trans)}</span>` : ""}
+            </div>`
+            )
+            .join("")}
+        </div>`
+            : ""
+        }
+        ${item.fact ? `<div class="vocab-fact-box">✨ <b>Fact &amp; Mẹo nhớ:</b> ${escapeHtml(item.fact)}</div>` : ""}
+        ${
+          synonymList.length > 0
+            ? `
+        <div class="vocab-syn-row">
+          <span style="font-weight:600;color:#94a3b8;">🧩 Đi kèm / Đồng nghĩa:</span>
+          ${synonymList.map((s) => `<span class="vocab-syn-pill">${escapeHtml(s)}</span>`).join("")}
+        </div>`
+            : ""
+        }
       `;
 
       card.querySelector(".vocab-word")?.addEventListener("click", () => {
         speakWordWithNativeVoice(item.word, item.lang || "");
+      });
+
+      card.querySelectorAll(".vocab-ex-orig").forEach((el, exIdx) => {
+        el.addEventListener("click", () => {
+          const ex = examplesList[exIdx];
+          if (ex?.orig) speakWordWithNativeVoice(ex.orig, item.lang || "");
+        });
       });
 
       card.querySelector(".vocab-del-btn")?.addEventListener("click", async () => {
@@ -988,11 +1048,26 @@ document.addEventListener("DOMContentLoaded", async () => {
         showStatus("⚠ Sổ từ vựng đang trống, hãy chạm từ trên phụ đề video để lưu trước nhé!", "err");
         return;
       }
-      const lines = list.map(
-        (v, i) =>
-          `${i + 1}. ${v.word} ${v.pron ? `(/${v.pron}/)` : ""} [${v.pos || "Từ vựng"}] — ${v.meaning}\n   Ngữ cảnh: "${v.sentence || ""}"`
-      );
-      const blob = new Blob([lines.join("\n\n")], { type: "text/plain;charset=utf-8" });
+      const lines = list.map((v, i) => {
+        const parts = [
+          `${i + 1}. ${v.word} ${v.pron ? `(/${v.pron}/)` : ""} [${v.pos || "Từ vựng"}]`,
+          `   • Nghĩa: ${v.meaning}`
+        ];
+        if (v.sentence) parts.push(`   • Ngữ cảnh phim: "${v.sentence}"`);
+        if (Array.isArray(v.examples) && v.examples.length) {
+          parts.push(`   • Ví dụ thực tế ngoài đời:`);
+          v.examples.forEach((ex) => {
+            parts.push(`     - ${ex.orig || ""}${ex.trans ? ` ➔ ${ex.trans}` : ""}`);
+          });
+        }
+        if (v.fact) parts.push(`   • Fact thú vị & Mẹo nhớ: ${v.fact}`);
+        if (Array.isArray(v.synonyms) && v.synonyms.length) {
+          parts.push(`   • Đồng nghĩa / Đi kèm: ${v.synonyms.join(", ")}`);
+        }
+        return parts.join("\n");
+      });
+      const separator = "\n\n" + "—".repeat(45) + "\n\n";
+      const blob = new Blob([lines.join(separator)], { type: "text/plain;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
