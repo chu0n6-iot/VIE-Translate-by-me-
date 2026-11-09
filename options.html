@@ -3,68 +3,195 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VIE-Translate - Cài đặt API Key</title>
+  <title>VIE-Translate - Cài đặt</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      max-width: 480px;
-      margin: 40px auto;
-      padding: 20px;
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      width: 380px;
+      max-width: 100%;
+      margin: 0 auto;
+      padding: 16px;
       background: #f9fafb;
       color: #111827;
+      box-sizing: border-box;
     }
     .card {
       background: #ffffff;
-      padding: 24px;
-      border-radius: 8px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      padding: 18px;
+      border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+      border: 1px solid #e5e7eb;
     }
     h2 {
-      margin-top: 0;
-      font-size: 18px;
+      margin: 0 0 14px 0;
+      font-size: 17px;
+      color: #1e3a8a;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .badge {
+      font-size: 11px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+    .field {
+      margin-bottom: 14px;
     }
     label {
       display: block;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
       font-weight: 600;
-      font-size: 14px;
+      font-size: 13px;
+      color: #374151;
     }
-    input[type="password"] {
+    .hint {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+    .hint a {
+      color: #2563eb;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .hint a:hover {
+      text-decoration: underline;
+    }
+    input[type="password"],
+    input[type="text"],
+    select {
       width: 100%;
-      padding: 10px;
-      font-size: 14px;
+      padding: 9px 10px;
+      font-size: 13px;
       border: 1px solid #d1d5db;
       border-radius: 6px;
       box-sizing: border-box;
-      margin-bottom: 12px;
+      background: #fff;
+      color: #111827;
+    }
+    input:focus,
+    select:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+    }
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+      font-size: 13px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .checkbox-row input {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
     }
     button {
+      flex: 1;
       background: #2563eb;
       color: #ffffff;
       border: none;
-      padding: 10px 16px;
-      font-size: 14px;
+      padding: 9px 12px;
+      font-size: 13px;
       font-weight: 600;
       border-radius: 6px;
       cursor: pointer;
+      transition: background 0.15s;
     }
     button:hover {
       background: #1d4ed8;
     }
+    button.secondary {
+      background: #f3f4f6;
+      color: #374151;
+      border: 1px solid #d1d5db;
+    }
+    button.secondary:hover {
+      background: #e5e7eb;
+    }
     #status {
       margin-top: 12px;
-      font-size: 13px;
-      color: #059669;
+      font-size: 12.5px;
+      line-height: 1.4;
       min-height: 18px;
+      word-break: break-word;
+    }
+    .status-ok {
+      color: #059669;
+    }
+    .status-err {
+      color: #dc2626;
     }
   </style>
 </head>
 <body>
   <div class="card">
-    <h2>Cài đặt VIE-Translate</h2>
-    <label for="apiKey">Anthropic API Key:</label>
-    <input type="password" id="apiKey" placeholder="Nhập sk-ant-..." autocomplete="off">
-    <button id="saveBtn">Lưu</button>
+    <h2>
+      <span>VIE-Translate</span>
+      <span class="badge">Google Free API</span>
+    </h2>
+
+    <label class="checkbox-row">
+      <input type="checkbox" id="enabled" checked>
+      <span>Bật dịch phụ đề tự động</span>
+    </label>
+
+    <label class="checkbox-row">
+      <input type="checkbox" id="dualSub" checked>
+      <span>Hiển thị phụ đề song ngữ (Gốc + Tiếng Việt)</span>
+    </label>
+
+    <div class="field">
+      <label for="provider">Bộ máy dịch:</label>
+      <select id="provider">
+        <option value="gemini">Google Gemini AI (Dịch tự nhiên theo ngữ cảnh)</option>
+        <option value="gtx">Google Translate (Nhanh, không cần API Key)</option>
+      </select>
+    </div>
+
+    <div id="geminiSection">
+      <div class="field">
+        <label for="apiKey">Google Gemini API Key (Miễn phí):</label>
+        <input type="password" id="apiKey" placeholder="Nhập AIzaSy..." autocomplete="off">
+        <div class="hint">
+          Lấy API Key miễn phí tại
+          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a>.
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="model">Model Gemini:</label>
+        <select id="model">
+          <option value="gemini-2.5-flash">gemini-2.5-flash (Khuyên dùng - Nhanh & Tự nhiên)</option>
+          <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite (Siêu nhanh, hạn mức cao)</option>
+          <option value="gemini-2.0-flash">gemini-2.0-flash (Ổn định)</option>
+        </select>
+      </div>
+
+      <label class="checkbox-row">
+        <input type="checkbox" id="fallbackToFree" checked>
+        <span>Tự động dùng Google Translate nếu chưa có Key / hết hạn mức</span>
+      </label>
+    </div>
+
+    <div class="btn-group">
+      <button id="saveBtn">Lưu cài đặt</button>
+      <button id="testBtn" class="secondary" type="button">Kiểm tra Key</button>
+    </div>
+
     <div id="status"></div>
   </div>
   <script src="options.js"></script>
