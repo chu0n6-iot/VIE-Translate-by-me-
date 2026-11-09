@@ -303,24 +303,28 @@ function parseNumberedBatchOutput(rawOut, expectedCount) {
   return resultArr;
 }
 
-function buildSystemPrompt({ targetLang = "vi", translationStyle = "natural", isBatch = false }) {
+function buildSystemPrompt({ targetLang = "vi", translationStyle = "natural", isBatch = false, softenProfanity = true }) {
   const langLabel = LANGUAGE_NAMES[targetLang] || targetLang;
   const styleDesc = STYLE_INSTRUCTIONS[translationStyle] || STYLE_INSTRUCTIONS.natural;
+
+  const profanityRule = softenProfanity
+    ? " CHẾ ĐỘ THÂN THIỆN (Family-friendly) ĐANG BẬT: nếu câu gốc có từ nói tục, chửi thề hoặc nhạy cảm (fuck, shit, damn, bitch, ass...), hãy CHỦ ĐỘNG GIẢM NHẸ TÌNH TIẾT và LÀM MỀM NGÔN TỪ, thay bằng các từ ngữ biểu cảm nhẹ nhàng, lịch sự và văn minh (ví dụ: 'chết tiệt', 'trời đất ơi', 'quái quỷ', 'bực thật', 'khốn khổ'). TUYỆT ĐỐI KHÔNG bỏ sót câu, KHÔNG từ chối dịch, giữ trọn vẹn ý nghĩa và ngữ cảnh câu chuyện."
+    : " CHẾ ĐỘ NGUYÊN VĂN ĐANG BẬT: nếu câu gốc có tiếng lóng, từ cảm thán hoặc từ chửi thề (fuck, shit, damn, bitch, ass...), BẮT BUỘC dịch thẳng sang từ tương đương tự nhiên theo văn phong đời thường (đệch, mẹ kiếp, chết tiệt, vãi...), TUYỆT ĐỐI KHÔNG kiểm duyệt, không bỏ sót và không từ chối dịch.";
 
   if (isBatch) {
     return (
       `Bạn là biên dịch viên phụ đề video chuyên nghiệp sang ${langLabel}. ` +
       `Hãy dịch từng câu được đánh số [1], [2]... sang ${langLabel}. ${styleDesc} ` +
-      `BẮT BUỘC giữ nguyên định dạng đánh số [1], [2]... trên từng dòng tương ứng, không giải thích thêm.` +
-      TRANSLATION_STYLE_RULE
+      `BẮT BUỘC giữ nguyên định dạng đánh số [1], [2]... trên từng dòng tương ứng, không giải thích thêm. ` +
+      profanityRule
     );
   }
 
   return (
     `Bạn là biên dịch viên phụ đề video chuyên nghiệp sang ${langLabel}. ` +
     `Hãy dịch câu thoại sang ${langLabel} ngắn gọn, dễ đọc trên màn hình. ${styleDesc} ` +
-    `Chỉ trả về duy nhất câu ${langLabel} đã dịch, không giải thích, không suy nghĩ dài dòng, không thêm dấu ngoặc kép.` +
-    TRANSLATION_STYLE_RULE
+    `Chỉ trả về duy nhất câu ${langLabel} đã dịch, không giải thích, không suy nghĩ dài dòng, không thêm dấu ngoặc kép. ` +
+    profanityRule
   );
 }
 
@@ -404,7 +408,8 @@ async function callGroqModel({
   apiKey,
   model,
   targetLang = "vi",
-  translationStyle = "natural"
+  translationStyle = "natural",
+  softenProfanity = true
 }) {
   let contextPrompt = "";
   if (videoTitle) {
@@ -419,7 +424,7 @@ async function callGroqModel({
   }
 
   const isBatch = Array.isArray(texts) && texts.length > 0;
-  const systemText = buildSystemPrompt({ targetLang, translationStyle, isBatch });
+  const systemText = buildSystemPrompt({ targetLang, translationStyle, isBatch, softenProfanity });
 
   const userContent = isBatch
     ? `${contextPrompt}\nDịch các câu phụ đề sau:\n${texts
@@ -483,7 +488,8 @@ async function translateWithGroqAuto({
   apiKey,
   preferredModel,
   targetLang = "vi",
-  translationStyle = "natural"
+  translationStyle = "natural",
+  softenProfanity = true
 }) {
   const candidates = await discoverGroqModels(apiKey);
   const savedRoute = activeRouteByKey.get(apiKey);
@@ -500,7 +506,8 @@ async function translateWithGroqAuto({
         apiKey,
         model: candidate,
         targetLang,
-        translationStyle
+        translationStyle,
+        softenProfanity
       });
       activeRouteByKey.set(apiKey, { model: candidate, endpointType: "groq" });
       chrome.storage.local.set({ detectedModel: candidate, availableModels: candidates });
@@ -712,7 +719,7 @@ async function callGeminiEndpoint({
   }
 
   const isBatch = Array.isArray(texts) && texts.length > 0;
-  const systemText = buildSystemPrompt({ targetLang, translationStyle, isBatch });
+  const systemText = buildSystemPrompt({ targetLang, translationStyle, isBatch, softenProfanity });
 
   const fullUserText = isBatch
     ? `${contextPrompt}\nDịch các câu phụ đề sau:\n${texts
@@ -836,7 +843,8 @@ async function translateWithGeminiAuto({
           model: candidate,
           endpointType,
           targetLang,
-          translationStyle
+          translationStyle,
+          softenProfanity
         });
         activeRouteByKey.set(apiKey, { model: candidate, endpointType });
         chrome.storage.local.set({ detectedModel: candidate, availableModels: candidates });
@@ -939,8 +947,9 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
   const secondaryLang = settings.secondaryLang || "orig";
   const translationStyle = settings.translationStyle || "natural";
 
+  const modeKey = settings.softenProfanity !== false ? "soft" : "raw";
   const targetProvider = fastPreviewOnly ? "gtx" : effectiveProvider;
-  const cacheKey = `${targetProvider}:${targetLang}:${translationStyle}:${cleanText}`;
+  const cacheKey = `${targetProvider}:${targetLang}:${translationStyle}:${modeKey}:${cleanText}`;
 
   const cached = getCached(cacheKey);
   if (cached) {
@@ -976,7 +985,8 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
                 apiKey: rawKey,
                 preferredModel: settings.model || "auto",
                 targetLang,
-                translationStyle
+                translationStyle,
+                softenProfanity: settings.softenProfanity !== false
               })
             : translateWithGeminiAuto({
                 text: cleanText,
@@ -1082,12 +1092,13 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
   const targetLang = settings.targetLang || "vi";
   const translationStyle = settings.translationStyle || "natural";
 
+  const modeKey = settings.softenProfanity !== false ? "soft" : "raw";
   const results = {};
   const uncached = [];
 
   for (const text of cleanList) {
     const cached =
-      getCached(`${effectiveProvider}:${targetLang}:${translationStyle}:${text}`) ||
+      getCached(`${effectiveProvider}:${targetLang}:${translationStyle}:${modeKey}:${text}`) ||
       getCached(`gtx:${targetLang}:natural:${text}`);
     if (cached) {
       results[text] = cached;
@@ -1131,7 +1142,8 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
             apiKey: rawKey,
             preferredModel: settings.model || "auto",
             targetLang,
-            translationStyle
+            translationStyle,
+            softenProfanity: settings.softenProfanity !== false
           })
         : await translateWithGeminiAuto({
             texts: uncached,
@@ -1140,15 +1152,16 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
             apiKey: rawKey,
             preferredModel: settings.model || "auto",
             targetLang,
-            translationStyle
-          });
+            translationStyle,
+            softenProfanity: settings.softenProfanity !== false
+              });
 
     const translations = batchRes.translations || [];
     for (let i = 0; i < uncached.length; i++) {
       const src = uncached[i];
       const vi = (translations[i] || "").trim();
       if (vi) {
-        setCached(`${effectiveProvider}:${targetLang}:${translationStyle}:${src}`, vi);
+        setCached(`${effectiveProvider}:${targetLang}:${translationStyle}:${modeKey}:${src}`, vi);
         pushTabContext(tabId, videoTitle, src, vi);
         results[src] = vi;
       }
