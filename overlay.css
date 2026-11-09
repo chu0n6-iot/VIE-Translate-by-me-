@@ -1,11 +1,12 @@
 .vie-overlay,
 #vie-overlay {
   position: absolute;
+  /* Khung cố định: luôn cách đều 2 bên, không co giãn theo độ dài câu */
   left: 50%;
-  bottom: 10%;
+  bottom: 12%;
   transform: translateX(-50%);
-  max-width: 86%;
-  width: max-content;
+  width: 70%;
+  max-width: 1100px;
   padding: 8px 16px;
   background: rgba(10, 12, 18, 0.78);
   backdrop-filter: blur(6px);
@@ -18,7 +19,7 @@
   z-index: 2147483647;
   pointer-events: none;
   box-sizing: border-box;
-  transition: opacity 0.14s ease, transform 0.14s ease;
+  transition: opacity 0.14s ease;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
 }
 
@@ -35,6 +36,7 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95);
   white-space: normal;
   word-break: break-word;
+  min-height: 1.35em;
 }
 
 .vie-overlay .vie-vi {
@@ -45,6 +47,11 @@
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.75);
   white-space: normal;
   word-break: break-word;
+  /* Giữ sẵn chiều cao 2 dòng để khung không nhảy lên xuống */
+  min-height: 2.8em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .vie-overlay .vie-vi.vie-preview {
