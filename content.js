@@ -273,6 +273,33 @@ function getVideoTitle() {
   return document.title.replace(/\s*-\s*YouTube$/i, "").trim().slice(0, 140);
 }
 
+function getChannelName() {
+  const ch =
+    document.querySelector("ytd-watch-metadata #channel-name a")?.textContent ||
+    document.querySelector(".ytd-channel-name a")?.textContent ||
+    document.querySelector("[itemprop='author'] [itemprop='name']")?.getAttribute("content") ||
+    "";
+  return (ch || "").trim().slice(0, 80);
+}
+
+function looksLikeMusicVideo(title, html = "", duration = 0) {
+  if (html && (html.includes('"category":"Music"') || html.includes('"musicVideoType"'))) {
+    return true;
+  }
+  const t = (title || "").toLowerCase();
+  if (
+    /\b(mv|m\/v|official\s*(music\s*)?video|lyrics?|lyric\s*video|official\s*audio|visualizer|ost|soundtrack|cover|remix|karaoke|acoustic|ft\.?|feat\.?|prod\.?|single|album)\b/i.test(
+      t
+    )
+  ) {
+    return true;
+  }
+  if (t.includes(" - ") && (!duration || (duration >= 60 && duration <= 540))) {
+    return true;
+  }
+  return false;
+}
+
 function normalizeSubtitleText(rawText) {
   return (rawText || "")
     .replace(/<[^>]+>/g, " ")
@@ -282,6 +309,8 @@ function normalizeSubtitleText(rawText) {
 }
 
 const videoStateMap = new WeakMap();
+// Ghi nhớ trạng thái người dùng đã bật chế độ AI Nghe & Dịch xuyên suốt khi chuyển qua video khác
+let userWantsAudioCapture = false;
 
 function getVideoState(video) {
   let state = videoStateMap.get(video);
@@ -299,12 +328,34 @@ function getVideoState(video) {
       hasReceivedAnySubtitle: false,
       audioCaptureActive: false,
       audioRecorder: null,
-      audioInterval: null,
+      audioLoopTimer: null,
+      audioRetryTimer: null,
+      capturedSrc: "",
+      videoNavKey: "",
       toadBtnEl: null
     };
     videoStateMap.set(video, state);
   }
   return state;
+}
+
+function updateToadButtonUI(video, mode = "idle") {
+  const state = getVideoState(video);
+  const btn = state.toadBtnEl;
+  if (!btn) return;
+  const span = btn.querySelector("span");
+  if (!span) return;
+
+  if (mode === "lyrics") {
+    btn.classList.add("vie-audio-active");
+    span.textContent = "🎵 Đã đồng bộ Lyrics AI";
+  } else if (mode === "listening" || state.audioCaptureActive || userWantsAudioCapture) {
+    btn.classList.add("vie-audio-active");
+    span.textContent = "🎙️ Đang nghe & dịch AI...";
+  } else {
+    btn.classList.remove("vie-audio-active");
+    span.textContent = "AI Nghe & Dịch (Không cần CC)";
+  }
 }
 
 function getSecondaryDisplayLine(origText, sub2Text) {
@@ -552,8 +603,19 @@ function prefetchUpcomingCues(video, track) {
   );
 }
 
-// Dịch trước & đồng bộ theo thời gian cho YouTube (gộp câu thông minh cho cả Auto-Captions ASR)
-const ytCueState = { vid: "", cues: [], sent: new Set(), timer: null, renderTimer: null };
+// ============================================================================
+// ĐỒNG BỘ THEO THỜI GIAN CHO YOUTUBE & TỰ ĐỘNG TÌM LYRICS BÀI HÁT TRÊN MẠNG
+// ============================================================================
+
+const ytCueState = {
+  vid: "",
+  cues: [],
+  isLyrics: false,
+  lyricsSearchedTitle: "",
+  sent: new Set(),
+  timer: null,
+  renderTimer: null
+};
 
 function mergeEventsIntoSentences(events) {
   const out = [];
@@ -584,43 +646,181 @@ function mergeEventsIntoSentences(events) {
   return out;
 }
 
+function extractYouTubeMetaFromHtml(html) {
+  if (!html) return { title: "", author: "", duration: 0 };
+  let title = "";
+  let author = "";
+  let duration = 0;
+
+  try {
+    const detailsMatch = html.match(/"videoDetails":\{([\s\S]{1,1200}?)\}/);
+    const block = detailsMatch ? detailsMatch[1] : html;
+    const titleMatch = block.match(/"title":"((?:[^"\\]|\\.)*)"/);
+    const authorMatch = block.match(/"author":"((?:[^"\\]|\\.)*)"/);
+    const lenMatch = block.match(/"lengthSeconds":"(\d+)"/);
+
+    if (titleMatch) title = JSON.parse(`"${titleMatch[1]}"`);
+    if (authorMatch) author = JSON.parse(`"${authorMatch[1]}"`);
+    if (lenMatch) duration = parseInt(lenMatch[1], 10) || 0;
+  } catch {
+    // Bỏ qua lỗi parse
+  }
+
+  return { title: title.trim(), author: author.trim(), duration };
+}
+
+function tryLoadSongLyricsForVideo(video, expectedVid = "", metaOverride = null) {
+  return new Promise((resolve) => {
+    const title = (metaOverride?.title || getVideoTitle() || "").trim();
+    if (!title || title.length < 3) {
+      resolve(false);
+      return;
+    }
+
+    const duration =
+      metaOverride?.duration ||
+      (Number.isFinite(video?.duration) ? video.duration : 0);
+    const channelName = (metaOverride?.author || getChannelName() || "").trim();
+
+    chrome.runtime.sendMessage(
+      {
+        type: "SEARCH_SONG_LYRICS",
+        videoTitle: title,
+        channelName,
+        duration
+      },
+      (res) => {
+        if (chrome.runtime.lastError || !res?.found) {
+          resolve(false);
+          return;
+        }
+        if (expectedVid && ytCueState.vid && ytCueState.vid !== expectedVid) {
+          resolve(false);
+          return;
+        }
+        if (res.synced && Array.isArray(res.cues) && res.cues.length >= 4) {
+          ytCueState.cues = res.cues;
+          ytCueState.isLyrics = true;
+          ytCueState.sent.clear();
+          const st = getVideoState(video);
+          st.hasReceivedAnySubtitle = true;
+          // Nếu đang bật thu âm live thì tạm ngắt recorder vì đã có Lyrics chuẩn từng mili-giây
+          if (st.audioCaptureActive) {
+            stopVideoAudioCapture(video, false);
+          }
+          updateToadButtonUI(video, "lyrics");
+          renderYouTubeByTime(video);
+          prefetchYouTubeCues(video);
+          resolve(true);
+          return;
+        }
+        resolve(false);
+      }
+    );
+  });
+}
+
 async function loadYouTubeCues(video) {
   if (!location.hostname.includes("youtube.com")) return;
   const vid = new URL(location.href).searchParams.get("v");
-  if (!vid || ytCueState.vid === vid) return;
-  ytCueState.vid = vid;
-  ytCueState.cues = [];
-  ytCueState.sent = new Set();
-  try {
-    const html = await (await fetch(`/watch?v=${vid}`, { credentials: "include" })).text();
-    const m = html.match(/"captionTracks":(\[\{.*?\}\]),"/);
-    if (!m) return;
-    const tracks = JSON.parse(m[1]);
-    const notTarget = tracks.filter(
-      (t) => !(t.languageCode || "").toLowerCase().startsWith((settings.targetLang || "vi").toLowerCase())
-    );
-    const pool = notTarget.length ? notTarget : tracks;
-    const track = pool.find((t) => t.kind !== "asr") || pool[0];
-    if (!track) return;
-    const data = await (await fetch(`${track.baseUrl}&fmt=json3`, { credentials: "include" })).json();
-    const events = [];
-    for (const ev of data.events || []) {
-      if (!ev.segs) continue;
-      const text = normalizeSubtitleText(ev.segs.map((sg) => sg.utf8 || "").join(""));
-      if (!text) continue;
-      const start = (ev.tStartMs || 0) / 1000;
-      events.push({ start, end: start + (ev.dDurationMs || 2000) / 1000, text });
+  if (!vid) {
+    if (ytCueState.vid) {
+      ytCueState.vid = "";
+      ytCueState.cues = [];
+      ytCueState.isLyrics = false;
+      ytCueState.sent.clear();
     }
-    const cues = track.kind === "asr" ? mergeEventsIntoSentences(events) : events;
-    if (ytCueState.vid === vid) {
-      ytCueState.cues = cues;
-      if (video) {
-        renderYouTubeByTime(video);
-        prefetchYouTubeCues(video);
+    return;
+  }
+
+  // Nếu đang ở cùng video nhưng chưa có cues và tiêu đề vừa cập nhật xong, thử quét lại lyrics cho video nhạc
+  if (ytCueState.vid === vid) {
+    if (!ytCueState.cues.length) {
+      const currentTitle = getVideoTitle();
+      if (
+        currentTitle &&
+        currentTitle !== ytCueState.lyricsSearchedTitle &&
+        (looksLikeMusicVideo(currentTitle, "", video?.duration || 0) ||
+          userWantsAudioCapture ||
+          settings.autoAudioNoCC)
+      ) {
+        ytCueState.lyricsSearchedTitle = currentTitle;
+        await tryLoadSongLyricsForVideo(video, vid);
       }
     }
+    return;
+  }
+
+  ytCueState.vid = vid;
+  ytCueState.cues = [];
+  ytCueState.isLyrics = false;
+  ytCueState.lyricsSearchedTitle = "";
+  ytCueState.sent = new Set();
+
+  try {
+    const html = await (await fetch(`/watch?v=${vid}`, { credentials: "include" })).text();
+    const htmlMeta = extractYouTubeMetaFromHtml(html);
+    const title = htmlMeta.title || getVideoTitle();
+    const duration = htmlMeta.duration || video?.duration || 0;
+    const isMusic = looksLikeMusicVideo(title, html, duration);
+    const m = html.match(/"captionTracks":(\[\{.*?\}\]),"/);
+
+    let manualTrack = null;
+    let asrTrack = null;
+
+    if (m) {
+      const tracks = JSON.parse(m[1]);
+      const notTarget = tracks.filter(
+        (t) =>
+          !(t.languageCode || "")
+            .toLowerCase()
+            .startsWith((settings.targetLang || "vi").toLowerCase())
+      );
+      const pool = notTarget.length ? notTarget : tracks;
+      manualTrack = pool.find((t) => t.kind !== "asr") || null;
+      asrTrack = pool.find((t) => t.kind === "asr") || pool[0] || null;
+    }
+
+    // Với video nhạc: ưu tiên tìm Lyrics chuẩn nhịp nhạc (LRC) trên mạng trước nếu không có sub thủ công
+    // hoặc khi người dùng bật chế độ AI Nghe & Dịch
+    if (isMusic && (!manualTrack || userWantsAudioCapture)) {
+      ytCueState.lyricsSearchedTitle = title;
+      const foundSynced = await tryLoadSongLyricsForVideo(video, vid, htmlMeta);
+      if (foundSynced) return;
+    }
+
+    const chosenTrack = manualTrack || asrTrack;
+    if (chosenTrack) {
+      const data = await (
+        await fetch(`${chosenTrack.baseUrl}&fmt=json3`, { credentials: "include" })
+      ).json();
+      const events = [];
+      for (const ev of data.events || []) {
+        if (!ev.segs) continue;
+        const text = normalizeSubtitleText(ev.segs.map((sg) => sg.utf8 || "").join(""));
+        if (!text) continue;
+        const start = (ev.tStartMs || 0) / 1000;
+        events.push({ start, end: start + (ev.dDurationMs || 2000) / 1000, text });
+      }
+      const cues = chosenTrack.kind === "asr" ? mergeEventsIntoSentences(events) : events;
+      if (ytCueState.vid === vid && cues.length > 0) {
+        ytCueState.cues = cues;
+        ytCueState.isLyrics = false;
+        if (video) {
+          renderYouTubeByTime(video);
+          prefetchYouTubeCues(video);
+        }
+        return;
+      }
+    }
+
+    // Nếu video hoàn toàn không có captionTracks trên YouTube, thử tìm Lyrics bài hát trên mạng
+    if (!ytCueState.lyricsSearchedTitle && title) {
+      ytCueState.lyricsSearchedTitle = title;
+      await tryLoadSongLyricsForVideo(video, vid, htmlMeta);
+    }
   } catch {
-    // Nếu YouTube chặn tải trước timedtext thì vẫn dịch trực tiếp real-time từ DOM
+    // Nếu YouTube chặn tải trước timedtext thì vẫn dịch trực tiếp real-time từ DOM hoặc Lyrics
   }
 }
 
@@ -656,10 +856,14 @@ function renderYouTubeByTime(video) {
   const cues = ytCueState.cues;
   if (!cues.length || !settings.enabled) return false;
 
-  const ccBtn = document.querySelector(".ytp-subtitles-button");
-  if (ccBtn && ccBtn.getAttribute("aria-pressed") === "false") {
-    hideOverlay(video);
-    return true;
+  // Nếu là phụ đề CC thường của YouTube thì tôn trọng nút bật/tắt CC,
+  // nhưng nếu là Lyrics bài hát tự tìm hoặc người dùng đã bật AI Nghe & Dịch thì luôn hiển thị!
+  if (!ytCueState.isLyrics && !userWantsAudioCapture) {
+    const ccBtn = document.querySelector(".ytp-subtitles-button");
+    if (ccBtn && ccBtn.getAttribute("aria-pressed") === "false") {
+      hideOverlay(video);
+      return true;
+    }
   }
 
   const t = video.currentTime || 0;
@@ -700,24 +904,25 @@ function renderYouTubeByTime(video) {
 }
 
 function startYouTubePrefetch(video) {
-  if (!video.closest(".html5-video-player")) return;
-  loadYouTubeCues(video);
-  if (ytCueState.timer) return;
-  ytCueState.timer = setInterval(() => {
+  const isYt = location.hostname.includes("youtube.com") && video.closest(".html5-video-player");
+  if (isYt) {
     loadYouTubeCues(video);
-    prefetchYouTubeCues(video);
-  }, 1200);
-  ytCueState.renderTimer = setInterval(() => renderYouTubeByTime(video), 50);
-  video.addEventListener("timeupdate", () => renderYouTubeByTime(video));
-  video.addEventListener("seeking", () => {
-    ytCueState.sent.clear();
-    renderYouTubeByTime(video);
-    prefetchYouTubeCues(video);
-  });
+  }
+  if (!ytCueState.timer) {
+    ytCueState.timer = setInterval(() => {
+      if (location.hostname.includes("youtube.com")) {
+        loadYouTubeCues(video);
+      }
+      prefetchYouTubeCues(video);
+    }, 1200);
+  }
+  if (!ytCueState.renderTimer) {
+    ytCueState.renderTimer = setInterval(() => renderYouTubeByTime(video), 50);
+  }
 }
 
 // ============================================================================
-// TÍNH NĂNG MỞ RỘNG: DỊCH VIDEO TRÊN TRANG WEB KHÔNG CÓ NÚT CC / SUBTITLES
+// TÍNH NĂNG MỞ RỘNG: AI NGHE & DỊCH CUỐN CHIẾU (ZERO-GAP) & TỰ KẾT NỐI KHI ĐỔI VIDEO
 // ============================================================================
 
 function blobToBase64(blob) {
@@ -733,12 +938,19 @@ function blobToBase64(blob) {
   });
 }
 
-function stopVideoAudioCapture(video) {
+function stopVideoAudioCapture(video, disableUserIntent = true) {
   const state = getVideoState(video);
+  if (disableUserIntent) {
+    userWantsAudioCapture = false;
+  }
   state.audioCaptureActive = false;
-  if (state.audioInterval) {
-    clearInterval(state.audioInterval);
-    state.audioInterval = null;
+  if (state.audioLoopTimer) {
+    clearTimeout(state.audioLoopTimer);
+    state.audioLoopTimer = null;
+  }
+  if (state.audioRetryTimer) {
+    clearTimeout(state.audioRetryTimer);
+    state.audioRetryTimer = null;
   }
   if (state.audioRecorder && state.audioRecorder.state !== "inactive") {
     try {
@@ -748,38 +960,71 @@ function stopVideoAudioCapture(video) {
     }
   }
   state.audioRecorder = null;
-  if (state.toadBtnEl) {
-    state.toadBtnEl.classList.remove("vie-audio-active");
-    const span = state.toadBtnEl.querySelector("span");
-    if (span) span.textContent = "AI Nghe & Dịch (Không cần CC)";
-  }
+  updateToadButtonUI(
+    video,
+    ytCueState.isLyrics && ytCueState.cues.length
+      ? "lyrics"
+      : userWantsAudioCapture
+      ? "listening"
+      : "idle"
+  );
 }
 
-function startVideoAudioCapture(video) {
+async function startVideoAudioCapture(video, isAutoReconnect = false) {
   const state = getVideoState(video);
-  if (state.audioCaptureActive) {
-    stopVideoAudioCapture(video);
+
+  // Nếu người dùng bấm trực tiếp vào nút Cóc khi đang bật -> tắt hẳn chế độ AI Nghe & Dịch
+  if (!isAutoReconnect && (state.audioCaptureActive || userWantsAudioCapture)) {
+    stopVideoAudioCapture(video, true);
+    if (ytCueState.isLyrics) {
+      ytCueState.cues = [];
+      ytCueState.isLyrics = false;
+      hideOverlay(video);
+    }
+    updateToadButtonUI(video, "idle");
     return;
   }
+
+  userWantsAudioCapture = true;
+  updateToadButtonUI(video, "listening");
+
+  // Bước 1: Quét tiêu đề xem video này có Lyrics đồng bộ thời gian trên mạng không (đặc biệt cho MV nhạc)
+  const foundSyncedLyrics = await tryLoadSongLyricsForVideo(video, ytCueState.vid);
+  if (foundSyncedLyrics) {
+    return;
+  }
+
+  if (!userWantsAudioCapture || !settings.enabled) return;
 
   const captureFn = video.captureStream || video.mozCaptureStream;
   if (typeof captureFn !== "function") {
     return;
   }
 
-  let fullStream;
-  try {
-    fullStream = captureFn.call(video);
-  } catch {
+  const acquireAudioStream = () => {
+    try {
+      const fullStream = captureFn.call(video);
+      const tracks = fullStream.getAudioTracks().filter((t) => t.readyState !== "ended");
+      if (!tracks.length) return null;
+      return new MediaStream(tracks);
+    } catch {
+      return null;
+    }
+  };
+
+  let audioOnlyStream = acquireAudioStream();
+  if (!audioOnlyStream) {
+    // Khi vừa chuyển sang video mới, luồng âm thanh có thể cần vài trăm ms để khởi tạo xong:
+    // Tự động thử kết nối lại ngay khi video phát mà không bắt người dùng bấm lại!
+    if (state.audioRetryTimer) clearTimeout(state.audioRetryTimer);
+    state.audioRetryTimer = setTimeout(() => {
+      if (userWantsAudioCapture && !state.audioCaptureActive && settings.enabled) {
+        startVideoAudioCapture(video, true);
+      }
+    }, 650);
     return;
   }
 
-  const audioTracks = fullStream.getAudioTracks();
-  if (!audioTracks || audioTracks.length === 0) {
-    return;
-  }
-
-  const audioOnlyStream = new MediaStream(audioTracks);
   const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
     ? "audio/webm;codecs=opus"
     : MediaRecorder.isTypeSupported("audio/webm")
@@ -787,31 +1032,63 @@ function startVideoAudioCapture(video) {
     : "";
 
   state.audioCaptureActive = true;
-  if (state.toadBtnEl) {
-    state.toadBtnEl.classList.add("vie-audio-active");
-    const span = state.toadBtnEl.querySelector("span");
-    if (span) span.textContent = "🎙️ Đang nghe & dịch AI...";
+  state.capturedSrc = video.currentSrc || location.href;
+  updateToadButtonUI(video, "listening");
+
+  if (!state.lastText) {
+    renderTranslation(
+      video,
+      "🐸 Translate Toad AI Audio",
+      "Đang lắng nghe & dịch trực tiếp...",
+      "",
+      true,
+      false
+    );
   }
 
-  renderTranslation(
-    video,
-    "🐸 Translate Toad AI Audio",
-    "Đang lắng nghe âm thanh video để tạo phụ đề trực tiếp...",
-    "",
-    true,
-    false
-  );
+  let isFirstSlice = true;
 
-  const recordSlice = () => {
-    if (!state.audioCaptureActive || !settings.enabled) {
-      stopVideoAudioCapture(video);
+  // Thu âm cuốn chiếu Zero-Gap: Ngay khi lát cắt trước vừa đóng để gửi lên AI,
+  // lát cắt mới bắt đầu thu ngay ở 0ms tiếp theo để không sót từ và giảm tối đa độ trễ!
+  const recordNextSlice = () => {
+    if (!state.audioCaptureActive || !userWantsAudioCapture || !settings.enabled) {
+      stopVideoAudioCapture(video, false);
       return;
     }
-    if (video.paused || video.ended || video.muted || video.volume === 0) return;
+
+    // Nếu đã tìm thấy Lyrics chuẩn nhịp nhạc trong lúc đang nghe thì nhường cho bộ đồng bộ Lyrics
+    if (ytCueState.isLyrics && ytCueState.cues.length > 0) {
+      stopVideoAudioCapture(video, false);
+      updateToadButtonUI(video, "lyrics");
+      return;
+    }
+
+    if (video.paused || video.ended || video.muted || video.volume === 0) {
+      state.audioLoopTimer = setTimeout(recordNextSlice, 500);
+      return;
+    }
+
+    // Nếu luồng âm thanh của video bị đổi (do chuyển bài / hết quảng cáo), tự động lấy lại stream mới!
+    const currentTracks = audioOnlyStream ? audioOnlyStream.getAudioTracks() : [];
+    if (
+      !currentTracks.length ||
+      currentTracks[0].readyState === "ended" ||
+      (video.currentSrc && video.currentSrc !== state.capturedSrc)
+    ) {
+      audioOnlyStream = acquireAudioStream();
+      state.capturedSrc = video.currentSrc || location.href;
+      if (!audioOnlyStream) {
+        state.audioLoopTimer = setTimeout(recordNextSlice, 600);
+        return;
+      }
+    }
+
+    const sliceDurationMs = isFirstSlice ? 1500 : 1850;
+    isFirstSlice = false;
 
     try {
       const recorder = mimeType
-        ? new MediaRecorder(audioOnlyStream, { mimeType, audioBitsPerSecond: 32000 })
+        ? new MediaRecorder(audioOnlyStream, { mimeType, audioBitsPerSecond: 24000 })
         : new MediaRecorder(audioOnlyStream);
       const chunks = [];
 
@@ -822,7 +1099,7 @@ function startVideoAudioCapture(video) {
       recorder.onstop = async () => {
         if (!state.audioCaptureActive || chunks.length === 0) return;
         const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
-        if (blob.size < 600) return;
+        if (blob.size < 450) return;
         try {
           const audioBase64 = await blobToBase64(blob);
           chrome.runtime.sendMessage(
@@ -834,9 +1111,7 @@ function startVideoAudioCapture(video) {
             },
             (res) => {
               if (chrome.runtime.lastError || !state.audioCaptureActive) return;
-              if (res?.error) {
-                return;
-              }
+              if (res?.error) return;
               if (res?.vi) {
                 renderTranslation(
                   video,
@@ -856,7 +1131,8 @@ function startVideoAudioCapture(video) {
 
       state.audioRecorder = recorder;
       recorder.start();
-      setTimeout(() => {
+
+      state.audioLoopTimer = setTimeout(() => {
         if (recorder.state === "recording") {
           try {
             recorder.stop();
@@ -864,14 +1140,55 @@ function startVideoAudioCapture(video) {
             // Bỏ qua
           }
         }
-      }, 2300);
+        // Bắt đầu ngay lát cắt tiếp theo (0ms gap)
+        if (state.audioCaptureActive && userWantsAudioCapture) {
+          recordNextSlice();
+        }
+      }, sliceDurationMs);
     } catch {
-      stopVideoAudioCapture(video);
+      state.audioLoopTimer = setTimeout(recordNextSlice, 800);
     }
   };
 
-  recordSlice();
-  state.audioInterval = setInterval(recordSlice, 2350);
+  recordNextSlice();
+}
+
+function handleVideoSourceOrPageChange(video) {
+  const state = getVideoState(video);
+  const currentNavKey = `${location.href}::${video.currentSrc || ""}`;
+  if (state.videoNavKey === currentNavKey) return;
+  state.videoNavKey = currentNavKey;
+
+  // Dọn phụ đề cũ của video trước
+  state.lastText = "";
+  state.reqSeq++;
+  state.lastRenderedSeq = state.reqSeq;
+  state.hasReceivedAnySubtitle = false;
+  hideOverlay(video);
+
+  // Tạm dừng recorder của luồng cũ (nhưng GIỮ NGUYÊN userWantsAudioCapture = true nếu người dùng đã bật)
+  if (state.audioCaptureActive) {
+    stopVideoAudioCapture(video, false);
+  }
+
+  observePlatformCaptions(video);
+  startYouTubePrefetch(video);
+  autoUnlockHiddenTracks(video);
+  ensureToadAudioButton(video);
+
+  // Nếu người dùng đã bật AI Nghe & Dịch từ video trước (hoặc bật tự động),
+  // tự động kích hoạt lại trên video mới mà không cần bấm tắt/bật lại!
+  if ((userWantsAudioCapture || settings.autoAudioNoCC) && settings.enabled) {
+    if (state.audioRetryTimer) clearTimeout(state.audioRetryTimer);
+    state.audioRetryTimer = setTimeout(() => {
+      if (!settings.enabled) return;
+      if (userWantsAudioCapture) {
+        startVideoAudioCapture(video, true);
+      } else if (settings.autoAudioNoCC && !state.hasReceivedAnySubtitle && !video.paused) {
+        startVideoAudioCapture(video, true);
+      }
+    }, 550);
+  }
 }
 
 function ensureToadAudioButton(video) {
@@ -887,7 +1204,7 @@ function ensureToadAudioButton(video) {
     btn.type = "button";
     btn.className = "vie-toad-audio-btn";
     btn.title =
-      "Bật/Tắt chế độ Translate Toad AI tự nghe âm thanh và tạo phụ đề cho các video không có nút CC/Subtitles";
+      "Bật/Tắt chế độ Translate Toad AI: Tự tìm Lyrics chuẩn nhịp cho video nhạc hoặc tự nghe âm thanh tạo phụ đề khi không có CC";
 
     const iconUrl = chrome.runtime.getURL("assets/icon48.png");
     btn.innerHTML = `<img src="${iconUrl}" alt="Toad"><span>AI Nghe & Dịch (Không cần CC)</span>`;
@@ -895,10 +1212,20 @@ function ensureToadAudioButton(video) {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       e.preventDefault();
-      startVideoAudioCapture(video);
+      startVideoAudioCapture(video, false);
     });
 
     container.appendChild(btn);
+    state.toadBtnEl = btn;
+    updateToadButtonUI(
+      video,
+      ytCueState.isLyrics && ytCueState.cues.length
+        ? "lyrics"
+        : state.audioCaptureActive || userWantsAudioCapture
+        ? "listening"
+        : "idle"
+    );
+  } else {
     state.toadBtnEl = btn;
   }
 }
@@ -1021,6 +1348,9 @@ function watchVideo(video) {
   if (watchedVideos.has(video)) return;
   watchedVideos.add(video);
 
+  const state = getVideoState(video);
+  state.videoNavKey = `${location.href}::${video.currentSrc || ""}`;
+
   if (video.textTracks) {
     for (const track of video.textTracks) {
       bindTextTrack(video, track);
@@ -1033,24 +1363,42 @@ function watchVideo(video) {
     });
   }
 
-  video.addEventListener("loadedmetadata", () => {
-    observePlatformCaptions(video);
-    autoUnlockHiddenTracks(video);
-    ensureToadAudioButton(video);
+  video.addEventListener("timeupdate", () => renderYouTubeByTime(video));
+  video.addEventListener("seeking", () => {
+    ytCueState.sent.clear();
+    renderYouTubeByTime(video);
+    prefetchYouTubeCues(video);
   });
 
-  video.addEventListener("play", () => {
-    observePlatformCaptions(video);
-    autoUnlockHiddenTracks(video);
-    ensureToadAudioButton(video);
+  video.addEventListener("loadedmetadata", () => {
+    handleVideoSourceOrPageChange(video);
+  });
 
-    if (settings.autoAudioNoCC && settings.enabled) {
+  video.addEventListener("loadeddata", () => {
+    handleVideoSourceOrPageChange(video);
+  });
+
+  video.addEventListener("playing", () => {
+    handleVideoSourceOrPageChange(video);
+    if (userWantsAudioCapture && !state.audioCaptureActive && !ytCueState.isLyrics && settings.enabled) {
+      startVideoAudioCapture(video, true);
+    } else if (
+      settings.autoAudioNoCC &&
+      settings.enabled &&
+      !state.hasReceivedAnySubtitle &&
+      !state.audioCaptureActive &&
+      !ytCueState.isLyrics
+    ) {
       setTimeout(() => {
-        const st = getVideoState(video);
-        if (!st.hasReceivedAnySubtitle && !st.audioCaptureActive && !video.paused) {
-          startVideoAudioCapture(video);
+        if (
+          !state.hasReceivedAnySubtitle &&
+          !state.audioCaptureActive &&
+          !ytCueState.isLyrics &&
+          !video.paused
+        ) {
+          startVideoAudioCapture(video, true);
         }
-      }, 3500);
+      }, 2200);
     }
   });
 }
@@ -1059,12 +1407,22 @@ function scanVideos() {
   document.querySelectorAll("video").forEach(watchVideo);
 }
 
-["play", "loadedmetadata", "loadeddata"].forEach((evtName) => {
+// Bắt sự kiện chuyển bài / chuyển video SPA trên YouTube và các nền tảng web
+["yt-navigate-finish", "yt-page-data-updated", "popstate"].forEach((evtName) => {
+  window.addEventListener(evtName, () => {
+    document.querySelectorAll("video").forEach((video) => {
+      handleVideoSourceOrPageChange(video);
+    });
+  });
+});
+
+["play", "playing", "loadedmetadata", "loadeddata"].forEach((evtName) => {
   document.addEventListener(
     evtName,
     (e) => {
       if (e.target && e.target.tagName === "VIDEO") {
         watchVideo(e.target);
+        handleVideoSourceOrPageChange(e.target);
       }
     },
     true
