@@ -167,37 +167,37 @@ document.addEventListener("DOMContentLoaded", async () => {
     detectedModelBadge.style.display = "none";
   }
 
-  function showModelList(models, selectedModel) {
+  function showModelList(models, activeModel, preferredSetting = "auto") {
     if (!modelField) return;
     const list = Array.isArray(models) ? [...models] : [];
-    if (selectedModel && selectedModel !== "auto" && !list.includes(selectedModel)) {
-      list.unshift(selectedModel);
+    if (activeModel && activeModel !== "auto" && !list.includes(activeModel)) {
+      list.unshift(activeModel);
     }
 
     modelSelect.innerHTML = "";
     const autoOpt = document.createElement("option");
     autoOpt.value = "auto";
-    autoOpt.textContent = "✨ Tự động chọn Model tốt nhất (Tự chuyển nếu hết Quota)";
+    autoOpt.textContent = "✨ Tự động xoay vòng Model (Âm thầm đổi khi hết Quota)";
     modelSelect.appendChild(autoOpt);
 
     for (const m of list) {
       const opt = document.createElement("option");
       opt.value = m;
-      opt.textContent = m === selectedModel ? `✓ ${m}` : m;
+      opt.textContent = m === activeModel ? `✓ ${m} (Đang chạy)` : m;
       modelSelect.appendChild(opt);
     }
 
-    if (selectedModel && (selectedModel === "auto" || list.includes(selectedModel))) {
-      modelSelect.value = selectedModel;
-    } else if (list.length > 0) {
-      modelSelect.value = list[0];
+    if (preferredSetting && preferredSetting !== "auto" && list.includes(preferredSetting)) {
+      modelSelect.value = preferredSetting;
+    } else {
+      modelSelect.value = "auto";
     }
 
     if (modelCount) modelCount.textContent = `${list.length} model`;
     modelField.style.display = list.length > 0 ? "block" : "none";
 
-    if (selectedModel) {
-      detectedModelBadge.textContent = `✓ Đã xác thực hoạt động: ${selectedModel}`;
+    if (activeModel) {
+      detectedModelBadge.textContent = `✓ Đang chạy: ${activeModel} (Tự chuyển nếu hết Quota)`;
       detectedModelBadge.style.display = "inline-block";
     } else {
       detectedModelBadge.style.display = "none";
@@ -292,12 +292,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     stored.availableModels.length > 0 &&
     providerSelect.value !== "gtx"
   ) {
-    const sel =
-      stored.model === "auto" || stored.availableModels.includes(stored.model)
-        ? stored.model
-        : stored.detectedModel || stored.availableModels[0];
-    showModelList(stored.availableModels, stored.detectedModel || sel);
-    setToadSay(`Ộp! Đang kết nối mượt mà với [${stored.detectedModel || sel}] 🐸🎧`);
+    const activeModel = stored.detectedModel || stored.availableModels[0];
+    showModelList(stored.availableModels, activeModel, stored.model || "auto");
+    setToadSay(`Ộp! Đang kết nối mượt mà với [${activeModel}] 🐸🎧`);
   } else {
     hideModelList();
   }
@@ -306,7 +303,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     tryAutoReadClipboard(true);
   }
 
-  // Lắng nghe sự kiện khi tab Google AI Studio tự động nhập Key thành công
+  // Lắng nghe sự kiện khi tab Google AI Studio tự động nhập Key hoặc khi Cóc âm thầm chuyển model
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
     if (changes.lastAutoImportAt?.newValue) {
@@ -318,6 +315,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           groqApiKey: "",
           verifiedKey: "",
           detectedModel: "",
+          model: "auto",
           availableModels: []
         },
         (s) => {
@@ -327,7 +325,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           updateProviderUI(s.provider, false);
           apiKeyInput.value = s.apiKey;
           verifiedKey = s.verifiedKey;
-          showModelList(s.availableModels, s.detectedModel);
+          showModelList(s.availableModels, s.detectedModel, s.model || "auto");
           setToadSay(`Ộp ộp! Đã tự động lấy Key thành công: [${s.detectedModel}] 🐸✨`);
           showStatus(
             `✓ Đã tự động nhận & kích hoạt API Key từ Google AI Studio! Đang dùng [${s.detectedModel}].`,
@@ -335,6 +333,10 @@ document.addEventListener("DOMContentLoaded", async () => {
           );
         }
       );
+    } else if (changes.detectedModel?.newValue && detectedModelBadge) {
+      const newModel = changes.detectedModel.newValue;
+      detectedModelBadge.textContent = `✓ Đang chạy: ${newModel} (Tự chuyển nếu hết Quota)`;
+      detectedModelBadge.style.display = "inline-block";
     }
   });
 
@@ -352,10 +354,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     const key = apiKeyInput.value.trim();
     if (p !== "gtx" && key && key === verifiedKey) {
       chrome.storage.local
-        .get({ availableModels: [], model: "", detectedModel: "" })
+        .get({ availableModels: [], model: "auto", detectedModel: "" })
         .then((s) => {
           if (s.availableModels.length > 0) {
-            showModelList(s.availableModels, s.detectedModel || s.model);
+            showModelList(s.availableModels, s.detectedModel || s.availableModels[0], s.model);
           }
         });
     }
@@ -610,19 +612,19 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         verifiedKey = key;
-        showModelList(res.availableModels || [], res.modelUsed);
+        showModelList(res.availableModels || [], res.modelUsed, preferred);
 
         await saveCurrentSettings(true);
         await chrome.storage.local.set({
           verifiedKey: key,
           availableModels: res.availableModels || [],
           detectedModel: res.modelUsed,
-          model: res.modelUsed
+          model: preferred || "auto"
         });
 
         setToadSay(`Tuyệt vời! Cóc đang dịch bằng [${res.modelUsed}] 🐸🎧`);
         showStatus(
-          `✓ API Key hợp lệ! Tìm thấy ${(res.availableModels || []).length} model. Đang dùng [${res.modelUsed}].\nDịch thử: "${res.sample}"`,
+          `✓ API Key hợp lệ! Tìm thấy ${(res.availableModels || []).length} model. Đang dùng [${res.modelUsed}] (Tự động chuyển model khác nếu hết Quota).\nDịch thử: "${res.sample}"`,
           "ok"
         );
       }

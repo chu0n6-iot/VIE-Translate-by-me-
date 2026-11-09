@@ -358,7 +358,7 @@ function scheduleTranslate(video, rawText, immediate = false) {
       state.reqSeq++;
       state.lastRenderedSeq = state.reqSeq;
       hideOverlay(video);
-    }, 900);
+    }, 700);
     return;
   }
 
@@ -398,7 +398,7 @@ function scheduleTranslate(video, rawText, immediate = false) {
 
   const now = Date.now();
   const elapsed = now - state.lastSendAt;
-  const THROTTLE_MS = 250;
+  const THROTTLE_MS = 110;
 
   if (elapsed >= THROTTLE_MS) {
     state.lastSendAt = now;
@@ -423,7 +423,7 @@ function scheduleTranslate(video, rawText, immediate = false) {
           translateAndShow(video, state.lastText, false);
         }
       },
-      endsWithPunct ? 120 : 380
+      endsWithPunct ? 70 : 240
     );
   }
 }
@@ -441,28 +441,30 @@ function translateAndShow(video, text, fastStreamMode = false) {
 
   let settled = false;
 
+  // Song song hiển thị ngay bản dịch tức thời (0ms delay) để người dùng đọc kịp ngay lập tức,
+  // sau đó bản dịch AI chuẩn ngữ cảnh sẽ tự động nâng cấp đè lên khi hoàn tất
   if (!fastStreamMode && settings.provider !== "gtx") {
-    if (state.previewTimer) clearTimeout(state.previewTimer);
-    state.previewTimer = setTimeout(() => {
-      if (settled || currentSeq < state.lastRenderedSeq || !settings.enabled) return;
-      chrome.runtime.sendMessage(
-        {
-          type: "TRANSLATE",
-          text,
-          videoTitle: getVideoTitle(),
-          fastPreviewOnly: true
-        },
-        (previewRes) => {
-          if (chrome.runtime.lastError) return;
-          if (settled || currentSeq < state.lastRenderedSeq || !settings.enabled) return;
-          const previewVi = (previewRes?.vi || "").trim();
-          if (previewVi) {
-            state.lastRenderedSeq = Math.max(state.lastRenderedSeq, currentSeq);
-            renderTranslation(video, text, previewVi, previewRes?.sub2 || "", true, false);
-          }
+    if (state.previewTimer) {
+      clearTimeout(state.previewTimer);
+      state.previewTimer = null;
+    }
+    chrome.runtime.sendMessage(
+      {
+        type: "TRANSLATE",
+        text,
+        videoTitle: getVideoTitle(),
+        fastPreviewOnly: true
+      },
+      (previewRes) => {
+        if (chrome.runtime.lastError) return;
+        if (settled || currentSeq < state.lastRenderedSeq || !settings.enabled) return;
+        const previewVi = (previewRes?.vi || "").trim();
+        if (previewVi) {
+          state.lastRenderedSeq = Math.max(state.lastRenderedSeq, currentSeq);
+          renderTranslation(video, text, previewVi, previewRes?.sub2 || "", true, false);
         }
-      );
-    }, 190);
+      }
+    );
   }
 
   chrome.runtime.sendMessage(
@@ -481,9 +483,8 @@ function translateAndShow(video, text, fastStreamMode = false) {
       if (chrome.runtime.lastError) return;
       if (currentSeq < state.lastRenderedSeq || !settings.enabled) return;
 
+      // Không bao giờ hiện thông báo lỗi màu đỏ che video khi hết quota
       if (res?.error) {
-        state.lastRenderedSeq = currentSeq;
-        renderTranslation(video, text, `⚠ ${res.error}`, "", false, true);
         return;
       }
 
@@ -496,7 +497,7 @@ function translateAndShow(video, text, fastStreamMode = false) {
       if (!fastStreamMode) {
         const ck = getLocalCacheKey(text);
         localCache.set(ck, { vi: viText, sub2: sub2Text });
-        if (localCache.size > 500) {
+        if (localCache.size > 600) {
           const oldest = localCache.keys().next().value;
           localCache.delete(oldest);
         }
@@ -517,17 +518,17 @@ function prefetchUpcomingCues(video, track) {
   for (let i = 0; i < track.cues.length; i++) {
     const cue = track.cues[i];
     if (!cue || cue.endTime < now) continue;
-    if (cue.startTime > now + 75) break;
+    if (cue.startTime > now + 100) break;
     if (state.prefetchedTrackCues.has(cue)) continue;
 
     const clean = normalizeSubtitleText(cue.text || "");
     if (clean && !localCache.has(getLocalCacheKey(clean))) {
       upcomingTexts.push({ cue, clean });
-      if (upcomingTexts.length >= 8) break;
+      if (upcomingTexts.length >= 12) break;
     }
   }
 
-  if (upcomingTexts.length < 2) return;
+  if (upcomingTexts.length < 1) return;
 
   for (const item of upcomingTexts) {
     state.prefetchedTrackCues.add(item.cue);
@@ -582,7 +583,7 @@ function mergeEventsIntoSentences(events) {
   return out;
 }
 
-async function loadYouTubeCues() {
+async function loadYouTubeCues(video) {
   if (!location.hostname.includes("youtube.com")) return;
   const vid = new URL(location.href).searchParams.get("v");
   if (!vid || ytCueState.vid === vid) return;
@@ -610,7 +611,13 @@ async function loadYouTubeCues() {
       events.push({ start, end: start + (ev.dDurationMs || 2000) / 1000, text });
     }
     const cues = track.kind === "asr" ? mergeEventsIntoSentences(events) : events;
-    if (ytCueState.vid === vid) ytCueState.cues = cues;
+    if (ytCueState.vid === vid) {
+      ytCueState.cues = cues;
+      if (video) {
+        renderYouTubeByTime(video);
+        prefetchYouTubeCues(video);
+      }
+    }
   } catch {
     // Nếu YouTube chặn tải trước timedtext thì vẫn dịch trực tiếp real-time từ DOM
   }
@@ -622,11 +629,11 @@ function prefetchYouTubeCues(video) {
   const batch = [];
   for (const c of ytCueState.cues) {
     if (c.end < now) continue;
-    if (c.start > now + 90) break;
+    if (c.start > now + 120) break;
     const ck = getLocalCacheKey(c.text);
     if (ytCueState.sent.has(ck) || localCache.has(ck)) continue;
     batch.push(c.text);
-    if (batch.length >= 8) break;
+    if (batch.length >= 12) break;
   }
   if (!batch.length) return;
   batch.forEach((t) => ytCueState.sent.add(getLocalCacheKey(t)));
@@ -693,14 +700,19 @@ function renderYouTubeByTime(video) {
 
 function startYouTubePrefetch(video) {
   if (!video.closest(".html5-video-player")) return;
-  loadYouTubeCues();
+  loadYouTubeCues(video);
   if (ytCueState.timer) return;
   ytCueState.timer = setInterval(() => {
-    loadYouTubeCues();
+    loadYouTubeCues(video);
     prefetchYouTubeCues(video);
-  }, 2000);
-  ytCueState.renderTimer = setInterval(() => renderYouTubeByTime(video), 120);
-  video.addEventListener("seeking", () => ytCueState.sent.clear());
+  }, 1200);
+  ytCueState.renderTimer = setInterval(() => renderYouTubeByTime(video), 50);
+  video.addEventListener("timeupdate", () => renderYouTubeByTime(video));
+  video.addEventListener("seeking", () => {
+    ytCueState.sent.clear();
+    renderYouTubeByTime(video);
+    prefetchYouTubeCues(video);
+  });
 }
 
 // ============================================================================
@@ -751,14 +763,6 @@ function startVideoAudioCapture(video) {
 
   const captureFn = video.captureStream || video.mozCaptureStream;
   if (typeof captureFn !== "function") {
-    renderTranslation(
-      video,
-      "",
-      "⚠ Trình duyệt không hỗ trợ thu luồng âm thanh trực tiếp từ video này.",
-      "",
-      false,
-      true
-    );
     return;
   }
 
@@ -766,27 +770,11 @@ function startVideoAudioCapture(video) {
   try {
     fullStream = captureFn.call(video);
   } catch {
-    renderTranslation(
-      video,
-      "",
-      "⚠ Video này bị giới hạn bảo mật CORS nên không thể thu âm trực tiếp. Hãy bật CC nếu có.",
-      "",
-      false,
-      true
-    );
     return;
   }
 
   const audioTracks = fullStream.getAudioTracks();
   if (!audioTracks || audioTracks.length === 0) {
-    renderTranslation(
-      video,
-      "",
-      "⚠ Chưa phát hiện âm thanh từ video (Hãy chắc chắn video đang phát và không tắt tiếng).",
-      "",
-      false,
-      true
-    );
     return;
   }
 
@@ -833,7 +821,7 @@ function startVideoAudioCapture(video) {
       recorder.onstop = async () => {
         if (!state.audioCaptureActive || chunks.length === 0) return;
         const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
-        if (blob.size < 800) return;
+        if (blob.size < 600) return;
         try {
           const audioBase64 = await blobToBase64(blob);
           chrome.runtime.sendMessage(
@@ -846,7 +834,6 @@ function startVideoAudioCapture(video) {
             (res) => {
               if (chrome.runtime.lastError || !state.audioCaptureActive) return;
               if (res?.error) {
-                renderTranslation(video, "", `⚠ ${res.error}`, "", false, true);
                 return;
               }
               if (res?.vi) {
@@ -876,14 +863,14 @@ function startVideoAudioCapture(video) {
             // Bỏ qua
           }
         }
-      }, 3100);
+      }, 2300);
     } catch {
       stopVideoAudioCapture(video);
     }
   };
 
   recordSlice();
-  state.audioInterval = setInterval(recordSlice, 3200);
+  state.audioInterval = setInterval(recordSlice, 2350);
 }
 
 function ensureToadAudioButton(video) {

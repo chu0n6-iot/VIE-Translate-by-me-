@@ -212,7 +212,7 @@ function pushTabContext(tabId, videoTitle, src, vi) {
 }
 
 function isModelInCooldown(apiKey, modelId) {
-  const key = `${apiKey.slice(-10)}:${modelId}`;
+  const key = `${(apiKey || "").slice(-10)}:${modelId}`;
   const until = cooldownModels.get(key);
   if (!until) return false;
   if (Date.now() > until) {
@@ -222,8 +222,23 @@ function isModelInCooldown(apiKey, modelId) {
   return true;
 }
 
-function markModelCooldown(apiKey, modelId, durationMs = 60_000) {
-  cooldownModels.set(`${apiKey.slice(-10)}:${modelId}`, Date.now() + durationMs);
+function markModelCooldown(apiKey, modelId, durationMs = 180_000) {
+  const key = `${(apiKey || "").slice(-10)}:${modelId}`;
+  cooldownModels.set(key, Date.now() + durationMs);
+  const currentActive = activeRouteByKey.get(apiKey);
+  if (currentActive && currentActive.model === modelId) {
+    activeRouteByKey.delete(apiKey);
+  }
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 3600) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function buildOrderedCandidates(candidates, apiKey, preferredModel, savedModel) {
@@ -233,6 +248,11 @@ function buildOrderedCandidates(candidates, apiKey, preferredModel, savedModel) 
       ordered.push(m);
     }
   };
+
+  // Ưu tiên model đang chạy mượt gần nhất (savedModel) nếu người dùng để chế độ auto
+  if (savedModel && (!preferredModel || preferredModel === "auto")) {
+    add(savedModel);
+  }
 
   if (preferredModel && preferredModel !== "auto") {
     if (candidates.includes(preferredModel)) {
@@ -247,6 +267,7 @@ function buildOrderedCandidates(candidates, apiKey, preferredModel, savedModel) 
   if (savedModel) add(savedModel);
   for (const c of candidates) add(c);
 
+  // Nếu tất cả đều đang trong thời gian hồi (cooldown), giải phóng cooldown để thử lại
   if (ordered.length === 0) {
     ordered.push(...candidates.slice(0, 6));
   }
@@ -408,22 +429,27 @@ async function callGroqModel({
     ? `${contextPrompt}\nDịch câu tiếp theo:\n${text}`
     : text;
 
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`
+  const timeoutMs = isBatch ? 7000 : 3400;
+  const res = await fetchWithTimeout(
+    "https://api.groq.com/openai/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: systemText },
+          { role: "user", content: userContent }
+        ],
+        temperature: 0.2,
+        max_tokens: isBatch ? Math.min(1200, texts.length * 140) : 200
+      })
     },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: systemText },
-        { role: "user", content: userContent }
-      ],
-      temperature: 0.2,
-      max_tokens: isBatch ? Math.min(1200, texts.length * 140) : 220
-    })
-  });
+    timeoutMs
+  );
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -464,7 +490,7 @@ async function translateWithGroqAuto({
   const ordered = buildOrderedCandidates(candidates, apiKey, preferredModel, savedRoute?.model);
 
   let lastError = null;
-  for (const candidate of ordered.slice(0, 6)) {
+  for (const candidate of ordered.slice(0, 7)) {
     try {
       const out = await callGroqModel({
         text,
@@ -502,6 +528,13 @@ async function translateWithGroqAuto({
         msg.includes("not found")
       ) {
         markModelCooldown(apiKey, candidate, 24 * 60 * 60 * 1000);
+      } else if (
+        status === 429 ||
+        msg.includes("quota") ||
+        msg.includes("rate limit") ||
+        msg.includes("resource_exhausted")
+      ) {
+        markModelCooldown(apiKey, candidate, 3 * 60 * 1000);
       } else {
         markModelCooldown(apiKey, candidate, 60 * 1000);
       }
@@ -565,8 +598,10 @@ async function discoverGeminiModels(apiKey) {
   }
 
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`
+    const res = await fetchWithTimeout(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`,
+      {},
+      3000
     );
     if (!res.ok) {
       return FALLBACK_GEMINI_MODELS;
@@ -687,7 +722,8 @@ async function callGeminiEndpoint({
     ? `${contextPrompt}\nDịch câu tiếp theo:\n${text}`
     : text;
 
-  const maxTokens = isBatch ? Math.min(1200, texts.length * 140) : 220;
+  const maxTokens = isBatch ? Math.min(1200, texts.length * 140) : 200;
+  const timeoutMs = isBatch ? 7000 : 3400;
 
   let requestBody = buildGeminiBody({
     systemText,
@@ -697,11 +733,15 @@ async function callGeminiEndpoint({
     useThinkingZero: true
   });
 
-  let res = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(requestBody)
-  });
+  let res = await fetchWithTimeout(
+    endpoint,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody)
+    },
+    timeoutMs
+  );
 
   if (res.status === 400 && requestBody.generationConfig?.thinkingConfig) {
     requestBody = buildGeminiBody({
@@ -711,11 +751,15 @@ async function callGeminiEndpoint({
       maxTokens,
       useThinkingZero: false
     });
-    res = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody)
-    });
+    res = await fetchWithTimeout(
+      endpoint,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody)
+      },
+      timeoutMs
+    );
   }
 
   const data = await res.json().catch(() => ({}));
@@ -781,7 +825,7 @@ async function translateWithGeminiAuto({
 
   let lastError = null;
   for (const endpointType of endpointTypes) {
-    for (const candidate of ordered.slice(0, 6)) {
+    for (const candidate of ordered.slice(0, 7)) {
       try {
         const out = await callGeminiEndpoint({
           text,
@@ -803,13 +847,24 @@ async function translateWithGeminiAuto({
       } catch (err) {
         lastError = err;
         const status = err.status || 0;
-        if (err.refused) throw err;
-        if (status === 404 || status === 400) {
+        const msg = (err.message || "").toLowerCase();
+
+        if (err.refused) continue;
+
+        if (status === 404 || status === 400 || msg.includes("not found")) {
           markModelCooldown(apiKey, candidate, 24 * 60 * 60 * 1000);
-        } else if (status === 429 || status === 503) {
-          markModelCooldown(apiKey, candidate, 60 * 1000);
+        } else if (
+          status === 429 ||
+          status === 503 ||
+          msg.includes("quota") ||
+          msg.includes("rate") ||
+          msg.includes("exhausted")
+        ) {
+          markModelCooldown(apiKey, candidate, 3 * 60 * 1000);
         } else if (status === 401 || status === 403) {
           break;
+        } else {
+          markModelCooldown(apiKey, candidate, 45 * 1000);
         }
       }
     }
@@ -835,17 +890,27 @@ async function getActiveConfig() {
     translationStyle: "natural"
   });
 
+  const groqKey =
+    (settings.groqApiKey || "").trim() ||
+    ((settings.apiKey || "").trim().startsWith("gsk_") ? settings.apiKey.trim() : "");
+  const geminiKey =
+    (settings.geminiApiKey || "").trim() ||
+    ((settings.apiKey || "").trim().startsWith("AIza") ||
+    (settings.apiKey || "").trim().startsWith("AQ.")
+      ? settings.apiKey.trim()
+      : "");
+
   let rawKey = (settings.apiKey || "").trim();
-  if (settings.provider === "groq" && settings.groqApiKey) {
-    rawKey = settings.groqApiKey.trim();
-  } else if (settings.provider === "gemini" && settings.geminiApiKey) {
-    rawKey = settings.geminiApiKey.trim();
+  if (settings.provider === "groq" && groqKey) {
+    rawKey = groqKey;
+  } else if (settings.provider === "gemini" && geminiKey) {
+    rawKey = geminiKey;
   }
 
   const effectiveProvider =
     settings.provider === "gtx" ? "gtx" : resolveProvider(rawKey, settings.provider);
 
-  return { settings, rawKey, effectiveProvider };
+  return { settings, rawKey, groqKey, geminiKey, effectiveProvider };
 }
 
 async function resolveSecondaryTranslation(cleanText, secondaryLang, targetLang) {
@@ -869,7 +934,7 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
   const cleanText = (rawText || "").replace(/\s+/g, " ").trim();
   if (!cleanText) return { vi: "" };
 
-  const { settings, rawKey, effectiveProvider } = await getActiveConfig();
+  const { settings, rawKey, groqKey, geminiKey, effectiveProvider } = await getActiveConfig();
   const targetLang = settings.targetLang || "vi";
   const secondaryLang = settings.secondaryLang || "orig";
   const translationStyle = settings.translationStyle || "natural";
@@ -891,28 +956,13 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
     try {
       const sub2Promise = resolveSecondaryTranslation(cleanText, secondaryLang, targetLang);
 
-      if (targetProvider === "gtx") {
+      if (targetProvider === "gtx" || !rawKey) {
         const [vi, sub2] = await Promise.all([
           translateWithGoogleFree(cleanText, targetLang),
           sub2Promise
         ]);
-        if (vi) setCached(cacheKey, vi);
+        if (vi) setCached(`gtx:${targetLang}:natural:${cleanText}`, vi);
         return { vi, sub2, provider: "gtx" };
-      }
-
-      if (!rawKey) {
-        if (settings.fallbackToFree) {
-          const [vi, sub2] = await Promise.all([
-            translateWithGoogleFree(cleanText, targetLang),
-            sub2Promise
-          ]);
-          if (vi) setCached(`gtx:${targetLang}:natural:${cleanText}`, vi);
-          return { vi, sub2, provider: "gtx" };
-        }
-        return {
-          error:
-            "Chưa có API Key. Hãy mở tiện ích và bấm '⚡ Tự động nhập Key từ Google AI Studio'!"
-        };
       }
 
       const ctx = getTabContext(tabId, videoTitle);
@@ -945,8 +995,51 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
           pushTabContext(tabId, videoTitle, cleanText, result.vi);
         }
         return { vi: result.vi, sub2, provider: targetProvider, modelUsed: result.modelUsed };
-      } catch (apiErr) {
-        if (settings.fallbackToFree) {
+      } catch {
+        // Âm thầm chuyển sang nhà cung cấp AI còn lại nếu người dùng có lưu cả 2 Key (Gemini <-> Groq)
+        const backupProvider = targetProvider === "gemini" ? "groq" : "gemini";
+        const backupKey = backupProvider === "groq" ? groqKey : geminiKey;
+        if (backupKey) {
+          try {
+            const [backupRes, sub2] = await Promise.all([
+              backupProvider === "groq"
+                ? translateWithGroqAuto({
+                    text: cleanText,
+                    videoTitle,
+                    history: ctx.items,
+                    apiKey: backupKey,
+                    preferredModel: "auto",
+                    targetLang,
+                    translationStyle
+                  })
+                : translateWithGeminiAuto({
+                    text: cleanText,
+                    videoTitle,
+                    history: ctx.items,
+                    apiKey: backupKey,
+                    preferredModel: "auto",
+                    targetLang,
+                    translationStyle
+                  }),
+              sub2Promise
+            ]);
+            if (backupRes?.vi) {
+              setCached(cacheKey, backupRes.vi);
+              pushTabContext(tabId, videoTitle, cleanText, backupRes.vi);
+              return {
+                vi: backupRes.vi,
+                sub2,
+                provider: backupProvider,
+                modelUsed: backupRes.modelUsed
+              };
+            }
+          } catch {
+            // Tiếp tục chuyển êm sang Google Translate Free bên dưới
+          }
+        }
+
+        // Luôn âm thầm dự phòng qua Google Translate Free để không bao giờ hiện thông báo lỗi đỏ che video
+        try {
           const [vi, sub2] = await Promise.all([
             translateWithGoogleFree(cleanText, targetLang),
             sub2Promise
@@ -954,10 +1047,12 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
           if (vi) {
             setCached(`gtx:${targetLang}:natural:${cleanText}`, vi);
             pushTabContext(tabId, videoTitle, cleanText, vi);
-            return { vi, sub2, provider: "gtx", warning: apiErr.message };
+            return { vi, sub2, provider: "gtx" };
           }
+        } catch {
+          // Bỏ qua
         }
-        return { error: apiErr.message || "Lỗi gọi API dịch" };
+        return { vi: "" };
       }
     } finally {
       inFlight.delete(cacheKey);
@@ -979,11 +1074,11 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
         .map((t) => (t || "").replace(/\s+/g, " ").trim())
         .filter(Boolean)
     )
-  ).slice(0, 8);
+  ).slice(0, 12);
 
   if (cleanList.length === 0) return { results: {} };
 
-  const { settings, rawKey, effectiveProvider } = await getActiveConfig();
+  const { settings, rawKey, groqKey, geminiKey, effectiveProvider } = await getActiveConfig();
   const targetLang = settings.targetLang || "vi";
   const translationStyle = settings.translationStyle || "natural";
 
@@ -1060,23 +1155,61 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
     }
     return { results, provider: effectiveProvider, modelUsed: batchRes.modelUsed };
   } catch {
-    if (settings.fallbackToFree) {
-      await Promise.all(
-        uncached.map(async (t) => {
-          try {
-            const vi = await translateWithGoogleFree(t, targetLang);
-            if (vi) {
-              setCached(`gtx:${targetLang}:natural:${t}`, vi);
-              results[t] = vi;
-            }
-          } catch {
-            // Bỏ qua
+    // Âm thầm thử nhà cung cấp AI dự phòng nếu có
+    const backupProvider = effectiveProvider === "gemini" ? "groq" : "gemini";
+    const backupKey = backupProvider === "groq" ? groqKey : geminiKey;
+    if (backupKey) {
+      try {
+        const backupBatch =
+          backupProvider === "groq"
+            ? await translateWithGroqAuto({
+                texts: uncached,
+                videoTitle,
+                history: ctx.items,
+                apiKey: backupKey,
+                preferredModel: "auto",
+                targetLang,
+                translationStyle
+              })
+            : await translateWithGeminiAuto({
+                texts: uncached,
+                videoTitle,
+                history: ctx.items,
+                apiKey: backupKey,
+                preferredModel: "auto",
+                targetLang,
+                translationStyle
+              });
+        const translations = backupBatch.translations || [];
+        for (let i = 0; i < uncached.length; i++) {
+          const src = uncached[i];
+          const vi = (translations[i] || "").trim();
+          if (vi) {
+            setCached(`${effectiveProvider}:${targetLang}:${translationStyle}:${src}`, vi);
+            pushTabContext(tabId, videoTitle, src, vi);
+            results[src] = vi;
           }
-        })
-      );
-      return { results, provider: "gtx" };
+        }
+        return { results, provider: backupProvider, modelUsed: backupBatch.modelUsed };
+      } catch {
+        // Tiếp tục rơi êm về Google Translate Free
+      }
     }
-    return { results };
+
+    await Promise.all(
+      uncached.map(async (t) => {
+        try {
+          const vi = await translateWithGoogleFree(t, targetLang);
+          if (vi) {
+            setCached(`gtx:${targetLang}:natural:${t}`, vi);
+            results[t] = vi;
+          }
+        } catch {
+          // Bỏ qua
+        }
+      })
+    );
+    return { results, provider: "gtx" };
   }
 }
 
@@ -1099,7 +1232,11 @@ async function transcribeWithGroqWhisper(audioBase64, mimeType, groqKey) {
   const ext = (mimeType || "").includes("mp4") ? "mp4" : "webm";
   const blob = new Blob([bytes], { type: mimeType || "audio/webm" });
 
-  const models = ["whisper-large-v3-turbo", "whisper-large-v3"];
+  const models = ["whisper-large-v3-turbo", "whisper-large-v3"].filter(
+    (m) => !isModelInCooldown(groqKey, m)
+  );
+  if (models.length === 0) models.push("whisper-large-v3-turbo", "whisper-large-v3");
+
   let lastErr = null;
 
   for (const whisperModel of models) {
@@ -1110,14 +1247,21 @@ async function transcribeWithGroqWhisper(audioBase64, mimeType, groqKey) {
       form.append("response_format", "json");
       form.append("temperature", "0");
 
-      const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${groqKey}` },
-        body: form
-      });
+      const res = await fetchWithTimeout(
+        "https://api.groq.com/openai/v1/audio/transcriptions",
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${groqKey}` },
+          body: form
+        },
+        4500
+      );
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (res.status === 429 || res.status === 503) {
+          markModelCooldown(groqKey, whisperModel, 3 * 60 * 1000);
+        }
         lastErr = new Error(data?.error?.message || `Groq Whisper HTTP ${res.status}`);
         continue;
       }
@@ -1140,8 +1284,14 @@ async function transcribeAndTranslateWithGeminiAudio({
   videoTitle
 }) {
   const candidates = await discoverGeminiModels(geminiKey);
-  const audioModels = candidates.filter((m) => !m.includes("gemma")).slice(0, 3);
-  if (audioModels.length === 0) audioModels.push("gemini-2.5-flash", "gemini-2.0-flash");
+  const nonGemma = candidates.filter((m) => !m.includes("gemma"));
+  const savedRoute = activeRouteByKey.get(geminiKey);
+  const audioModels = buildOrderedCandidates(
+    nonGemma.length > 0 ? nonGemma : FALLBACK_GEMINI_MODELS,
+    geminiKey,
+    "auto",
+    savedRoute?.model && !savedRoute.model.includes("gemma") ? savedRoute.model : ""
+  ).slice(0, 6);
 
   const langLabel = LANGUAGE_NAMES[targetLang] || targetLang;
   const styleDesc = STYLE_INSTRUCTIONS[translationStyle] || STYLE_INSTRUCTIONS.natural;
@@ -1161,39 +1311,57 @@ async function transcribeAndTranslateWithGeminiAudio({
         model
       )}:generateContent?key=${encodeURIComponent(geminiKey)}`;
 
-      const generationConfig = { temperature: 0.1, maxOutputTokens: 220 };
+      const generationConfig = { temperature: 0.1, maxOutputTokens: 200 };
       if (model.includes("gemini-2.5")) {
         generationConfig.thinkingConfig = { thinkingBudget: 0 };
       }
 
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: "user",
-              parts: [
-                {
-                  inlineData: {
-                    mimeType: (mimeType || "audio/webm").split(";")[0],
-                    data: audioBase64
-                  }
-                },
-                { text: prompt }
-              ]
-            }
-          ],
-          safetySettings: GEMINI_SAFETY_OFF,
-          generationConfig
-        })
-      });
+      const res = await fetchWithTimeout(
+        endpoint,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: (mimeType || "audio/webm").split(";")[0],
+                      data: audioBase64
+                    }
+                  },
+                  { text: prompt }
+                ]
+              }
+            ],
+            safetySettings: GEMINI_SAFETY_OFF,
+            generationConfig
+          })
+        },
+        4800
+      );
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        const msg = (data?.error?.message || "").toLowerCase();
+        if (
+          res.status === 429 ||
+          res.status === 503 ||
+          msg.includes("quota") ||
+          msg.includes("exhausted")
+        ) {
+          markModelCooldown(geminiKey, model, 3 * 60 * 1000);
+        } else if (res.status === 404 || res.status === 400) {
+          markModelCooldown(geminiKey, model, 24 * 60 * 60 * 1000);
+        }
         lastErr = new Error(data?.error?.message || `Gemini Audio HTTP ${res.status}`);
         continue;
       }
+
+      activeRouteByKey.set(geminiKey, { model, endpointType: "aistudio" });
+      chrome.storage.local.set({ detectedModel: model });
 
       const out = (data?.candidates?.[0]?.content?.parts || [])
         .filter((p) => !p.thought)
@@ -1214,6 +1382,7 @@ async function transcribeAndTranslateWithGeminiAudio({
       return { orig, vi };
     } catch (err) {
       lastErr = err;
+      markModelCooldown(geminiKey, model, 45 * 1000);
     }
   }
   throw lastErr || new Error("Không thể xử lý âm thanh bằng Gemini Audio");
@@ -1256,36 +1425,36 @@ async function handleTranscribeAudio(audioBase64, mimeType, videoTitle, tabId) {
         sub2: transRes?.sub2 || "",
         provider: "groq-whisper"
       };
-    } catch (groqErr) {
-      if (!geminiKey) {
-        return { error: groqErr.message };
-      }
+    } catch {
+      // Âm thầm chuyển sang Gemini Audio nếu Groq Whisper lỗi hoặc hết quota
     }
   }
 
   if (geminiKey) {
-    const { orig, vi } = await transcribeAndTranslateWithGeminiAudio({
-      audioBase64,
-      mimeType,
-      geminiKey,
-      targetLang: stored.targetLang || "vi",
-      translationStyle: stored.translationStyle || "natural",
-      videoTitle
-    });
-    if (!orig || !vi) return { orig: "", vi: "" };
-    const sub2 = await resolveSecondaryTranslation(
-      orig,
-      stored.secondaryLang || "orig",
-      stored.targetLang || "vi"
-    );
-    pushTabContext(tabId, videoTitle, orig, vi);
-    return { orig, vi, sub2, provider: "gemini-audio" };
+    try {
+      const { orig, vi } = await transcribeAndTranslateWithGeminiAudio({
+        audioBase64,
+        mimeType,
+        geminiKey,
+        targetLang: stored.targetLang || "vi",
+        translationStyle: stored.translationStyle || "natural",
+        videoTitle
+      });
+      if (!orig || !vi) return { orig: "", vi: "" };
+      const sub2 = await resolveSecondaryTranslation(
+        orig,
+        stored.secondaryLang || "orig",
+        stored.targetLang || "vi"
+      );
+      pushTabContext(tabId, videoTitle, orig, vi);
+      return { orig, vi, sub2, provider: "gemini-audio" };
+    } catch {
+      // Âm thầm bỏ qua đoạn âm thanh lỗi thay vì hiện cảnh báo đỏ che màn hình video
+      return { orig: "", vi: "" };
+    }
   }
 
-  return {
-    error:
-      "Cần có Gemini API Key hoặc Groq API Key để bật tính năng AI Nghe & Dịch cho video không có CC!"
-  };
+  return { orig: "", vi: "" };
 }
 
 // ============================================================================
@@ -1296,7 +1465,7 @@ async function translateWithGoogleFree(text, targetLang = "vi") {
   const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(
     targetLang
   )}&dt=t&q=${encodeURIComponent(text)}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url, {}, 2800);
   if (!res.ok) {
     throw new Error(`Google Translate HTTP ${res.status}`);
   }
@@ -1377,7 +1546,7 @@ async function handleAutoImportApiKey(rawKey) {
     apiKey: trimmedKey,
     verifiedKey: trimmedKey,
     detectedModel: verifyRes.modelUsed,
-    model: verifyRes.modelUsed,
+    model: "auto",
     availableModels: verifyRes.availableModels || [],
     lastAutoImportAt: Date.now()
   };
