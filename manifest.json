@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "VIE-Translate — Translate Toad AI",
-  "version": "0.6.0",
-  "description": "Real-time customizable bilingual subtitle translator & AI audio captioner for all video websites (Gemini, Groq & Google Translate)",
+  "version": "0.6.2",
+  "description": "Real-time customizable bilingual subtitle translator, synced music lyrics finder & AI audio captioner for all video websites",
   "icons": {
     "16": "assets/icon16.png",
     "48": "assets/icon48.png",
@@ -17,7 +17,8 @@
     "https://generativelanguage.googleapis.com/*",
     "https://aiplatform.googleapis.com/*",
     "https://translate.googleapis.com/*",
-    "https://aistudio.google.com/*"
+    "https://aistudio.google.com/*",
+    "https://lrclib.net/*"
   ],
   "background": {
     "service_worker": "background.js"

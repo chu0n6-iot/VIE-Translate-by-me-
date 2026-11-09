@@ -133,7 +133,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const tabId = sender.tab?.id ?? "global";
     handleTranscribeAudio(msg.audioBase64, msg.mimeType, msg.videoTitle || "", tabId)
       .then(sendResponse)
-      .catch((err) => sendResponse({ error: err.message || "Lỗi nhận diện âm thanh AI" }));
+      .catch(() => sendResponse({ orig: "", vi: "" }));
+    return true;
+  }
+
+  if (msg.type === "SEARCH_SONG_LYRICS") {
+    const tabId = sender.tab?.id ?? "global";
+    handleSearchSongLyrics(msg, tabId)
+      .then(sendResponse)
+      .catch(() => sendResponse({ found: false }));
     return true;
   }
 
@@ -1227,8 +1235,194 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
 }
 
 // ============================================================================
-// 4. DỊCH VIDEO KHÔNG CÓ PHỤ ĐỀ / CC (AI LIVE AUDIO CAPTURE -> WHISPER / GEMINI)
+// 4. TÌM LYRICS BÀI HÁT TRÊN MẠNG (LRCLIB LRC + AI) & AI LIVE AUDIO (WHISPER / GEMINI)
 // ============================================================================
+
+const songLyricsCache = new Map(); // queryKey -> { found, synced, cues, plainLyrics, trackName, artistName }
+const tabLyricsContext = new Map(); // tabId -> { videoTitle, plainLyrics }
+
+function cleanSongTitleForLyrics(rawTitle, channelName = "") {
+  let s = (rawTitle || "").trim();
+  if (!s) return { primary: "", secondary: "" };
+
+  // Xóa các thẻ ngoặc chứa từ khóa rác phổ biến trên YouTube MV
+  const noiseBracketRegex =
+    /[\(\[\{【][^)\]\}】]*\b(official|music\s*video|m\/v|mv|lyric|lyrics|audio|visualizer|live|performance|vietsub|engsub|sub|karaoke|hd|4k|hq|remaster|remastered|prod\.?|ost|soundtrack|ver\.?|version|full|clip|video|color\s*coded|pinyin|romaji|han|eng|vi)\b[^)\]\}】]*[\)\]\}】]/gi;
+  s = s.replace(noiseBracketRegex, " ");
+
+  // Xóa hashtag, hậu tố sau dấu | hoặc //
+  s = s
+    .replace(/#\S+/g, " ")
+    .replace(/\s+[\|｜\/]{1,2}\s+.*$/, " ")
+    .replace(/\b(official\s+music\s+video|official\s+video|official\s+mv|official\s+audio|lyrics?\s+video|m\/v)\b/gi, " ")
+    .replace(/\b(ft\.?|feat\.?|featuring)\s+[^-\(\[\|]+/gi, " ")
+    .replace(/[“”"''`´]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const cleanChannel = (channelName || "")
+    .replace(/\b(official|vevo|topic|music|records|entertainment|channel)\b/gi, "")
+    .replace(/\s*-\s*topic$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  let secondary = "";
+  if (s.includes(" - ")) {
+    const parts = s
+      .split(" - ")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (parts.length >= 2) {
+      secondary = `${parts[0]} ${parts[1]}`.replace(/\s+/g, " ").trim();
+    }
+  } else if (cleanChannel && !s.toLowerCase().includes(cleanChannel.toLowerCase())) {
+    secondary = `${cleanChannel} ${s}`.trim();
+  }
+
+  return { primary: s, secondary };
+}
+
+function parseSyncedLrcToCues(lrcText) {
+  if (!lrcText || typeof lrcText !== "string") return [];
+  const lines = lrcText.split(/\r?\n/);
+  const rawCues = [];
+  const timeRegex = /\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
+
+  for (const line of lines) {
+    timeRegex.lastIndex = 0;
+    const times = [];
+    let match;
+    while ((match = timeRegex.exec(line)) !== null) {
+      const min = parseInt(match[1], 10);
+      const sec = parseInt(match[2], 10);
+      const fracRaw = match[3] || "0";
+      const frac = parseInt(fracRaw.padEnd(3, "0").slice(0, 3), 10) / 1000;
+      times.push(min * 60 + sec + frac);
+    }
+    if (!times.length) continue;
+
+    const text = line
+      .replace(/\[\d{1,3}:\d{2}(?:[.:]\d{1,3})?\]/g, "")
+      .replace(/^[\s♪♫♬〜~\-]+|[\s♪♫♬〜~\-]+$/g, "")
+      .trim();
+
+    if (!text || /^(instrumental|intro|outro|music)$/i.test(text)) continue;
+
+    for (const t of times) {
+      rawCues.push({ start: t, text });
+    }
+  }
+
+  rawCues.sort((a, b) => a.start - b.start);
+
+  const cues = [];
+  for (let i = 0; i < rawCues.length; i++) {
+    const cur = rawCues[i];
+    const next = rawCues[i + 1];
+    const end = next ? Math.min(next.start, cur.start + 7.0) : cur.start + 5.0;
+    if (end > cur.start + 0.15) {
+      cues.push({ start: cur.start, end, text: cur.text });
+    }
+  }
+  return cues;
+}
+
+async function searchLrclibCandidates(query) {
+  if (!query || query.length < 2) return [];
+  try {
+    const url = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
+    const res = await fetchWithTimeout(url, {}, 3500);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+async function handleSearchSongLyrics(msg, tabId) {
+  const rawTitle = (msg.videoTitle || "").trim();
+  const channelName = (msg.channelName || "").trim();
+  const duration = Number(msg.duration) || 0;
+  if (!rawTitle) return { found: false };
+
+  const cacheKey = `${rawTitle.toLowerCase()}::${Math.round(duration / 5)}`;
+  if (songLyricsCache.has(cacheKey)) {
+    const cached = songLyricsCache.get(cacheKey);
+    if (cached.plainLyrics) {
+      tabLyricsContext.set(tabId, { videoTitle: rawTitle, plainLyrics: cached.plainLyrics });
+    }
+    return cached;
+  }
+
+  const { primary, secondary } = cleanSongTitleForLyrics(rawTitle, channelName);
+  let candidates = await searchLrclibCandidates(primary);
+  if (candidates.length === 0 && secondary && secondary !== primary) {
+    candidates = await searchLrclibCandidates(secondary);
+  }
+
+  let bestSynced = null;
+  let bestSyncedScore = -9999;
+  let bestPlain = null;
+
+  for (const item of candidates) {
+    if (!item || item.instrumental) continue;
+    if (!bestPlain && item.plainLyrics) {
+      bestPlain = item;
+    }
+    if (item.syncedLyrics) {
+      let score = 1000;
+      if (duration > 20 && item.duration > 20) {
+        const diff = Math.abs(item.duration - duration);
+        if (diff <= 3) score += 350;
+        else if (diff <= 8) score += 200;
+        else if (diff <= 18) score += 80;
+        else if (diff > 40) score -= 450;
+      }
+      if (score > bestSyncedScore) {
+        bestSyncedScore = score;
+        bestSynced = item;
+      }
+    }
+  }
+
+  if (bestSynced && bestSyncedScore >= 700) {
+    const cues = parseSyncedLrcToCues(bestSynced.syncedLyrics);
+    if (cues.length >= 4) {
+      const plain = bestSynced.plainLyrics || cues.map((c) => c.text).join("\n");
+      const out = {
+        found: true,
+        synced: true,
+        cues,
+        plainLyrics: plain.slice(0, 2500),
+        trackName: bestSynced.trackName || primary,
+        artistName: bestSynced.artistName || channelName
+      };
+      songLyricsCache.set(cacheKey, out);
+      tabLyricsContext.set(tabId, { videoTitle: rawTitle, plainLyrics: out.plainLyrics });
+      return out;
+    }
+  }
+
+  if (bestPlain && bestPlain.plainLyrics) {
+    const plain = bestPlain.plainLyrics.slice(0, 2500);
+    const out = {
+      found: true,
+      synced: false,
+      cues: [],
+      plainLyrics: plain,
+      trackName: bestPlain.trackName || primary,
+      artistName: bestPlain.artistName || channelName
+    };
+    songLyricsCache.set(cacheKey, out);
+    tabLyricsContext.set(tabId, { videoTitle: rawTitle, plainLyrics: plain });
+    return out;
+  }
+
+  const notFound = { found: false, synced: false, cues: [] };
+  songLyricsCache.set(cacheKey, notFound);
+  return notFound;
+}
 
 function base64ToUint8Array(base64) {
   const binary = atob(base64);
@@ -1240,7 +1434,7 @@ function base64ToUint8Array(base64) {
   return bytes;
 }
 
-async function transcribeWithGroqWhisper(audioBase64, mimeType, groqKey) {
+async function transcribeWithGroqWhisper(audioBase64, mimeType, groqKey, whisperPrompt = "") {
   const bytes = base64ToUint8Array(audioBase64);
   const ext = (mimeType || "").includes("mp4") ? "mp4" : "webm";
   const blob = new Blob([bytes], { type: mimeType || "audio/webm" });
@@ -1259,6 +1453,9 @@ async function transcribeWithGroqWhisper(audioBase64, mimeType, groqKey) {
       form.append("model", whisperModel);
       form.append("response_format", "json");
       form.append("temperature", "0");
+      if (whisperPrompt) {
+        form.append("prompt", whisperPrompt.slice(0, 380));
+      }
 
       const res = await fetchWithTimeout(
         "https://api.groq.com/openai/v1/audio/transcriptions",
@@ -1267,7 +1464,7 @@ async function transcribeWithGroqWhisper(audioBase64, mimeType, groqKey) {
           headers: { Authorization: `Bearer ${groqKey}` },
           body: form
         },
-        4500
+        3600
       );
 
       const data = await res.json().catch(() => ({}));
@@ -1294,7 +1491,8 @@ async function transcribeAndTranslateWithGeminiAudio({
   geminiKey,
   targetLang,
   translationStyle,
-  videoTitle
+  videoTitle,
+  referenceLyrics = ""
 }) {
   const candidates = await discoverGeminiModels(geminiKey);
   const nonGemma = candidates.filter((m) => !m.includes("gemma"));
@@ -1309,10 +1507,17 @@ async function transcribeAndTranslateWithGeminiAudio({
   const langLabel = LANGUAGE_NAMES[targetLang] || targetLang;
   const styleDesc = STYLE_INSTRUCTIONS[translationStyle] || STYLE_INSTRUCTIONS.natural;
 
+  const lyricsHint = referenceLyrics
+    ? `\nLời bài hát tham khảo của video này (dùng để nhận diện chính xác câu đang hát):\n${referenceLyrics.slice(
+        0,
+        900
+      )}\n`
+    : "";
+
   const prompt =
-    `Nghe đoạn âm thanh ngắn từ video${videoTitle ? ` "${videoTitle}"` : ""}. ` +
-    `Nếu chỉ có tiếng nhạc, tiếng ồn hoặc im lặng không có lời người nói, hãy trả về đúng 1 từ: SILENCE. ` +
-    `Nếu có lời nói, hãy chép lại câu gốc và dịch sang ${langLabel} (${styleDesc}). ` +
+    `Nghe đoạn âm thanh ngắn từ video${videoTitle ? ` "${videoTitle}"` : ""}.${lyricsHint} ` +
+    `Nếu chỉ có tiếng nhạc dạo, tiếng ồn hoặc im lặng không có lời người nói/hát, hãy trả về đúng 1 từ: SILENCE. ` +
+    `Nếu có lời nói hoặc câu hát, hãy chép lại câu gốc và dịch sang ${langLabel} (${styleDesc}). ` +
     `BẮT BUỘC trả về đúng 2 dòng theo định dạng:\n` +
     `ORIG: <câu gốc nghe được>\n` +
     `TRANS: <bản dịch sang ${langLabel}>`;
@@ -1324,7 +1529,7 @@ async function transcribeAndTranslateWithGeminiAudio({
         model
       )}:generateContent?key=${encodeURIComponent(geminiKey)}`;
 
-      const generationConfig = { temperature: 0.1, maxOutputTokens: 200 };
+      const generationConfig = { temperature: 0.1, maxOutputTokens: 180 };
       if (model.includes("gemini-2.5")) {
         generationConfig.thinkingConfig = { thinkingBudget: 0 };
       }
@@ -1353,7 +1558,7 @@ async function transcribeAndTranslateWithGeminiAudio({
             generationConfig
           })
         },
-        4800
+        3800
       );
 
       const data = await res.json().catch(() => ({}));
@@ -1424,14 +1629,36 @@ async function handleTranscribeAudio(audioBase64, mimeType, videoTitle, tabId) {
       ? stored.apiKey.trim()
       : "");
 
+  const tabLyrics = tabLyricsContext.get(tabId);
+  const referenceLyrics =
+    tabLyrics && (!videoTitle || tabLyrics.videoTitle === videoTitle)
+      ? tabLyrics.plainLyrics || ""
+      : "";
+
   // Ưu tiên Groq Whisper nếu có Groq Key vì tốc độ nhận diện âm thanh siêu nhanh (~150ms)
   if (groqKey) {
     try {
-      const origText = await transcribeWithGroqWhisper(audioBase64, mimeType, groqKey);
+      const whisperPrompt = [videoTitle, referenceLyrics.slice(0, 220)]
+        .filter(Boolean)
+        .join(" - ");
+      const origText = await transcribeWithGroqWhisper(
+        audioBase64,
+        mimeType,
+        groqKey,
+        whisperPrompt
+      );
       if (isAudioHallucination(origText)) {
         return { orig: "", vi: "" };
       }
-      const transRes = await handleTranslate(origText, videoTitle, tabId, false);
+      // Đua tốc độ giữa dịch AI và dịch nhanh để trả về kết quả dưới 700ms
+      const aiPromise = handleTranslate(origText, videoTitle, tabId, false);
+      const fastPromise = new Promise((resolve) =>
+        setTimeout(async () => {
+          const fastRes = await handleTranslate(origText, videoTitle, tabId, true);
+          resolve(fastRes);
+        }, 650)
+      );
+      const transRes = await Promise.race([aiPromise, fastPromise]);
       return {
         orig: origText,
         vi: transRes?.vi || "",
@@ -1451,7 +1678,8 @@ async function handleTranscribeAudio(audioBase64, mimeType, videoTitle, tabId) {
         geminiKey,
         targetLang: stored.targetLang || "vi",
         translationStyle: stored.translationStyle || "natural",
-        videoTitle
+        videoTitle,
+        referenceLyrics
       });
       if (!orig || !vi) return { orig: "", vi: "" };
       const sub2 = await resolveSecondaryTranslation(
