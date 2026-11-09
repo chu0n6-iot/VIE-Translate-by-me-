@@ -118,7 +118,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     detectedModel: "",
     availableModels: [],
     verifiedKey: "",
-    fallbackToFree: true
+    fallbackToFree: true,
+    overlayWidth: 70,
+    overlayScale: 100,
+    overlayBottom: 12
   });
 
   keysByProvider.groq =
@@ -136,6 +139,32 @@ document.addEventListener("DOMContentLoaded", async () => {
   fallbackInput.checked = Boolean(stored.fallbackToFree);
 
   updateProviderUI(providerSelect.value);
+
+  // Tuỳ chỉnh khung phụ đề: áp dụng ngay khi kéo
+  const overlayDefs = [
+    { key: "overlayWidth", unit: "%" },
+    { key: "overlayScale", unit: "%" },
+    { key: "overlayBottom", unit: "%" }
+  ];
+  for (const { key, unit } of overlayDefs) {
+    const input = document.getElementById(key);
+    const label = document.getElementById(`${key}Val`);
+    input.value = stored[key];
+    label.textContent = `${stored[key]}${unit}`;
+    input.addEventListener("input", () => {
+      label.textContent = `${input.value}${unit}`;
+      chrome.storage.local.set({ [key]: Number(input.value) });
+    });
+  }
+  document.getElementById("resetOverlay").addEventListener("click", (e) => {
+    e.preventDefault();
+    const defaults = { overlayWidth: 70, overlayScale: 100, overlayBottom: 12 };
+    for (const { key, unit } of overlayDefs) {
+      document.getElementById(key).value = defaults[key];
+      document.getElementById(`${key}Val`).textContent = `${defaults[key]}${unit}`;
+    }
+    chrome.storage.local.set(defaults);
+  });
 
   verifiedKey = stored.verifiedKey || "";
   const currentKey = apiKeyInput.value.trim();
