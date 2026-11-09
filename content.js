@@ -440,6 +440,77 @@ function prefetchUpcomingCues(video, track) {
   );
 }
 
+// Dịch trước phụ đề YouTube: tải cả file timedtext, dịch theo lô các câu sắp tới
+const ytCueState = { vid: "", cues: [], sent: new Set(), timer: null };
+
+async function loadYouTubeCues() {
+  const vid = new URL(location.href).searchParams.get("v");
+  if (!vid || ytCueState.vid === vid) return;
+  ytCueState.vid = vid;
+  ytCueState.cues = [];
+  ytCueState.sent = new Set();
+  try {
+    const html = await (await fetch(`/watch?v=${vid}`, { credentials: "include" })).text();
+    const m = html.match(/"captionTracks":(\[\{.*?\}\]),"/);
+    if (!m) return;
+    const tracks = JSON.parse(m[1]);
+    const notVi = tracks.filter((t) => !/^vi/i.test(t.languageCode || ""));
+    const pool = notVi.length ? notVi : tracks;
+    const track = pool.find((t) => t.kind !== "asr") || pool[0];
+    if (!track) return;
+    const data = await (await fetch(`${track.baseUrl}&fmt=json3`, { credentials: "include" })).json();
+    const cues = [];
+    for (const ev of data.events || []) {
+      if (!ev.segs) continue;
+      const text = normalizeSubtitleText(ev.segs.map((sg) => sg.utf8 || "").join(""));
+      if (!text) continue;
+      const start = (ev.tStartMs || 0) / 1000;
+      cues.push({ start, end: start + (ev.dDurationMs || 2000) / 1000, text });
+    }
+    if (ytCueState.vid === vid) ytCueState.cues = cues;
+  } catch {
+    // Không lấy được → vẫn dịch từng câu theo thời gian thực
+  }
+}
+
+function prefetchYouTubeCues(video) {
+  if (!settings.enabled || !ytCueState.cues.length) return;
+  const now = video.currentTime || 0;
+  const batch = [];
+  for (const c of ytCueState.cues) {
+    if (c.end < now) continue;
+    if (c.start > now + 60) break;
+    if (ytCueState.sent.has(c.text) || localCache.has(c.text)) continue;
+    batch.push(c.text);
+    if (batch.length >= 8) break;
+  }
+  if (!batch.length) return;
+  batch.forEach((t) => ytCueState.sent.add(t));
+  chrome.runtime.sendMessage(
+    { type: "TRANSLATE_BATCH", texts: batch, videoTitle: getVideoTitle() },
+    (res) => {
+      if (chrome.runtime.lastError || !res?.results) {
+        batch.forEach((t) => ytCueState.sent.delete(t));
+        return;
+      }
+      for (const [src, vi] of Object.entries(res.results)) {
+        if (src && vi) localCache.set(src, vi);
+      }
+    }
+  );
+}
+
+function startYouTubePrefetch(video) {
+  if (!video.closest(".html5-video-player")) return;
+  loadYouTubeCues();
+  if (ytCueState.timer) return;
+  ytCueState.timer = setInterval(() => {
+    loadYouTubeCues();
+    prefetchYouTubeCues(video);
+  }, 2000);
+  video.addEventListener("seeking", () => ytCueState.sent.clear());
+}
+
 function observePlatformCaptions(video) {
   const scopeRoot = getContainer(video) || document;
 
@@ -519,6 +590,7 @@ function bindTextTrack(video, track) {
 
 function watchVideo(video) {
   observePlatformCaptions(video);
+  startYouTubePrefetch(video);
 
   if (watchedVideos.has(video)) return;
   watchedVideos.add(video);
