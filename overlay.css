@@ -4,20 +4,22 @@
   left: 50%;
   bottom: 10%;
   transform: translateX(-50%);
-  max-width: 82%;
+  max-width: 86%;
   width: max-content;
   padding: 8px 16px;
-  background: rgba(12, 14, 20, 0.72);
-  backdrop-filter: blur(4px);
+  background: rgba(10, 12, 18, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   color: #ffffff;
-  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   text-align: center;
-  border-radius: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   z-index: 2147483647;
   pointer-events: none;
   box-sizing: border-box;
-  transition: opacity 0.15s ease;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
 }
 
 .vie-overlay.vie-hidden {
@@ -26,32 +28,48 @@
 }
 
 .vie-overlay .vie-orig {
-  font-size: clamp(13px, 1.4vw, 17px);
-  color: #d1d5db;
+  font-size: clamp(12.5px, 1.35vw, 17px);
+  color: #cbd5e1;
   margin-bottom: 4px;
   line-height: 1.35;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95);
   white-space: normal;
   word-break: break-word;
 }
 
 .vie-overlay .vie-vi {
-  font-size: clamp(17px, 2.1vw, 26px);
+  font-size: clamp(16px, 2.05vw, 26px);
   font-weight: 600;
   color: #fef08a;
   line-height: 1.4;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 6px rgba(0, 0, 0, 0.7);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.75);
   white-space: normal;
   word-break: break-word;
 }
 
-.vie-overlay .vie-vi.vie-error {
-  color: #fca5a5;
-  font-size: clamp(14px, 1.5vw, 18px);
+.vie-overlay .vie-vi.vie-preview {
+  color: #fde68a;
+  opacity: 0.92;
 }
 
-/* Ẩn phụ đề gốc của YouTube trên màn hình nhưng vẫn giữ DOM để MutationObserver đọc */
-.html5-video-player.vie-yt-active .ytp-caption-window-container {
+.vie-overlay .vie-vi.vie-error {
+  color: #fca5a5;
+  font-size: clamp(13px, 1.4vw, 17px);
+}
+
+/* Ẩn phụ đề gốc trên các trình phát phổ biến khi VIE-Translate đang hoạt động nhưng vẫn giữ DOM để đọc */
+.html5-video-player.vie-yt-active .ytp-caption-window-container,
+.vie-player-active .ytp-caption-window-container,
+.vie-player-active .vjs-text-track-display,
+.vie-player-active .jw-captions,
+.vie-player-active .plyr__captions,
+.vie-player-active .shaka-text-container,
+.vie-player-active .vp-captions,
+.vie-player-active [data-purpose="captions-cue-text"],
+.vie-player-active .bpx-player-subtitle-panel-wrap,
+.vie-player-active .art-subtitle,
+.vie-player-active .dplayer-subtitle,
+.vie-player-active .mejs__captions-layer {
   opacity: 0 !important;
   pointer-events: none !important;
 }
