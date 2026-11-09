@@ -317,3 +317,138 @@
   border-radius: 7px;
   border-left: 3px solid #fbbf24;
 }
+
+.vie-dict-more-btn {
+  margin-top: 7px;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.22) 0%, rgba(30, 58, 138, 0.45) 100%);
+  color: #fef08a;
+  font-size: 11.8px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.vie-dict-more-btn:hover {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #0f172a;
+}
+
+/* Chế độ mở rộng: Phân tích cả câu, ngữ cảnh thực tế & cách dùng */
+.vie-dict-card.vie-scene-expanded {
+  width: min(560px, 95vw);
+  max-height: min(370px, 65vh);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(251, 191, 36, 0.45) rgba(15, 23, 42, 0.4);
+}
+
+.vie-scene-sentence-box {
+  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-left: 3px solid #fbbf24;
+  border-radius: 8px;
+  padding: 7px 10px;
+  margin-bottom: 7px;
+}
+
+.vie-scene-orig {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin-bottom: 2px;
+}
+
+.vie-scene-vi {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #fef08a;
+}
+
+.vie-scene-literal {
+  font-size: 11px;
+  color: #94a3b8;
+  font-style: italic;
+  margin-top: 2px;
+}
+
+.vie-scene-block {
+  background: rgba(30, 41, 59, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  padding: 7px 10px;
+  margin-bottom: 6px;
+}
+
+.vie-scene-block:last-child {
+  margin-bottom: 0;
+}
+
+.vie-scene-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #fbbf24;
+  margin-bottom: 2px;
+}
+
+.vie-scene-text {
+  font-size: 12px;
+  color: #e2e8f0;
+  line-height: 1.45;
+}
+
+/* Thanh nút "Xem thêm ngữ cảnh & Từ điển" hiện ngay dưới câu phụ đề khi di chuột hoặc tạm dừng */
+.vie-learn-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  margin-top: 0;
+  transition: max-height 0.18s ease, opacity 0.18s ease, margin-top 0.18s ease;
+}
+
+.vie-overlay:hover .vie-learn-bar,
+.vie-player-paused .vie-overlay .vie-learn-bar,
+.vie-overlay.vie-dict-open .vie-learn-bar {
+  max-height: 32px;
+  opacity: 1;
+  margin-top: 5px;
+}
+
+.vie-learn-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2.5px 9px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  color: #fef08a;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.14s ease;
+}
+
+.vie-learn-btn:hover {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #0f172a;
+  border-color: #fef08a;
+}
+
+.vie-learn-tip {
+  font-size: 10.5px;
+  color: #cbd5e1;
+  opacity: 0.85;
+}
+

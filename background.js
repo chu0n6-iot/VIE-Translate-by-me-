@@ -174,6 +174,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg.type === "EXPLAIN_SCENE") {
+    const tabId = sender.tab?.id ?? "global";
+    handleExplainScene({
+      sentence: msg.sentence || "",
+      vi: msg.vi || "",
+      focusWord: msg.focusWord || "",
+      videoTitle: msg.videoTitle || "",
+      tabId
+    })
+      .then(sendResponse)
+      .catch((err) => sendResponse({ ok: false, error: err.message || "Lỗi phân tích ngữ cảnh" }));
+    return true;
+  }
+
   if (msg.type === "CLEAR_CACHE") {
     cache.clear();
     contextByTab.clear();
@@ -2182,3 +2196,155 @@ function parseLookupOutput(word, rawText) {
 
   return { word, pron, pos, meaning, note };
 }
+
+async function handleExplainScene({ sentence, vi, focusWord, videoTitle, tabId }) {
+  const cleanSentence = (sentence || "").replace(/\s+/g, " ").trim();
+  if (!cleanSentence) return { ok: false, error: "Chưa có câu phụ đề cần phân tích" };
+
+  const { settings, rawKey, effectiveProvider } = await getActiveConfig();
+  const targetLang = settings.targetLang || "vi";
+  const langLabel = LANGUAGE_NAMES[targetLang] || "Tiếng Việt";
+
+  const cacheKey = `scene:${effectiveProvider}:${targetLang}:${cleanSentence.toLowerCase()}:${(
+    focusWord || ""
+  ).toLowerCase()}`;
+  const cached = getCached(cacheKey);
+  if (cached) {
+    try {
+      return { ok: true, ...JSON.parse(cached), cached: true };
+    } catch {
+      // ignore invalid json
+    }
+  }
+
+  const ctx = getTabContext(tabId, videoTitle);
+  const recentDialogue = (ctx.items || [])
+    .slice(-4)
+    .map((item, idx) => `${idx + 1}. "${item.en}" -> "${item.vi}"`)
+    .join("\n");
+
+  const prompt =
+    `Phân tích chuyên sâu câu thoại trong video để người học ngoại ngữ hiểu rõ bằng ${langLabel}:\n` +
+    (videoTitle ? `- Tiêu đề video: "${videoTitle}"\n` : "") +
+    (recentDialogue ? `- Các câu thoại ngay trước đó:\n${recentDialogue}\n` : "") +
+    `- Câu gốc hiện tại: "${cleanSentence}"\n` +
+    (vi ? `- Bản dịch hiện tại trong cảnh: "${vi}"\n` : "") +
+    (focusWord ? `- Từ người học đang chú ý: "${focusWord}"\n` : "") +
+    `\nHãy trả về ĐÚNG 5 dòng theo định dạng nhãn dưới đây (không dùng markdown **, viết tự nhiên, súc tích, dễ hiểu):\n` +
+    `LITERAL: [Nghĩa đen sát từng chữ của câu gốc để người học đối chiếu]\n` +
+    `NUANCE: [Giải thích vì sao trong ngữ cảnh thực tế của cảnh này lại dịch là "${
+      vi || "..."
+    }" — sắc thái, thái độ người nói, tiếng lóng hoặc ẩn dụ]\n` +
+    `USAGE: [Cách người bản xứ dùng cấu trúc / cụm từ này ngoài đời thực và khi nào nên dùng]\n` +
+    `VOCAB: [2 đến 3 từ/cụm từ đắt giá nhất trong câu kèm phiên âm IPA và nghĩa ngắn gọn, ngăn cách nhau bởi dấu " | "]\n` +
+    `EXAMPLE: [1 câu ví dụ thực tế ngắn gọn áp dụng cấu trúc này kèm bản dịch ${langLabel}]`;
+
+  if (effectiveProvider !== "gtx" && rawKey) {
+    try {
+      const res =
+        effectiveProvider === "groq"
+          ? await translateWithGroqAuto({
+              text: prompt,
+              videoTitle: "",
+              history: [],
+              apiKey: rawKey,
+              preferredModel: settings.model || "auto",
+              targetLang,
+              translationStyle: "academic",
+              softenProfanity: false
+            })
+          : await translateWithGeminiAuto({
+              text: prompt,
+              videoTitle: "",
+              history: [],
+              apiKey: rawKey,
+              preferredModel: settings.model || "auto",
+              targetLang,
+              translationStyle: "academic",
+              softenProfanity: false
+            });
+
+      const out = (res?.vi || "").trim();
+      if (out) {
+        const parsed = parseSceneExplanation(cleanSentence, vi, out, res?.modelUsed || effectiveProvider);
+        setCached(cacheKey, JSON.stringify(parsed));
+        return { ok: true, ...parsed };
+      }
+    } catch {
+      // Dự phòng bên dưới
+    }
+  }
+
+  const literal = vi || (await translateWithGoogleFree(cleanSentence, targetLang));
+  const fallback = {
+    sentence: cleanSentence,
+    vi: vi || literal,
+    literal,
+    nuance: `Trong ngữ cảnh video này, câu "${cleanSentence}" được dịch thoát ý sang tiếng Việt là "${
+      vi || literal
+    }" để truyền tải tự nhiên cảm xúc của người nói.`,
+    usage: `Bạn có thể bấm trực tiếp vào từng từ trên câu phụ đề gốc để nghe phát âm chuẩn và tra nghĩa từ điển riêng của từ đó.`,
+    vocab: focusWord ? `${focusWord}: từ khóa trong câu` : "",
+    example: `"${cleanSentence}" → "${vi || literal}"`,
+    modelUsed: "Google Translate"
+  };
+  setCached(cacheKey, JSON.stringify(fallback));
+  return { ok: true, ...fallback };
+}
+
+function parseSceneExplanation(sentence, vi, rawText, modelUsed = "") {
+  const lines = (rawText || "")
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^[-*•]+\s*/, "").trim())
+    .filter(Boolean);
+
+  let literal = "";
+  let nuance = "";
+  let usage = "";
+  let vocab = "";
+  let example = "";
+
+  for (const line of lines) {
+    const mLit = line.match(/^(?:LITERAL|Nghĩa đen)\s*:\s*(.+)$/i);
+    if (mLit) {
+      literal = mLit[1].trim();
+      continue;
+    }
+    const mNua = line.match(/^(?:NUANCE|Ngữ cảnh|Sắc thái)\s*:\s*(.+)$/i);
+    if (mNua) {
+      nuance = mNua[1].trim();
+      continue;
+    }
+    const mUsa = line.match(/^(?:USAGE|Cách dùng)\s*:\s*(.+)$/i);
+    if (mUsa) {
+      usage = mUsa[1].trim();
+      continue;
+    }
+    const mVoc = line.match(/^(?:VOCAB|Từ vựng)\s*:\s*(.+)$/i);
+    if (mVoc) {
+      vocab = mVoc[1].trim();
+      continue;
+    }
+    const mEx = line.match(/^(?:EXAMPLE|Ví dụ)\s*:\s*(.+)$/i);
+    if (mEx) {
+      example = mEx[1].trim();
+      continue;
+    }
+  }
+
+  if (!nuance) {
+    nuance = lines.join(" ");
+  }
+
+  return {
+    sentence,
+    vi,
+    literal,
+    nuance,
+    usage,
+    vocab,
+    example,
+    modelUsed
+  };
+}
+

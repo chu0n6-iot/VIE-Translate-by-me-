@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="#-tiếng-việt-bản-hướng-dẫn-đầy-đủ-từ-a-z">🇻🇳 Bản Tiếng Việt (A–Z)</a> •
-  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.6.3`)</a> •
+  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.6.4`)</a> •
   <a href="#-english-complete-a-to-z-guide">🇬🇧 English Version (A–Z)</a> •
   <a href="#-version-history--new-mechanisms-changelog">📋 English Changelog</a>
 </p>
@@ -20,74 +20,69 @@
 
 # 🇻🇳 TIẾNG VIỆT (Bản Hướng Dẫn Đầy Đủ Từ A–Z)
 
-**VIE-Translate (Translate Toad AI `v0.6.3`)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles**.
+**VIE-Translate (Translate Toad AI `v0.6.4`)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)**, kết hợp **Trợ Lý Học Ngoại Ngữ Qua Phụ Đề (`Tra Từ Điển + Xem Thêm Ngữ Cảnh Thực Tế`)** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles**.
 
-## ✨ Tính Năng Nổi Bật (`v0.6.3`)
+## ✨ Tính Năng Nổi Bật (`v0.6.4`)
 
-1. **⚡ Tối Ưu Hóa Dịch Real-Time & Auto-Captions (Zero-Starvation Engine)**:
+1. **🎓 Học Ngoại Ngữ Qua Phụ Đề Video (Dừng Cảnh, Tra Từ Điển & Xem Thêm Ngữ Cảnh Thực Tế)**:
+   - **Rê chuột hoặc bấm dừng video để học ngay trên câu thoại (`Hover-to-Pause & Action Bar`)**: Khi bạn dừng video hoặc đưa chuột vào khung phụ đề song ngữ, video tự động tạm dừng và hiện thanh công cụ học tập ngay bên dưới câu thoại (`🎓 Xem thêm: Ngữ cảnh & Cách dùng thực tế` • `🔊 Nghe câu`).
+   - **Bấm từ bất kỳ để tra từ điển ngữ cảnh (`Click-to-Define`)**: Chạm vào bất kỳ từ nào trên dòng phụ đề gốc để xem ngay **Phiên âm IPA, Từ loại, Nghĩa sát ngữ cảnh trong cảnh phim đó, Ví dụ thực tế** và nghe phát âm chuẩn (`🔊`).
+   - **Nút `🎓 Xem thêm: Ngữ cảnh & Cách dùng thực tế` (*"Ồ, hóa ra đoạn này dịch ra như ri à!"*)**:
+     - Giải thích sâu **tại sao trong hoàn cảnh/cảnh phim đó người bản xứ lại dịch thoát ý như vậy (`💡 Tại sao trong cảnh này dịch như vậy?`)** so với **nghĩa đen từng chữ (`🔤 Nghĩa đen từng chữ`)**.
+     - Chỉ rõ **cách người bản xứ dùng cấu trúc/idiom đó ngoài đời thực (`🗣️ Cách người bản xứ dùng thực tế`)**, **từ vựng & cụm từ ăn điểm (`🧩 Từ vựng & Cụm từ ăn điểm`)** và **ví dụ áp dụng thực tế (`✨ Ví dụ áp dụng ngay`)**.
+   - **Sổ Từ Vựng & Mẫu Câu (`📚 Học Từ`)**: Lưu từ vựng hoặc lưu nguyên cả câu thoại kèm giải thích ngữ cảnh chỉ với 1 cú nhấp (`⭐ Lưu từ` / `⭐ Lưu cả câu vào Sổ từ`), ôn tập lại ngay trong popup và xuất ra file `.txt`.
+2. **⚡ Tối Ưu Hóa Dịch Real-Time & Auto-Captions (Zero-Starvation Engine)**:
    - Xử lý mượt mà cả **phụ đề tự động chạy từng chữ theo thời gian thực (Auto-Captions / ASR)** lẫn phụ đề tĩnh: sử dụng cơ chế **0ms Fast Preview + 95ms AI Refinement** giúp phụ đề hiện tức thì ngay khi nhân vật mở lời và tự nâng cấp lên bản dịch AI mượt mà không bị trễ nhịp.
    - Tự động gom cụm và dịch trước hàng loạt (**Lookahead Batch Prefetching**) cho cả `<track>` và YouTube TimedText để giảm 85% lượt gọi API.
-2. **🔒 Thống Nhất Nhân Xưng Xuyên Suốt Video (`Consistent Pronoun Lock Engine`)**:
+3. **🔒 Thống Nhất Nhân Xưng Xuyên Suốt Video (`Consistent Pronoun Lock Engine`)**:
    - Giải quyết triệt để tình trạng nhảy ngôi xưng lộn xộn (*câu trước dịch "tôi", câu sau nhảy sang "mình", "anh", "tớ"*):
-     - **Tự động khóa ngôi xưng theo ngữ cảnh (`Auto Lock`)**: AI phân tích tiêu đề và những câu thoại đầu tiên để xác định cặp đại từ chủ đạo (*Mình – Bạn* cho Vlog/Tutorial, *Tôi – Bạn* cho Tin tức/Tài liệu, *Anh/Chị – Em* cho Phim truyện) rồi **khóa cứng xuyên suốt toàn bộ video** (áp dụng cho cả dịch lẻ, dịch gom cụm `Batch` và đồng bộ hóa cả lớp dịch nhanh `0ms Preview`).
+     - **Tự động khóa ngôi xưng theo ngữ cảnh (`Auto Lock`)**: AI phân tích tiêu đề và những câu thoại đầu tiên để xác định cặp đại từ chủ đạo (*Mình – Bạn* cho Vlog/Tutorial, *Tôi – Bạn* cho Tin tức/Tài liệu, *Anh/Chị – Em* cho Phim truyện) rồi **khóa cứng xuyên suốt toàn bộ video**.
      - **4 Chế độ nhân xưng tùy chọn**: Người dùng có thể tự chọn cố định trong tab **🌍 Ngôn Ngữ**: `🔒 Tự động khóa ngôi xưng`, `🤝 Mình – Bạn`, `👔 Tôi – Bạn`, hoặc `🎬 Anh/Chị – Em`.
-3. **🎵 Tự Động Tìm Lyrics Bài Hát & Chống Lệch Nhạc (`Smart Music Lyrics Lookup`)**:
-   - Khi bật **AI Nghe & Dịch** trên các MV ca nhạc YouTube, tiện ích tự động quét tiêu đề + tên kênh, làm sạch các hậu tố (*Official MV, Lyrics, Visualizer...*) và truy vấn cơ sở dữ liệu **LRCLIB** để tải sẵn lời bài hát có mốc thời gian (`syncedLyrics`) lẫn lời chuẩn (`plainLyrics`).
-   - Giúp **hiển thị phụ đề MV ca nhạc với độ trễ 0ms theo đúng nhịp beat** hoặc mớm lời chuẩn vào Whisper/Gemini để AI không bao giờ nghe nhầm lời ca sĩ hát luyến láy.
-4. **🎙️ Dịch Cả Video & Trang Web KHÔNG Có Nút CC / Subtitles (`Toad AI Nghe & Dịch`)**:
-   - **Tự động mở khóa `<track>` ẩn**: Tự phát hiện và bật các luồng phụ đề ngầm của trang web ngay cả khi giao diện trình phát không có nút CC.
-   - **Thu âm thanh AI trực tiếp từ thẻ `<video>` (Không cần CC)**: Với các video hoàn toàn không có phụ đề (Facebook, TikTok, Vimeo, web tin tức, phim/anime raw...), chỉ cần bấm nút **🐸 `AI Nghe & Dịch`** ở góc trên phải video. Tiện ích thu trực tiếp luồng âm thanh (`2.2s` mỗi nhịp) qua **Groq Whisper (`whisper-large-v3-turbo`)** hoặc **Gemini Multimodal Audio** và tự động duy trì xuyên suốt khi bạn chuyển sang video kế tiếp!
-5. **🌍 Tùy Chỉnh Cặp Song Ngữ Đa Ngôn Ngữ & 5 Phong Cách Dịch AI**:
-   - **Tùy chọn ngôn ngữ chính & phụ**: Phối bất kỳ cặp song ngữ nào (**Việt – Pháp 🇫🇷, Việt – Anh 🇬🇧, Việt – Nhật 🇯🇵, Việt – Hàn 🇰🇷, Việt – Trung 🇨🇳, Việt – Đức 🇩🇪, Việt – Tây Ban Nha 🇪🇸, Việt – Nga 🇷🇺**) hoặc chỉ hiện 1 dòng duy nhất.
-   - **5 Phong cách biên dịch (AI Personas)**: 🌿 *Tự nhiên & Đời thường*, 🍿 *Điện ảnh / Netflix*, 🎓 *Học thuật & Chuyên ngành*, 🔥 *Hài hước / GenZ*, 📖 *Dịch sát nghĩa*.
-6. **🎨 Giao Diện Sáng Sủa, Tinh Gọn & Hiệu Ứng Tương Tác Mượt Mà (`Micro-Interactions UI`)**:
-   - Thiết kế bảng điều khiển **Translate Toad `v0.6.3`** sáng sủa, độ tương phản cao, bố cục tinh gọn vừa khít khung nhìn (không cần thanh cuộn dọc rườm rà).
-   - **Hiệu ứng phản hồi tức thì** cho mỗi thao tác: hiệu ứng nảy đàn hồi (`spring bounce`) và viền sáng ngọc lục bảo khi tick chọn cài đặt, hiệu ứng sóng lan tỏa (`ripple pulse`) kèm nháy khung Preview khi đổi màu chữ, chú cóc nhảy vui mừng kèm thông báo nổi (`floating toast pill`) mỗi khi lưu cài đặt.
-7. **🛡️ Chuyển Đổi Model Âm Thầm & Bật/Tắt Giảm Nhẹ Lời Nói Tục**:
-   - **Zero-Interruption Silent Failover**: Khi một model chạm giới hạn băng thông (HTTP 429/Quota), tiện ích **tự động chuyển âm thầm sang model dự phòng trong <50ms** mà không bao giờ hiện cảnh báo đỏ làm che khuất video.
-   - **Chế độ Thân thiện (Mặc định) / Nguyên văn**: Tùy chọn làm mềm từ ngữ nhạy cảm sang cách diễn đạt lịch sự hoặc giữ nguyên văn phong gốc của người nói.
-8. **📚 Học Ngoại Ngữ Qua Phụ Đề Song Ngữ (Hover Pause, Từ Điển Chạm Từ AI & Sổ Từ Vựng)**:
-   - **Rê chuột tự dừng video (`Hover-to-Pause`)**: Đưa chuột vào khung phụ đề để video tự động tạm dừng giúp bạn đọc kỹ câu thoại; rời chuột ra video tự phát tiếp.
-   - **Chạm từ bất kỳ để tra nghĩa theo ngữ cảnh (`Click-to-Define`)**: Bấm vào bất kỳ từ nào trên dòng phụ đề gốc để nghe phát âm chuẩn (`🔊`) và xem thẻ từ điển AI ngay trên phụ đề (gồm **Phiên âm IPA, Từ loại, Nghĩa sát ngữ cảnh câu thoại và Ví dụ/Mẹo nhớ**).
-   - **Sổ Từ Vựng (`📚 Học Từ`)**: Lưu từ vựng chỉ với 1 cú nhấp (`⭐ Lưu từ`), ôn tập lại kèm câu thoại gốc ngay trong popup và xuất ra file `.txt` bất cứ lúc nào.
-   - **Giao diện kết nối thu gọn (`Compact Connected Bar`)**: Tự động thu gọn vùng nhập API Key sau khi đã kết nối thành công, giữ giao diện luôn thoáng và gọn.
+4. **🎵 Tự Động Tìm Lyrics Bài Hát & Chống Lệch Nhạc (`Smart Music Lyrics Lookup`)**:
+   - Khi bật **AI Nghe & Dịch** trên các MV ca nhạc YouTube, tiện ích tự động quét tiêu đề + tên kênh, truy vấn **LRCLIB** để tải sẵn lời bài hát có mốc thời gian (`syncedLyrics`) lẫn lời chuẩn (`plainLyrics`), giúp hiển thị phụ đề nhạc chuẩn từng nhịp beat.
+5. **🎙️ Dịch Cả Video & Trang Web KHÔNG Có Nút CC / Subtitles (`Toad AI Nghe & Dịch`)**:
+   - **Tự động mở khóa `<track>` ẩn** + **Thu âm thanh AI trực tiếp từ thẻ `<video>` (`2.2s` mỗi nhịp)** qua **Groq Whisper (`whisper-large-v3-turbo`)** hoặc **Gemini Multimodal Audio**, tự động duy trì xuyên suốt khi chuyển bài/video mới.
+6. **🌍 Tùy Chỉnh Cặp Song Ngữ Đa Ngôn Ngữ & 5 Phong Cách Dịch AI**:
+   - Phối bất kỳ cặp song ngữ nào (**Việt – Pháp 🇫🇷, Việt – Anh 🇬🇧, Việt – Nhật 🇯🇵, Việt – Hàn 🇰🇷, Việt – Trung 🇨🇳, Việt – Đức 🇩🇪, Việt – Tây Ban Nha 🇪🇸, Việt – Nga 🇷🇺**) cùng **5 Phong cách biên dịch** (*Tự nhiên, Điện ảnh, Học thuật, GenZ, Sát nghĩa*).
+7. **🎨 Giao Diện Sáng Sủa, Tinh Gọn & Hiệu Ứng Tương Tác Mượt Mà (`Micro-Interactions UI`)**:
+   - Thiết kế bảng điều khiển **Translate Toad `v0.6.4`** sáng sủa, thanh trạng thái API thu gọn thông minh (`#connectedKeyBar`), cùng hiệu ứng nảy đàn hồi (`spring bounce`), sóng màu (`ripple pulse`) và thông báo nổi (`#microToast`) cho từng thao tác.
 
 ---
 
 ## 🚀 Lịch Sử Cập Nhật & Các Cơ Chế Mới (Changelog)
 
-### 🌟 Phiên bản `v0.6.3` (Mới nhất) — *Thống Nhất Nhân Xưng & Tinh Chỉnh Giao Diện Tương Tác*
+### 🎓 Phiên bản `v0.6.4` (Mới nhất) — *Cơ Chế Học Ngoại Ngữ Qua Phụ Đề: Tra Từ Điển, Phân Tích Ngữ Cảnh Thực Tế & Sổ Từ Vựng*
+- **Cơ chế mới — Phân Tích Ngữ Cảnh & Cách Dùng Thực Tế (`EXPLAIN_SCENE` / Nút `🎓 Xem thêm`)**:
+  - Khi người dùng dừng lại ở một câu phụ đề song ngữ và thấy *"Ồ, hóa ra đoạn này dịch ra như ri à!"*, chỉ cần bấm **`🎓 Xem thêm: Ngữ cảnh & Cách dùng thực tế`** (ngay dưới phụ đề hoặc bên trong thẻ tra từ điển) để Cóc AI phân tích sâu toàn bộ câu thoại dựa trên mạch hội thoại trước đó:
+    1. **🔤 Nghĩa đen từng chữ (`LITERAL`)**: Dịch sát từng thành phần để nắm cấu trúc gốc.
+    2. **💡 Tại sao trong cảnh này dịch như vậy (`NUANCE`)**: Giải thích sắc thái cảm xúc, ẩn ý hoặc lý do câu dịch thoát ý trong tình huống đang diễn ra trên video.
+    3. **🗣️ Cách người bản xứ dùng thực tế (`USAGE`)**: Tình huống giao tiếp thực tế ngoài đời khi người bản xứ dùng cụm từ/cấu trúc này.
+    4. **🧩 Từ vựng & Cụm từ ăn điểm (`VOCAB`)**: Giải nghĩa nhanh các idiom, phrasal verb, slang đắt giá trong câu.
+    5. **✨ Ví dụ áp dụng ngay (`EXAMPLE`)**: Câu ví dụ thực tế kèm bản dịch để người học áp dụng ngay.
+- **Cơ chế mới — Từ Điển Chạm Từ Theo Ngữ Cảnh & Sổ Tay Từ Vựng (`LOOKUP_WORD` & Tab `📚 Học Từ`)**:
+  - Rê chuột vào phụ đề tự động tạm dừng video (`hoverPauseDict`), tách từng từ trên dòng phụ đề gốc thành thẻ tương tác để bấm tra nhanh **IPA + Từ loại + Nghĩa trong câu + Phát âm TTS (`🔊`)**.
+  - Ghim cố định thẻ học (`state.isDictPinned`) khi đang xem giải thích để video không tự chạy mất, kèm nút **`▶️ Xem tiếp`** để quay lại xem phim ngay khi đọc xong.
+  - Thêm tab **`📚 Học Từ`** trên thanh điều hướng popup để quản lý từ vựng & câu thoại đã lưu, hỗ trợ nghe lại phát âm và xuất danh sách ra file `.txt`.
+
+### 🌟 Phiên bản `v0.6.3` — *Thống Nhất Nhân Xưng & Tinh Chỉnh Giao Diện Tương Tác*
 - **Cơ chế mới — Khóa Nhân Xưng Xuyên Suốt (`Consistent Pronoun Lock Engine`)**:
   - Mở rộng bộ nhớ ngữ cảnh hội thoại lên **14 câu liên tiếp** (`MAX_CONTEXT_ITEMS = 14`).
-  - Thêm bộ suy luận đại từ từ tiêu đề video (`inferInitialPronounPairFromTitle`) và cơ chế tự động khóa cặp ngôi xưng chủ đạo (`updateContextPronounLock`) xuyên suốt cả luồng dịch đơn lẻ (`TRANSLATE_SUBTITLE`) lẫn luồng dịch gom cụm (`TRANSLATE_BATCH`).
-  - Thêm bộ đồng bộ hậu kỳ `harmonizeVietnamesePronouns()` giúp ngay cả bản dịch xem trước 0ms của Google Translate cũng tự động khớp đại từ (*"mình"* / *"tôi"*) với giọng của AI, loại bỏ hiện tượng "nhảy chữ" khi câu dịch được tinh chỉnh.
-  - Bổ sung menu **🗣️ Ngôi xưng hô xuyên suốt video** trong tab **🌍 Ngôn Ngữ** (`Tự động khóa`, `Mình – Bạn`, `Tôi – Bạn`, `Anh/Chị – Em`).
+  - Thêm bộ suy luận đại từ từ tiêu đề video (`inferInitialPronounPairFromTitle`), tự động khóa cặp ngôi xưng chủ đạo (`updateContextPronounLock`) và đồng bộ hóa cả bản dịch xem trước 0ms (`harmonizeVietnamesePronouns`).
+  - Bổ sung menu **🗣️ Thống nhất ngôi xưng xuyên suốt video** trong tab **🌍 Ngôn Ngữ** (`Tự động khóa`, `Mình – Bạn`, `Tôi – Bạn`, `Anh/Chị – Em`).
 - **Nâng cấp Giao diện (`UI/UX Redesign & Micro-Interactions`)**:
-  - Làm mới bảng màu Slate-Indigo & Warm Gold sáng sủa, rõ nét, thu gọn khoảng cách các thẻ giúp giao diện gọn gàng trên một khung nhìn duy nhất.
-  - Thêm hiệu ứng động (`@keyframes tickBounce`, `swatchPulse`, `toadHappyHop`, `preview-flash` và `#microToast`) mỗi khi tick checkbox, chọn màu phụ đề, đổi tùy chọn hoặc bấm Lưu.
+  - Làm mới bảng màu Slate-Indigo & Warm Gold sáng sủa, thu gọn khoảng cách các thẻ và thêm hiệu ứng động (`tickBounce`, `swatchPulse`, `toadHappyHop`, `preview-flash`, `#microToast`).
 
 ### 🔧 Phiên bản `v0.6.2` — *Tương Thích Gemini 2.5 / 2.0 Mới Nhất & Sửa Lỗi Model Cũ*
 - **Sửa lỗi `models/gemini-1.5-flash is not found for API version v1beta`**:
-  - Loại bỏ hoàn toàn các định danh model thế hệ cũ đã bị Google ngừng hỗ trợ (`gemini-1.5-flash`, `gemini-1.5-pro`, `gemini-1.0`) khỏi danh sách khởi tạo và danh sách dự phòng.
-  - Cập nhật danh sách model mặc định sang thế hệ mới: **`gemini-2.5-flash-lite`**, **`gemini-2.5-flash`**, **`gemini-2.0-flash-lite`**, **`gemini-2.0-flash`**, và **`gemini-flash-lite-latest`**.
+  - Loại bỏ hoàn toàn các model thế hệ cũ đã ngừng hỗ trợ (`gemini-1.5-flash`, `gemini-1.5-pro`, `gemini-1.0`) và nâng cấp mặc định lên **`gemini-2.5-flash-lite`**, **`gemini-2.5-flash`**, **`gemini-2.0-flash-lite`**, **`gemini-2.0-flash`**, **`gemini-flash-lite-latest`**.
 - **Cơ chế mới — Tự động tương thích Payload (`Universal Minimal-Mode Retry`)**:
-  - Gỡ bỏ danh mục `HARM_CATEGORY_CIVIC_INTEGRITY` và trường `role` trong `systemInstruction` từng gây lỗi `HTTP 400 Bad Request` trên một số model `v1beta`.
-  - Khi gặp bất kỳmodel nào kén cấu hình `systemInstruction` hoặc `safetySettings`, tiện ích tự động gộp chỉ dẫn hệ thống vào prompt và thử lại ngay lập tức (`minimalMode`).
+  - Tự động gộp chỉ dẫn hệ thống vào prompt và thử lại ngay lập tức (`minimalMode`) nếu model từ chối `systemInstruction` hoặc `safetySettings`.
 
 ### 🔑 Phiên bản `v0.6.1` — *Phân Luồng Thông Minh Key `AIza` / `AQ.` & Vá Lỗi Dịch Thuật*
-- **Sửa lỗi `ReferenceError: softenProfanity is not defined`**:
-  - Khắc phục triệt để lỗi thiếu tham số `softenProfanity` trong `callGeminiEndpoint` và `translateWithGeminiAuto` khiến luồng dịch Gemini bị gián đoạn.
-- **Sửa lỗi `Agent Platform API has not been used in project...` với Key `AQ.`**:
-  - Phân biệt tự động giữa **Standard Google AI Studio Key (`AIzaSy...`)** và **Vertex AI Express Key (`AQ...`)** để định tuyến đúng endpoint và hướng dẫn người dùng lấy đúng chuẩn Key `AIzaSy...` miễn phí không cần bật Google Cloud Billing.
-  - Không khóa nhầm danh sách model (`markModelRateLimited`) khi lỗi xuất phát từ quyền truy cập API của Project.
+- **Sửa lỗi `ReferenceError: softenProfanity is not defined`** và phân luồng chuẩn xác giữa **Standard Google AI Studio Key (`AIzaSy...`)** với **Vertex AI Express Key (`AQ...`)**.
 
 ### 🎵 Phiên bản `v0.6.0` — *AI Tìm Lyrics Bài Hát, Chuyển Video Không Ngắt Quãng & Dịch Siêu Tốc*
-- **Cơ chế mới — Quét Tiêu Đề & Tải Trước Lyrics Nhạc (`LRCLIB Lyrics Pre-Fetcher`)**:
-  - Tự động phát hiện video âm nhạc trên YouTube, tải lời bài hát có đồng bộ thời gian (`syncedLyrics`) từ LRCLIB để hiển thị và dịch chuẩn xác theo giai điệu bài hát.
-- **Sửa lỗi phải bật/tắt lại `AI Nghe & Dịch` khi chuyển sang video khác**:
-  - Thêm bộ theo dõi chuyển trang SPA (`yt-navigate-finish`, URL poller, và trình lắng nghe thay thế thẻ `<video>`), tự động gắn lại luồng thu âm `MediaStream` sang video mới mà không cần người dùng bấm bật lại.
-- **Tăng tốc độ dịch & Ẩn thông báo lỗi hết Quota**:
-  - Giảm chu kỳ cắt âm thanh từ `3.2s` xuống `2.2s`, giảm nhịp chờ phụ đề xuống `95ms`, và ẩn toàn bộ thông báo đỏ khi chuyển đổi model dự phòng.
+- **Cơ chế mới — Quét Tiêu Đề & Tải Trước Lyrics Nhạc (`LRCLIB Lyrics Pre-Fetcher`)**, tự động duy trì `AI Nghe & Dịch` khi chuyển video mới trên YouTube và ẩn toàn bộ cảnh báo đỏ khi xoay vòng model dự phòng.
 
 ---
 
@@ -110,82 +105,61 @@
 4. Bấm biểu tượng mảnh ghép 🧩 trên thanh công cụ và **Ghim 📌** chú cóc **Translate Toad**.
 
 ### Bước C: Tự Động Lấy & Kích Hoạt API Key Miễn Phí
-1. Bấm vào biểu tượng chú cóc **VIE-Translate** trên thanh công cụ → ở tab **🔑 AI & Kết Nối**, nhấn nút màu vàng **"⚡ Tự động lấy Key từ Google AI Studio"**.
-2. Trang [Google AI Studio](https://aistudio.google.com/apikey?vie_auto_import=1) sẽ mở ra:
-   - Nếu bạn đã có Key (`AIzaSy...`), hộp trợ lý **⚡ VIE-Translate Auto Key** ở góc dưới phải sẽ tự động trích xuất và lưu Key vào tiện ích.
-   - Nếu chưa có Key, bấm **"Create API key"** trên màn hình — ngay khi Key hiện ra hoặc được Copy, tiện ích sẽ tự bắt lấy và kích hoạt model tốt nhất!
-3. Bạn cũng có thể copy Key của **Groq Cloud (`gsk_...`)** tại [console.groq.com/keys](https://console.groq.com/keys) rồi bấm **"📋 Dán"**.
+1. Bấm vào biểu tượng chú cóc **VIE-Translate** trên thanh công cụ → ở tab **🔑 Kết Nối**, nhấn nút màu vàng **"🚀 Tự động lấy Key từ Google AI Studio"**.
+2. Trang [Google AI Studio](https://aistudio.google.com/apikey?vie_auto_import=1) sẽ mở ra và tự động trích xuất/lưu Key `AIzaSy...` vào tiện ích. Sau khi kết nối, vùng nhập Key sẽ tự thu gọn thành thanh trạng thái xanh gọn gàng!
 
-### Bước D: Tùy Chỉnh Song Ngữ, Ngôi Xưng & Giao Diện Phụ Đề
-1. Chuyển sang tab **🌍 Ngôn Ngữ**:
-   - Chọn **Ngôn ngữ dịch chính** (ví dụ: *🇻🇳 Tiếng Việt*) và **Dòng phụ ở trên** (ví dụ: *🇫🇷 Song ngữ với Tiếng Pháp* hoặc *🎬 Giữ nguyên ngôn ngữ gốc*).
-   - Chọn **Phong cách biên dịch** (*Tự nhiên, Điện ảnh, Học thuật, GenZ, Sát nghĩa*).
-   - Chọn **🗣️ Ngôi xưng hô xuyên suốt video** (*🔒 Tự động khóa ngôi xưng*, *🤝 Mình – Bạn*, *👔 Tôi – Bạn*, hoặc *🎬 Anh/Chị – Em*).
-2. Chuyển sang tab **🎨 Giao Diện**:
-   - Đổi **Kiểu khung nền**, **Phông chữ**, **Cỡ chữ**, **Màu chữ** và xem kết quả thay đổi ngay lập tức kèm hiệu ứng nháy sáng trên khung **🐸 Xem trước trực tiếp**.
-
-### Bước E: Dịch Video Có CC & Video Không Có CC
-- **Với các video có nút CC (YouTube, Coursera, Udemy, Netflix, Bilibili...)**:
-  - Hãy bật nút **CC / Subtitles** trên trình phát video. Khung phụ đề của Cóc sẽ tự động thay thế phụ đề gốc và dịch theo thời gian thực.
-- **Với các video KHÔNG có nút CC / Subtitles (Facebook, TikTok, Vimeo, web phim/tin tức...)**:
-  - Di chuột vào khung video → bấm nút **🐸 `AI Nghe & Dịch (Không cần CC)`** ở góc trên bên phải video (hoặc tích chọn *"🎙️ Tự động bật AI Nghe & Dịch khi video không có CC"* trong tab đầu tiên).
-  - Tiện ích sẽ tự thu âm thanh trực tiếp từ video (và tự tìm lời bài hát nếu là MV ca nhạc) để tạo phụ đề dịch trực tiếp lên màn hình!
+### Bước D: Học Ngoại Ngữ Trực Tiếp Khi Xem Video (`Tra Từ` & `Xem Thêm Ngữ Cảnh`)
+1. Khi đang xem bất kỳ video nào có phụ đề song ngữ, chỉ cần **đưa chuột vào khung phụ đề** (hoặc bấm Pause video) — video sẽ tự động dừng lại để bạn quan sát.
+2. **Muốn tra nhanh 1 từ**: Bấm trực tiếp vào từ đó trên dòng phụ đề gốc để xem phiên âm IPA, nghĩa trong câu, nghe phát âm (`🔊`) hoặc bấm **`⭐ Lưu từ`**.
+3. **Muốn hiểu sâu cả câu (*"Tại sao trong cảnh này lại dịch như ri?"*)**: Bấm nút **`🎓 Xem thêm: Ngữ cảnh & Cách dùng thực tế`** ngay dưới phụ đề (hoặc nút **`🎓 Xem thêm...`** bên trong thẻ từ điển) để xem phân tích Nghĩa đen vs. Nghĩa ngữ cảnh trong cảnh phim, Cách người bản xứ dùng thực tế và lưu vào tab **`📚 Học Từ`**.
 
 ---
 
 # 🇬🇧 ENGLISH (Complete A-to-Z Guide)
 
-**VIE-Translate (Translate Toad AI `v0.6.3`)** is a charismatic, real-time browser extension (Manifest V3 for Chrome, Edge, Brave, Opera, etc.) that translates video subtitles into **Vietnamese or any custom bilingual pair (e.g., Vietnamese–French, Vietnamese–English, Vietnamese–Japanese, Vietnamese–Korean...)** using **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)**, and **Google Translate**—including **AI Live Audio Captioning & Music Lyrics Sync for videos without CC/Subtitles**.
+**VIE-Translate (Translate Toad AI `v0.6.4`)** is a real-time browser extension (Manifest V3 for Chrome, Edge, Brave, Opera, etc.) that translates video subtitles into **Vietnamese or any custom bilingual pair (e.g., Vietnamese–French, Vietnamese–English, Vietnamese–Japanese, Vietnamese–Korean...)** and acts as an **Interactive Language Learning & Scene Nuance Coach** using **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)**, and **Google Translate**—including **AI Live Audio Captioning & Music Lyrics Sync for videos without CC/Subtitles**.
 
-## ✨ Key Features (`v0.6.3`)
+## ✨ Key Features (`v0.6.4`)
 
-1. **⚡ Real-Time & Auto-Captions Zero-Starvation Engine**:
-   - Built specifically to handle word-by-word streaming **Auto-Captions (ASR)** without lag or dropped lines: uses a **0ms Instant Preview + 95ms AI Clause Refinement** pipeline alongside **Lookahead Batch Prefetching** (reducing API calls by up to 85%).
-2. **🔒 Consistent Pronoun Lock Engine (`Thống Nhất Nhân Xưng Xuyên Suốt`)**:
-   - Eliminates pronoun shifting across Vietnamese translations (*no more jumping between "tôi", "mình", "anh", "tớ" mid-video*):
-     - **Automatic Context Pronoun Lock (`Auto Lock`)**: Analyzes the video title and opening dialogue to detect and lock the dominant addressing style (*Mình – Bạn* for Vlogs/Tutorials, *Tôi – Bạn* for News/Talks, *Anh/Chị – Em* for Cinema/Drama) across single-line requests, batch prefetching, and 0ms previews.
-     - **4 Selectable Addressing Modes**: Choose between `Auto Lock`, `Mình – Bạn (Friendly)`, `Tôi – Bạn (Formal)`, or `Anh/Chị – Em (Cinema)` in the **🌍 Languages** tab.
-3. **🎵 Smart Music Lyrics Lookup (`LRCLIB Audio Sync`)**:
-   - When using **AI Live Audio** on music videos, VIE-Translate automatically parses the video title and artist, fetches timestamped `syncedLyrics` (or `plainLyrics`) from **LRCLIB**, and either syncs translations directly to the beat with 0ms delay or feeds reference lyrics into Whisper/Gemini for crystal-clear song transcription.
-4. **🎙️ Translate Videos on Websites WITHOUT CC / Subtitles (`Toad AI Live Audio`)**:
-   - **Hidden `<track>` Auto-Unlocker** + **Direct `<video>` Audio Capture (`2.2s` fast chunks)** via **Groq Whisper (`whisper-large-v3-turbo`)** or **Gemini Multimodal Audio**.
-   - **Seamless SPA Video Switching**: Automatically rebinds the live audio stream when navigating to a new video on YouTube or SPA websites without needing to toggle the feature off and on.
-5. **🌍 Custom Bilingual Language Pairs & 5 AI Translation Personas**:
-   - Mix and match any primary and secondary language (**Vietnamese, English, French, Japanese, Korean, Simplified/Traditional Chinese, German, Spanish, Russian, Thai**).
-   - Choose from **5 AI Translation Personas**: *Natural & Conversational*, *Cinema / Netflix*, *Academic / Technical*, *GenZ / Humor*, or *Literal (Language Learning)*.
-6. **🎨 Bright, Compact Subtitle Studio with Interactive Micro-Animations**:
-   - Redesigned `v0.6.3` popup featuring a bright, high-contrast Slate-Indigo & Warm Gold palette that fits cleanly without vertical scrollbar clutter.
-   - **Tactile Micro-Animations**: Spring-bounce checkbox cards with emerald-gold active borders, ripple-pulse color swatches that flash the live preview box, a hopping Translate Toad mascot, and a floating confirmation pill on every setting change.
-7. **🛡️ Silent Model Failover & Configurable Family-Friendly Profanity Control**:
-   - **Silent Quota Rotation**: Automatically rotates across 17+ discovered Gemini and Groq models in `<50ms` upon rate limits without displaying intrusive red error banners over your video.
-   - **Family-Friendly Mode (Default) / Raw Mode**: Softens profanities gracefully without breaking subtitle continuity or triggering AI safety refusals.
+1. **🎓 Interactive Language Learning Through Video Subtitles (`Scene Nuance Coach & Click Dictionary`)**:
+   - **Hover-to-Pause & Learning Action Bar**: Hover over the subtitle box (or pause the video) to automatically pause playback and reveal the interactive learning bar (`🎓 Xem thêm: Ngữ cảnh & Cách dùng thực tế` • `🔊 Nghe câu`).
+   - **Click-to-Define Contextual Dictionary (`LOOKUP_WORD`)**: Click any word on the original subtitle line to view its **IPA pronunciation, Part of Speech, exact contextual meaning in that scene, real-world usage tip**, and listen to native TTS pronunciation (`🔊`).
+   - **Deep Scene Nuance & Real-Life Usage Breakdown (`EXPLAIN_SCENE` — *"Why is it translated like this in this scene?"*)**:
+     - Click **`🎓 Xem thêm: Ngữ cảnh & Cách dùng thực tế`** on the subtitle bar or inside the word card to see:
+       1. **🔤 Literal Word-by-Word Meaning (`LITERAL`)** vs. **💡 Scene Nuance & Why It's Translated That Way (`NUANCE`)**.
+       2. **🗣️ How Native Speakers Actually Use It in Real Life (`USAGE`)**.
+       3. **🧩 Key Idioms, Phrasal Verbs & Slang Breakdown (`VOCAB`)** + **✨ Ready-to-Use Example (`EXAMPLE`)**.
+   - **Built-in Vocabulary & Sentence Notebook (`📚 Học Từ` Tab)**: Save individual words or full contextual sentence breakdowns with 1 click, review them anytime in the popup, and export to `.txt`.
+2. **⚡ Real-Time & Auto-Captions Zero-Starvation Engine**:
+   - Handles word-by-word streaming **Auto-Captions (ASR)** with a **0ms Instant Preview + 95ms AI Clause Refinement** pipeline and **Lookahead Batch Prefetching** (reducing API calls by up to 85%).
+3. **🔒 Consistent Pronoun Lock Engine (`Thống Nhất Nhân Xưng Xuyên Suốt`)**:
+   - Locks the dominant Vietnamese addressing style (*Mình – Bạn*, *Tôi – Bạn*, *Anh/Chị – Em*) across single-line requests, batch prefetching, and 0ms previews so pronouns never jump mid-video.
+4. **🎵 Smart Music Lyrics Lookup (`LRCLIB Audio Sync`) & 🎙️ AI Live Audio for Videos Without CC**:
+   - Automatically fetches synced lyrics for music videos from **LRCLIB** and captures direct `<video>` audio (`2.2s` slices) via **Groq Whisper** or **Gemini Multimodal Audio** for videos without CC/Subtitles.
+5. **🌍 Custom Bilingual Language Pairs, 5 AI Personas & Bright Tactile Studio UI**:
+   - Mix any primary and secondary language with live preview, compact connected API bar, and spring micro-animations.
 
 ---
 
 ## 📋 Version History & New Mechanisms (Changelog)
 
-### 🌟 `v0.6.3` (Latest) — *Consistent Pronoun Lock Engine & Tactile UI Redesign*
-- **New Mechanism — Consistent Pronoun Lock (`Consistent Pronoun Lock Engine`)**:
-  - Expanded rolling dialogue memory to **14 context lines** (`MAX_CONTEXT_ITEMS = 14`).
-  - Added title-based pronoun inference (`inferInitialPronounPairFromTitle`), automatic dominant-pronoun locking (`updateContextPronounLock`) across single and batch translation pipelines, and post-processing pronoun harmonization (`harmonizeVietnamesePronouns`) so 0ms Google Translate previews match AI pronouns seamlessly.
-  - Added the **🗣️ Consistent Pronoun Style** selector in the **🌍 Languages** tab.
-- **UI/UX Polish & Micro-Interactions**:
-  - Brightened popup theme, compacted spacing to eliminate vertical scrolling, and added spring animations (`tickBounce`, `swatchPulse`, `toadHappyHop`, `preview-flash`, `#microToast`) for every checkbox tick, color change, and save action.
+### 🎓 `v0.6.4` (Latest) — *Interactive Language Learning, Scene Nuance Coach & Vocabulary Notebook*
+- **New Mechanism — Deep Scene & Practical Usage Coach (`EXPLAIN_SCENE` / `🎓 Xem thêm`)**:
+  - Added full-sentence contextual breakdown analyzing the current line, its bilingual translation, and preceding dialogue history to explain `LITERAL` meaning, `NUANCE` (why the translation adapts to the scene), `USAGE` (how native speakers use the expression in real life), `VOCAB` (idioms/chunks), and `EXAMPLE`.
+- **New Mechanism — Click-to-Define Contextual Dictionary & Vocab Notebook (`LOOKUP_WORD` & `📚 Học Từ`)**:
+  - Added interactive word tokens on original subtitles, automatic hover-to-pause with card pinning (`state.isDictPinned`), Web Speech TTS pronunciation (`🔊`), `▶️ Xem tiếp` one-click resume, and the **`📚 Học Từ`** notebook tab with `.txt` export.
+
+### 🌟 `v0.6.3` — *Consistent Pronoun Lock Engine & Tactile UI Redesign*
+- Expanded rolling dialogue memory to **14 context lines**, added automatic dominant-pronoun locking (`updateContextPronounLock`) + 0ms preview harmonization (`harmonizeVietnamesePronouns`), and redesigned the popup with bright Slate-Indigo & Gold micro-animations.
 
 ### 🔧 `v0.6.2` — *Gemini 2.5 / 2.0 Compatibility & Universal Minimal-Mode Fallback*
-- **Fixed `models/gemini-1.5-flash is not found for API version v1beta`**:
-  - Purged retired `gemini-1.5-*` and `gemini-1.0-*` model IDs from all candidate and fallback lists, upgrading defaults to **`gemini-2.5-flash-lite`**, **`gemini-2.5-flash`**, **`gemini-2.0-flash-lite`**, and **`gemini-flash-lite-latest`**.
-- **New Mechanism — Universal `minimalMode` HTTP 400 Recovery**:
-  - Removed deprecated `HARM_CATEGORY_CIVIC_INTEGRITY` and `systemInstruction.role` fields, and added automatic fallback to inline prompt instructions whenever a model rejects `systemInstruction` or `safetySettings`.
+- Replaced retired `gemini-1.5-*` models with **`gemini-2.5-flash-lite`**, **`gemini-2.5-flash`**, **`gemini-2.0-flash-lite`**, and **`gemini-flash-lite-latest`**, plus automatic `minimalMode` HTTP 400 recovery.
 
 ### 🔑 `v0.6.1` — *Smart `AIza` vs `AQ.` Key Routing & Pipeline Bug Fixes*
-- **Fixed `ReferenceError: softenProfanity is not defined`** inside `callGeminiEndpoint` and `translateWithGeminiAuto`.
-- **Fixed `Agent Platform API has not been used in project...`** when testing `AQ.` Vertex Express keys by routing `AIzaSy...` and `AQ.` keys appropriately, avoiding false model cooldown locks on project-level 403 errors, and guiding users to generate standard `AIzaSy...` keys in 1 click.
+- Fixed `softenProfanity` parameter passing and added smart routing between standard AI Studio keys (`AIzaSy...`) and Vertex Express keys (`AQ...`).
 
 ### 🎵 `v0.6.0` — *Music Video Lyrics Pre-Fetch, Seamless Video Navigation & Speed Boost*
-- **New Mechanism — LRCLIB Music Lyrics Engine**: Automatically detects music videos, fetches timestamped `syncedLyrics` / `plainLyrics` from LRCLIB, and syncs translations accurately to the song's rhythm.
-- **Fixed SPA Video Navigation Bug**: Automatically re-attaches `AI Live Audio` when switching videos on YouTube without manual toggling.
-- **Speed & UX Optimization**: Reduced audio slice duration to `2.2s`, lowered subtitle debounce to `95ms`, and silenced quota warning banners with background model rotation.
+- Added **LRCLIB** synced lyrics lookup for music videos, seamless SPA video navigation re-attachment, and silent quota failover.
 
 ---
 
@@ -199,23 +173,14 @@ git pull origin main
 ```
 
 ### Step B: Load or Reload in Your Browser
-1. Open `chrome://extensions/` (or `edge://extensions/`).
-2. Enable **Developer mode** in the top-right corner.
-3. Click **Load unpacked** and select the `VIE-Translate-by-me-` folder (or click the **Reload 🔄** icon on the VIE-Translate card if already installed).
-4. Pin 📌 the **Translate Toad** icon to your browser toolbar.
+1. Open `chrome://extensions/` (or `edge://extensions/`), enable **Developer mode**, and click **Load unpacked** to select `VIE-Translate-by-me-` (or click **Reload 🔄** if already installed).
+2. Pin 📌 the **Translate Toad** icon to your toolbar.
 
-### Step C: Connect Your Free API Key in 1 Click
-1. Click the **Translate Toad** toolbar icon → in the **🔑 AI & Kết Nối** tab, click **"⚡ Tự động lấy Key từ Google AI Studio"**.
-2. On [Google AI Studio](https://aistudio.google.com/apikey?vie_auto_import=1), the floating **⚡ VIE-Translate Auto Key** assistant will automatically extract your existing `AIzaSy...` key (or capture a newly created key as soon as you click **Create API key**), verify the best free model, and save it!
-3. You can also copy a free **Groq Cloud (`gsk_...`)** key from [console.groq.com/keys](https://console.groq.com/keys) and click **"📋 Dán"** (*Quick Paste*).
-
-### Step D: Customize Languages, Pronouns, Style & Subtitle Appearance
-1. Open the **🌍 Ngôn Ngữ** (*Languages*) tab to pick your **Primary Target Language**, **Secondary Bilingual Line**, **Translation Persona**, and **Consistent Pronoun Addressing Style**.
-2. Open the **🎨 Giao Diện** (*Subtitle Studio*) tab to customize the box theme, font family, font size, colors, and bottom offset with interactive live preview.
-
-### Step E: Translate Any Video (With or Without CC)
-- **Videos WITH CC/Subtitles**: Turn ON the player's **CC / Subtitles** button. Translate Toad will automatically replace the default captions with your customized bilingual overlay.
-- **Videos WITHOUT CC/Subtitles**: Hover over the video and click the **🐸 `AI Nghe & Dịch (Không cần CC)`** button in the top-right corner of the video player to start live AI audio transcription and translation!
+### Step C: Connect Your Free API Key & Learn Languages While Watching
+1. Click the **Translate Toad** icon → in **🔑 Kết Nối**, click **"🚀 Tự động lấy Key từ Google AI Studio"** for 1-click key extraction.
+2. While watching any video with bilingual subtitles, **hover over the subtitle overlay** (or pause the video):
+   - **Click any word** on the top subtitle line to open the contextual dictionary card with IPA, meaning in scene, and audio pronunciation (`🔊`).
+   - **Click `🎓 Xem thêm: Ngữ cảnh & Cách dùng thực tế`** below the subtitle (or inside the dictionary card) to see *why* the sentence is translated that way in the scene, how native speakers use it in real life, and save it to your **📚 Học Từ** notebook!
 
 ---
 

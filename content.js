@@ -255,11 +255,24 @@ function getOrCreateOverlay(video) {
     const viLine = document.createElement("div");
     viLine.className = "vie-vi";
 
+    const learnBar = document.createElement("div");
+    learnBar.className = "vie-learn-bar";
+    learnBar.innerHTML = `
+      <button type="button" class="vie-learn-btn vie-learn-scene-btn" title="Xem giải thích vì sao đoạn này dịch như vậy, cách dùng thực tế & từ vựng quan trọng">
+        🎓 Xem thêm: Ngữ cảnh &amp; Cách dùng thực tế
+      </button>
+      <button type="button" class="vie-learn-btn vie-learn-speak-all-btn" title="Nghe phát âm cả câu">
+        🔊 Nghe câu
+      </button>
+      <span class="vie-learn-tip">💡 Bấm từ bất kỳ để tra từ điển</span>
+    `;
+
     overlay.appendChild(origLine);
     overlay.appendChild(viLine);
+    overlay.appendChild(learnBar);
     container.appendChild(overlay);
 
-    bindInteractiveOverlayEvents(video, overlay, origLine, dictCard);
+    bindInteractiveOverlayEvents(video, overlay, origLine, viLine, dictCard, learnBar);
   }
   applyOverlayVisualStyle(overlay);
   return overlay;
@@ -309,18 +322,190 @@ async function saveWordToVocab(item, saveBtnEl) {
   }
 }
 
-function openWordLookup(video, overlay, dictCard, word, sentence, wordSpan) {
+function closeDictAndCoach(video, overlay, dictCard, resumeVideo = false) {
+  const state = getVideoState(video);
+  state.isDictPinned = false;
+  dictCard.classList.add("vie-dict-hidden");
+  dictCard.classList.remove("vie-scene-expanded");
+  overlay.classList.remove("vie-dict-open");
+  overlay.querySelectorAll(".vie-word.vie-word-active").forEach((el) => {
+    el.classList.remove("vie-word-active");
+  });
+  if (resumeVideo && video.paused) {
+    state.pausedByHover = false;
+    video.play().catch(() => {});
+  }
+}
+
+function openSceneExplanation(video, overlay, dictCard, sentence, viText, focusWord = "") {
+  const cleanSentence = normalizeSubtitleText(sentence);
+  if (!cleanSentence) return;
+
+  const state = getVideoState(video);
+  state.isDictPinned = true;
+  if (!video.paused && !video.ended) {
+    state.pausedByHover = true;
+    video.pause();
+  }
+
+  overlay.classList.add("vie-dict-open");
+  dictCard.classList.remove("vie-dict-hidden");
+  dictCard.classList.add("vie-scene-expanded");
+
+  dictCard.innerHTML = `
+    <div class="vie-dict-header">
+      <div class="vie-dict-title">
+        <span class="vie-dict-word">🐸 Ngữ Cảnh Thực Tế &amp; Cách Dùng</span>
+        <span class="vie-dict-loading">⏳ Cóc đang mổ xẻ câu thoại trong cảnh này...</span>
+      </div>
+      <div class="vie-dict-actions">
+        <button type="button" class="vie-dict-close" title="Đóng">✕</button>
+      </div>
+    </div>
+    <div class="vie-scene-sentence-box">
+      <div class="vie-scene-orig">🎬 “${escapeHtml(cleanSentence)}”</div>
+      <div class="vie-scene-vi">🇻🇳 Dịch trong cảnh này: “${escapeHtml(viText || "...")}”</div>
+    </div>
+  `;
+
+  dictCard.querySelector(".vie-dict-close")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeDictAndCoach(video, overlay, dictCard, false);
+  });
+
+  chrome.runtime.sendMessage(
+    {
+      type: "EXPLAIN_SCENE",
+      sentence: cleanSentence,
+      vi: viText,
+      focusWord,
+      videoTitle: getVideoTitle()
+    },
+    (res) => {
+      if (chrome.runtime.lastError || !res?.ok) {
+        dictCard.innerHTML = `
+          <div class="vie-dict-header">
+            <span class="vie-dict-word">🐸 Phân tích ngữ cảnh</span>
+            <button type="button" class="vie-dict-close">✕</button>
+          </div>
+          <div class="vie-dict-meaning">Không thể tải phân tích ngữ cảnh lúc này. Hãy thử bấm vào từng từ trên phụ đề nhé!</div>
+        `;
+        dictCard.querySelector(".vie-dict-close")?.addEventListener("click", (e) => {
+          e.stopPropagation();
+          closeDictAndCoach(video, overlay, dictCard, false);
+        });
+        return;
+      }
+
+      dictCard.innerHTML = `
+        <div class="vie-dict-header">
+          <div class="vie-dict-title">
+            <span class="vie-dict-word">🐸 Giải Nghĩa Ngữ Cảnh &amp; Thực Tế</span>
+            ${res.modelUsed ? `<span class="vie-dict-pos">${escapeHtml(res.modelUsed)}</span>` : ""}
+            <button type="button" class="vie-dict-speak" title="Nghe phát âm cả câu">🔊 Nghe câu</button>
+          </div>
+          <div class="vie-dict-actions">
+            <button type="button" class="vie-dict-save" title="Lưu mẫu câu & ngữ cảnh này vào Sổ từ">⭐ Lưu câu</button>
+            <button type="button" class="vie-dict-speak vie-scene-resume" title="Đóng bảng và phát tiếp video" style="background:rgba(245,158,11,0.28);border-color:#fbbf24;color:#fef08a;">▶️ Xem tiếp</button>
+            <button type="button" class="vie-dict-close" title="Đóng">✕</button>
+          </div>
+        </div>
+        <div class="vie-scene-sentence-box">
+          <div class="vie-scene-orig">🎬 “${escapeHtml(cleanSentence)}”</div>
+          <div class="vie-scene-vi">🇻🇳 Hóa ra trong cảnh này dịch là: “${escapeHtml(viText || res.vi || "")}”</div>
+          ${
+            res.literal
+              ? `<div class="vie-scene-literal">🔍 Nghĩa đen từng chữ: “${escapeHtml(res.literal)}”</div>`
+              : ""
+          }
+        </div>
+        <div class="vie-scene-block">
+          <div class="vie-scene-label">🎭 Tại sao trong cảnh này lại dịch như vậy?</div>
+          <div class="vie-scene-text">${escapeHtml(res.nuance || "")}</div>
+        </div>
+        ${
+          res.usage
+            ? `
+        <div class="vie-scene-block">
+          <div class="vie-scene-label">💡 Cách người bản xứ dùng thực tế ngoài đời</div>
+          <div class="vie-scene-text">${escapeHtml(res.usage)}</div>
+        </div>`
+            : ""
+        }
+        ${
+          res.vocab
+            ? `
+        <div class="vie-scene-block">
+          <div class="vie-scene-label">🧩 Từ vựng &amp; Cụm từ ăn điểm trong câu</div>
+          <div class="vie-scene-text">${escapeHtml(res.vocab)}</div>
+        </div>`
+            : ""
+        }
+        ${
+          res.example
+            ? `
+        <div class="vie-scene-block">
+          <div class="vie-scene-label">🗣️ Ví dụ áp dụng thực tế</div>
+          <div class="vie-scene-text">${escapeHtml(res.example)}</div>
+        </div>`
+            : ""
+        }
+      `;
+
+      dictCard.querySelector(".vie-dict-speak")?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        speakWord(cleanSentence);
+      });
+
+      const saveBtn = dictCard.querySelector(".vie-dict-save");
+      saveBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        saveWordToVocab(
+          {
+            word: focusWord || cleanSentence,
+            pron: "",
+            pos: "Mẫu câu thực tế",
+            meaning: viText || res.vi || "",
+            note: res.nuance || "",
+            sentence: cleanSentence
+          },
+          saveBtn
+        );
+      });
+
+      dictCard.querySelector(".vie-scene-resume")?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeDictAndCoach(video, overlay, dictCard, true);
+      });
+
+      dictCard.querySelector(".vie-dict-close")?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeDictAndCoach(video, overlay, dictCard, false);
+      });
+    }
+  );
+}
+
+function openWordLookup(video, overlay, dictCard, word, sentence, viText, wordSpan) {
+  const state = getVideoState(video);
+  state.isDictPinned = true;
+  if (!video.paused && !video.ended) {
+    state.pausedByHover = true;
+    video.pause();
+  }
+
+  overlay.classList.add("vie-dict-open");
   overlay.querySelectorAll(".vie-word.vie-word-active").forEach((el) => {
     el.classList.remove("vie-word-active");
   });
   if (wordSpan) wordSpan.classList.add("vie-word-active");
 
-  dictCard.classList.remove("vie-dict-hidden");
+  dictCard.classList.remove("vie-dict-hidden", "vie-scene-expanded");
   dictCard.innerHTML = `
     <div class="vie-dict-header">
       <div class="vie-dict-title">
         <span class="vie-dict-word">${escapeHtml(word)}</span>
-        <span class="vie-dict-loading">⏳ Cóc đang phân tích ngữ cảnh...</span>
+        <span class="vie-dict-loading">⏳ Cóc đang tra từ điển theo ngữ cảnh...</span>
       </div>
       <button type="button" class="vie-dict-close" title="Đóng">✕</button>
     </div>
@@ -328,10 +513,7 @@ function openWordLookup(video, overlay, dictCard, word, sentence, wordSpan) {
 
   dictCard.querySelector(".vie-dict-close")?.addEventListener("click", (e) => {
     e.stopPropagation();
-    dictCard.classList.add("vie-dict-hidden");
-    overlay.querySelectorAll(".vie-word.vie-word-active").forEach((el) => {
-      el.classList.remove("vie-word-active");
-    });
+    closeDictAndCoach(video, overlay, dictCard, false);
   });
 
   chrome.runtime.sendMessage(
@@ -352,7 +534,7 @@ function openWordLookup(video, overlay, dictCard, word, sentence, wordSpan) {
         `;
         dictCard.querySelector(".vie-dict-close")?.addEventListener("click", (e) => {
           e.stopPropagation();
-          dictCard.classList.add("vie-dict-hidden");
+          closeDictAndCoach(video, overlay, dictCard, false);
         });
         return;
       }
@@ -370,8 +552,11 @@ function openWordLookup(video, overlay, dictCard, word, sentence, wordSpan) {
             <button type="button" class="vie-dict-close" title="Đóng">✕</button>
           </div>
         </div>
-        <div class="vie-dict-meaning">${escapeHtml(res.meaning || "")}</div>
+        <div class="vie-dict-meaning">🎯 ${escapeHtml(res.meaning || "")}</div>
         ${res.note ? `<div class="vie-dict-note">💡 ${escapeHtml(res.note)}</div>` : ""}
+        <button type="button" class="vie-dict-more-btn">
+          🎓 Xem thêm: Tại sao cả câu dịch như vậy &amp; Cách dùng thực tế ➔
+        </button>
       `;
 
       dictCard.querySelector(".vie-dict-speak")?.addEventListener("click", (e) => {
@@ -385,12 +570,14 @@ function openWordLookup(video, overlay, dictCard, word, sentence, wordSpan) {
         saveWordToVocab({ ...res, word: res.word || word, sentence }, saveBtn);
       });
 
+      dictCard.querySelector(".vie-dict-more-btn")?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openSceneExplanation(video, overlay, dictCard, sentence, viText, res.word || word);
+      });
+
       dictCard.querySelector(".vie-dict-close")?.addEventListener("click", (e) => {
         e.stopPropagation();
-        dictCard.classList.add("vie-dict-hidden");
-        overlay.querySelectorAll(".vie-word.vie-word-active").forEach((el) => {
-          el.classList.remove("vie-word-active");
-        });
+        closeDictAndCoach(video, overlay, dictCard, false);
       });
     }
   );
@@ -430,7 +617,7 @@ function renderInteractiveWords(origEl, text) {
   }
 }
 
-function bindInteractiveOverlayEvents(video, overlay, origEl, dictCard) {
+function bindInteractiveOverlayEvents(video, overlay, origEl, viEl, dictCard, learnBar) {
   const state = getVideoState(video);
 
   overlay.addEventListener("mouseenter", () => {
@@ -447,6 +634,10 @@ function bindInteractiveOverlayEvents(video, overlay, origEl, dictCard) {
 
   overlay.addEventListener("mouseleave", () => {
     state.isHoveringOverlay = false;
+    if (state.isDictPinned) {
+      // Giữ nguyên hộp phân tích khi người dùng đã bấm vào từ hoặc nút "Xem thêm"
+      return;
+    }
     dictCard.classList.add("vie-dict-hidden");
     overlay.querySelectorAll(".vie-word.vie-word-active").forEach((el) => {
       el.classList.remove("vie-word-active");
@@ -457,8 +648,10 @@ function bindInteractiveOverlayEvents(video, overlay, origEl, dictCard) {
     }
   });
 
-  overlay.addEventListener("click", (e) => {
-    e.stopPropagation();
+  ["click", "mousedown", "mouseup", "dblclick"].forEach((evtName) => {
+    overlay.addEventListener(evtName, (e) => {
+      e.stopPropagation();
+    });
   });
 
   origEl.addEventListener("click", (e) => {
@@ -467,14 +660,34 @@ function bindInteractiveOverlayEvents(video, overlay, origEl, dictCard) {
     e.stopPropagation();
     e.preventDefault();
     const word = wordSpan.dataset.word || wordSpan.textContent.trim();
-    const sentence = origEl.dataset.rawText || origEl.textContent.trim();
+    const sentence = origEl.dataset.rawText || state.lastText || origEl.textContent.trim();
+    const viText = viEl.textContent.trim();
     if (!word) return;
     speakWord(word);
-    openWordLookup(video, overlay, dictCard, word, sentence, wordSpan);
+    openWordLookup(video, overlay, dictCard, word, sentence, viText, wordSpan);
+  });
+
+  learnBar.querySelector(".vie-learn-scene-btn")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const sentence = origEl.dataset.rawText || state.lastText || origEl.textContent.trim();
+    const viText = viEl.textContent.trim();
+    openSceneExplanation(video, overlay, dictCard, sentence, viText, "");
+  });
+
+  learnBar.querySelector(".vie-learn-speak-all-btn")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const sentence = origEl.dataset.rawText || state.lastText || origEl.textContent.trim();
+    if (sentence) speakWord(sentence);
   });
 }
 
 function hideOverlay(video) {
+  const state = videoStateMap.get(video);
+  if (state && (state.isHoveringOverlay || state.isDictPinned)) {
+    return;
+  }
   const container = getContainer(video);
   const overlay = container.querySelector(":scope > .vie-overlay");
   if (overlay) {
@@ -625,7 +838,7 @@ function scheduleTranslate(video, rawText, immediate = false) {
     }
     if (state.hideTimer) clearTimeout(state.hideTimer);
     state.hideTimer = setTimeout(() => {
-      if (state.isHoveringOverlay) return;
+      if (state.isHoveringOverlay || state.isDictPinned) return;
       state.lastText = "";
       state.reqSeq++;
       state.lastRenderedSeq = state.reqSeq;
@@ -1598,7 +1811,19 @@ function watchVideo(video) {
     handleVideoSourceOrPageChange(video);
   });
 
+  video.addEventListener("pause", () => {
+    if (state.overlay) {
+      state.overlay.classList.add("vie-player-paused");
+    }
+  });
+
   video.addEventListener("playing", () => {
+    if (state.overlay) {
+      state.overlay.classList.remove("vie-player-paused");
+    }
+    if (state.isDictPinned) {
+      closeDictAndCoach(video, false);
+    }
     handleVideoSourceOrPageChange(video);
     if (userWantsAudioCapture && !state.audioCaptureActive && !ytCueState.isLyrics && settings.enabled) {
       startVideoAudioCapture(video, true);
