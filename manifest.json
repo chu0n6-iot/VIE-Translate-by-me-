@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "VIE-Translate — Translate Toad AI",
-  "version": "0.6.2",
-  "description": "Real-time customizable bilingual subtitle translator, synced music lyrics finder & AI audio captioner for all video websites",
+  "version": "0.6.3",
+  "description": "Real-time customizable bilingual subtitle translator, consistent pronoun engine, synced music lyrics finder & AI audio captioner",
   "icons": {
     "16": "assets/icon16.png",
     "48": "assets/icon48.png",

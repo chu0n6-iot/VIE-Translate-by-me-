@@ -1,5 +1,5 @@
 const MAX_CACHE_SIZE = 800;
-const MAX_CONTEXT_ITEMS = 8;
+const MAX_CONTEXT_ITEMS = 14;
 
 const cache = new Map();
 const inFlight = new Map();
@@ -26,7 +26,7 @@ const LANGUAGE_NAMES = {
 
 const STYLE_INSTRUCTIONS = {
   natural:
-    "Phong cách tự nhiên, đời thường, trôi chảy, đúng ngữ cảnh hội thoại và ngôi xưng hô (anh/em, tôi/bạn, mình/cậu, chú/bác, thầy/trò, mày/tao...).",
+    "Phong cách tự nhiên, đời thường, trôi chảy, đúng ngữ cảnh hội thoại.",
   cinema:
     "Phong cách phụ đề điện ảnh / Netflix chuyên nghiệp: câu từ cô đọng, súc tích, giàu cảm xúc, giàu nhịp điệu, truyền tải trọn vẹn thần thái nhân vật.",
   academic:
@@ -37,9 +37,16 @@ const STYLE_INSTRUCTIONS = {
     "Phong cách dịch sát nghĩa và cấu trúc câu gốc (hỗ trợ người học ngoại ngữ đối chiếu từ vựng và ngữ pháp dễ dàng)."
 };
 
-// Quy tắc dịch nguyên văn kể cả tiếng lóng, chửi thề trong phim/video
-const TRANSLATION_STYLE_RULE =
-  " Đây là công việc biên dịch phụ đề nguyên văn: nếu câu gốc có tiếng lóng, từ cảm thán hoặc từ chửi thề (fuck, shit, damn, bitch, ass, hell...), BẮT BUỘC dịch thẳng sang từ tương đương tự nhiên (đệch, mẹ kiếp, chết tiệt, khốn kiếp, vãi, đéo, má...), TUYỆT ĐỐI KHÔNG kiểm duyệt, không làm nhẹ, không dùng dấu *** và không bao giờ từ chối dịch.";
+const PRONOUN_INSTRUCTIONS = {
+  auto:
+    "THỐNG NHẤT NHÂN XƯNG XUYÊN SUỐT (BẮT BUỘC): Chọn 1 cặp ngôi xưng phù hợp nhất với ngữ cảnh video và GIỮ CỐ ĐỊNH XUYÊN SUỐT từ đầu đến cuối video. Tuyệt đối KHÔNG nhảy ngôi xưng giữa các câu (không lúc 'tôi', lúc 'mình', lúc 'anh', lúc 'tớ' cho cùng một người nói).",
+  minh_ban:
+    "NGÔI XƯNG CỐ ĐỊNH XUYÊN SUỐT (Mình – Bạn / Các bạn): BẮT BUỘC dịch ngôi thứ nhất số ít (I/me/my) là 'mình', số nhiều (we/us) là 'chúng mình' hoặc 'tụi mình', ngôi thứ hai (you) là 'bạn' hoặc 'các bạn'. Giữ cố định 100% xuyên suốt mọi câu, tuyệt đối không đổi sang 'tôi' hay 'anh/em'.",
+  toi_ban:
+    "NGÔI XƯNG CỐ ĐỊNH XUYÊN SUỐT (Tôi – Bạn / Các bạn): BẮT BUỘC dịch ngôi thứ nhất số ít (I/me/my) là 'tôi', số nhiều (we/us) là 'chúng tôi' hoặc 'chúng ta', ngôi thứ hai (you) là 'bạn' hoặc 'các bạn'. Giữ cố định 100% xuyên suốt mọi câu, tuyệt đối không đổi sang 'mình' hay 'tớ'.",
+  anh_em:
+    "NGÔI XƯNG CỐ ĐỊNH XUYÊN SUỐT (Phim / Hội thoại Anh – Em / Cậu – Tớ): Dựa vào ngữ cảnh và câu thoại trước để xưng hô tự nhiên ('anh - em', 'chị - em', 'tớ - cậu') và KHÓA CỐ ĐỊNH cặp xưng hô đó xuyên suốt cuộc trò chuyện, tuyệt đối không nhảy về 'tôi - bạn' máy móc."
+};
 
 function looksLikeRefusal(text) {
   const s = (text || "").trim();
@@ -198,18 +205,74 @@ function setCached(key, val) {
   schedulePersistCache();
 }
 
+function inferInitialPronounPairFromTitle(videoTitle = "", translationStyle = "natural") {
+  const t = (videoTitle || "").toLowerCase();
+  if (translationStyle === "genz") {
+    return { pair: "mình – các bạn (hoặc bạn / tụi mình)", firstPerson: "mình" };
+  }
+  if (translationStyle === "academic") {
+    return { pair: "tôi – các bạn (hoặc chúng ta)", firstPerson: "tôi" };
+  }
+  if (
+    /\b(vlog|review|unbox|try|trying|my |day in|gaming|minecraft|roblox|stream|podcast|tutorial|how to|setup|coding|hướng dẫn)\b/i.test(
+      t
+    )
+  ) {
+    return { pair: "mình – các bạn (hoặc bạn)", firstPerson: "mình" };
+  }
+  if (/\b(news|documentary|history|science|ted|lecture|course|report)\b/i.test(t)) {
+    return { pair: "tôi – các bạn (hoặc quý vị / chúng ta)", firstPerson: "tôi" };
+  }
+  return { pair: "", firstPerson: "" };
+}
+
 function getTabContext(tabId, videoTitle) {
   let ctx = contextByTab.get(tabId);
   if (!ctx || (videoTitle && ctx.videoTitle !== videoTitle)) {
-    ctx = { videoTitle: videoTitle || "", items: [] };
+    const inferred = inferInitialPronounPairFromTitle(videoTitle);
+    ctx = {
+      videoTitle: videoTitle || "",
+      items: [],
+      pronounCounts: { minh: 0, toi: 0, anh_em: 0, to_cau: 0 },
+      lockedPronounPair: inferred.pair,
+      lockedFirstPerson: inferred.firstPerson
+    };
     contextByTab.set(tabId, ctx);
   }
   return ctx;
 }
 
+function updateContextPronounLock(ctx, viText) {
+  if (!ctx || !viText) return;
+  const s = ` ${viText.toLowerCase()} `;
+  if (/\b(mình|chúng mình|tụi mình)\b/.test(s)) ctx.pronounCounts.minh += 1;
+  if (/\b(tôi|chúng tôi)\b/.test(s)) ctx.pronounCounts.toi += 1;
+  if (/\b(anh|em)\b/.test(s)) ctx.pronounCounts.anh_em += 1;
+  if (/\b(tớ|cậu)\b/.test(s)) ctx.pronounCounts.to_cau += 1;
+
+  const { minh, toi, anh_em, to_cau } = ctx.pronounCounts;
+  const total = minh + toi + anh_em + to_cau;
+  if (total < 2) return;
+
+  if (minh >= toi && minh >= anh_em && minh >= to_cau && minh >= 2) {
+    ctx.lockedPronounPair = "mình – các bạn (hoặc bạn / chúng mình)";
+    ctx.lockedFirstPerson = "mình";
+  } else if (toi > minh && toi >= anh_em && toi >= 2) {
+    ctx.lockedPronounPair = "tôi – các bạn (hoặc bạn / chúng tôi)";
+    ctx.lockedFirstPerson = "tôi";
+  } else if (anh_em > minh && anh_em > toi && anh_em >= 2) {
+    ctx.lockedPronounPair = "anh/chị – em (giữ đúng vai nhân vật)";
+    ctx.lockedFirstPerson = "";
+  } else if (to_cau >= 2) {
+    ctx.lockedPronounPair = "tớ – cậu";
+    ctx.lockedFirstPerson = "tớ";
+  }
+}
+
 function pushTabContext(tabId, videoTitle, src, vi) {
   if (!src || !vi) return;
   const ctx = getTabContext(tabId, videoTitle);
+  updateContextPronounLock(ctx, vi);
   if (ctx.items.length > 0 && ctx.items[ctx.items.length - 1].src === src) {
     ctx.items[ctx.items.length - 1].vi = vi;
     return;
@@ -218,6 +281,25 @@ function pushTabContext(tabId, videoTitle, src, vi) {
   if (ctx.items.length > MAX_CONTEXT_ITEMS) {
     ctx.items.shift();
   }
+}
+
+function harmonizeVietnamesePronouns(viText, pronounStyle = "auto", lockedFirstPerson = "") {
+  if (!viText) return viText;
+  const targetFirst =
+    pronounStyle === "minh_ban"
+      ? "mình"
+      : pronounStyle === "toi_ban"
+      ? "tôi"
+      : lockedFirstPerson;
+
+  if (targetFirst === "mình") {
+    return viText
+      .replace(/\bChúng tôi\b/g, "Chúng mình")
+      .replace(/\bchúng tôi\b/g, "chúng mình")
+      .replace(/\bTôi\b/g, "Mình")
+      .replace(/\btôi\b/g, "mình");
+  }
+  return viText;
 }
 
 function isModelInCooldown(apiKey, modelId) {
@@ -313,9 +395,23 @@ function parseNumberedBatchOutput(rawOut, expectedCount) {
   return resultArr;
 }
 
-function buildSystemPrompt({ targetLang = "vi", translationStyle = "natural", isBatch = false, softenProfanity = true }) {
+function buildSystemPrompt({
+  targetLang = "vi",
+  translationStyle = "natural",
+  pronounStyle = "auto",
+  lockedPronounPair = "",
+  isBatch = false,
+  softenProfanity = true
+}) {
   const langLabel = LANGUAGE_NAMES[targetLang] || targetLang;
   const styleDesc = STYLE_INSTRUCTIONS[translationStyle] || STYLE_INSTRUCTIONS.natural;
+
+  let pronounRule = PRONOUN_INSTRUCTIONS[pronounStyle] || PRONOUN_INSTRUCTIONS.auto;
+  if (pronounStyle === "auto" && lockedPronounPair) {
+    pronounRule =
+      `KHÓA NHÂN XƯNG XUYÊN SUỐT VIDEO: Mạch video đang sử dụng cặp ngôi xưng "${lockedPronounPair}". ` +
+      `BẮT BUỘC giữ nguyên cặp ngôi xưng "${lockedPronounPair}" cho tất cả các câu tiếp theo, TUYỆT ĐỐI KHÔNG tự ý đổi ngôi xưng khác giữa chừng.`;
+  }
 
   const profanityRule = softenProfanity
     ? " CHẾ ĐỘ THÂN THIỆN (Family-friendly) ĐANG BẬT: nếu câu gốc có từ nói tục, chửi thề hoặc nhạy cảm (fuck, shit, damn, bitch, ass...), hãy CHỦ ĐỘNG GIẢM NHẸ TÌNH TIẾT và LÀM MỀM NGÔN TỪ, thay bằng các từ ngữ biểu cảm nhẹ nhàng, lịch sự và văn minh (ví dụ: 'chết tiệt', 'trời đất ơi', 'quái quỷ', 'bực thật', 'khốn khổ'). TUYỆT ĐỐI KHÔNG bỏ sót câu, KHÔNG từ chối dịch, giữ trọn vẹn ý nghĩa và ngữ cảnh câu chuyện."
@@ -324,16 +420,16 @@ function buildSystemPrompt({ targetLang = "vi", translationStyle = "natural", is
   if (isBatch) {
     return (
       `Bạn là biên dịch viên phụ đề video chuyên nghiệp sang ${langLabel}. ` +
-      `Hãy dịch từng câu được đánh số [1], [2]... sang ${langLabel}. ${styleDesc} ` +
-      `BẮT BUỘC giữ nguyên định dạng đánh số [1], [2]... trên từng dòng tương ứng, không giải thích thêm. ` +
+      `Hãy dịch từng câu được đánh số [1], [2]... sang ${langLabel} như một kịch bản liền mạch cùng một người nói/hội thoại. ${styleDesc} ${pronounRule} ` +
+      `BẮT BUỘC giữ nguyên định dạng đánh số [1], [2]... trên từng dòng tương ứng và ĐỒNG NHẤT 100% NGÔI XƯNG từ câu [1] đến câu cuối cùng, không giải thích thêm.` +
       profanityRule
     );
   }
 
   return (
     `Bạn là biên dịch viên phụ đề video chuyên nghiệp sang ${langLabel}. ` +
-    `Hãy dịch câu thoại sang ${langLabel} ngắn gọn, dễ đọc trên màn hình. ${styleDesc} ` +
-    `Chỉ trả về duy nhất câu ${langLabel} đã dịch, không giải thích, không suy nghĩ dài dòng, không thêm dấu ngoặc kép. ` +
+    `Hãy dịch câu thoại sang ${langLabel} ngắn gọn, dễ đọc trên màn hình. ${styleDesc} ${pronounRule} ` +
+    `Chỉ trả về duy nhất câu ${langLabel} đã dịch, không giải thích, không suy nghĩ dài dòng, không thêm dấu ngoặc kép.` +
     profanityRule
   );
 }
@@ -419,6 +515,8 @@ async function callGroqModel({
   model,
   targetLang = "vi",
   translationStyle = "natural",
+  pronounStyle = "auto",
+  lockedPronounPair = "",
   softenProfanity = true
 }) {
   let contextPrompt = "";
@@ -427,21 +525,28 @@ async function callGroqModel({
   }
   if (history && history.length > 0) {
     const recentLines = history
-      .slice(-6)
+      .slice(-10)
       .map((item) => `- "${item.src}" -> "${item.vi}"`)
       .join("\n");
-    contextPrompt += `Các câu thoại trước đó để giữ mạch xưng hô:\n${recentLines}\n`;
+    contextPrompt += `Các câu thoại trước đó để giữ ĐÚNG và THỐNG NHẤT ngôi xưng hô xuyên suốt:\n${recentLines}\n`;
   }
 
   const isBatch = Array.isArray(texts) && texts.length > 0;
-  const systemText = buildSystemPrompt({ targetLang, translationStyle, isBatch, softenProfanity });
+  const systemText = buildSystemPrompt({
+    targetLang,
+    translationStyle,
+    pronounStyle,
+    lockedPronounPair,
+    isBatch,
+    softenProfanity
+  });
 
   const userContent = isBatch
-    ? `${contextPrompt}\nDịch các câu phụ đề sau:\n${texts
+    ? `${contextPrompt}\nDịch các câu phụ đề sau (giữ đồng nhất ngôi xưng xuyên suốt từ câu đầu đến câu cuối):\n${texts
         .map((t, idx) => `[${idx + 1}] ${t}`)
         .join("\n")}`
     : contextPrompt
-    ? `${contextPrompt}\nDịch câu tiếp theo:\n${text}`
+    ? `${contextPrompt}\nDịch câu tiếp theo (giữ nguyên ngôi xưng như các câu trước):\n${text}`
     : text;
 
   const timeoutMs = isBatch ? 7000 : 3400;
@@ -499,6 +604,8 @@ async function translateWithGroqAuto({
   preferredModel,
   targetLang = "vi",
   translationStyle = "natural",
+  pronounStyle = "auto",
+  lockedPronounPair = "",
   softenProfanity = true
 }) {
   const candidates = await discoverGroqModels(apiKey);
@@ -517,6 +624,8 @@ async function translateWithGroqAuto({
         model: candidate,
         targetLang,
         translationStyle,
+        pronounStyle,
+        lockedPronounPair,
         softenProfanity
       });
       activeRouteByKey.set(apiKey, { model: candidate, endpointType: "groq" });
@@ -719,6 +828,8 @@ async function callGeminiEndpoint({
   endpointType,
   targetLang = "vi",
   translationStyle = "natural",
+  pronounStyle = "auto",
+  lockedPronounPair = "",
   softenProfanity = true
 }) {
   const endpoint =
@@ -736,21 +847,28 @@ async function callGeminiEndpoint({
   }
   if (history && history.length > 0) {
     const recentLines = history
-      .slice(-6)
+      .slice(-10)
       .map((item) => `- "${item.src}" -> "${item.vi}"`)
       .join("\n");
-    contextPrompt += `Các câu thoại trước đó để giữ mạch xưng hô:\n${recentLines}\n`;
+    contextPrompt += `Các câu thoại trước đó để giữ ĐÚNG và THỐNG NHẤT ngôi xưng hô xuyên suốt:\n${recentLines}\n`;
   }
 
   const isBatch = Array.isArray(texts) && texts.length > 0;
-  const systemText = buildSystemPrompt({ targetLang, translationStyle, isBatch, softenProfanity });
+  const systemText = buildSystemPrompt({
+    targetLang,
+    translationStyle,
+    pronounStyle,
+    lockedPronounPair,
+    isBatch,
+    softenProfanity
+  });
 
   const fullUserText = isBatch
-    ? `${contextPrompt}\nDịch các câu phụ đề sau:\n${texts
+    ? `${contextPrompt}\nDịch các câu phụ đề sau (giữ đồng nhất ngôi xưng xuyên suốt từ câu đầu đến câu cuối):\n${texts
         .map((t, idx) => `[${idx + 1}] ${t}`)
         .join("\n")}`
     : contextPrompt
-    ? `${contextPrompt}\nDịch câu tiếp theo:\n${text}`
+    ? `${contextPrompt}\nDịch câu tiếp theo (giữ nguyên ngôi xưng như các câu trước):\n${text}`
     : text;
 
   const maxTokens = isBatch ? Math.min(1400, texts.length * 160) : 512;
@@ -849,6 +967,8 @@ async function translateWithGeminiAuto({
   preferredModel,
   targetLang = "vi",
   translationStyle = "natural",
+  pronounStyle = "auto",
+  lockedPronounPair = "",
   softenProfanity = true
 }) {
   const isVertexKey = apiKey.startsWith("AQ.");
@@ -878,6 +998,8 @@ async function translateWithGeminiAuto({
           endpointType,
           targetLang,
           translationStyle,
+          pronounStyle,
+          lockedPronounPair,
           softenProfanity
         });
         activeRouteByKey.set(apiKey, { model: candidate, endpointType });
@@ -963,6 +1085,7 @@ async function getActiveConfig() {
     targetLang: "vi",
     secondaryLang: "orig",
     translationStyle: "natural",
+    pronounStyle: "auto",
     softenProfanity: true
   });
 
@@ -1014,9 +1137,10 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
   const targetLang = settings.targetLang || "vi";
   const secondaryLang = settings.secondaryLang || "orig";
   const translationStyle = settings.translationStyle || "natural";
+  const pronounStyle = settings.pronounStyle || "auto";
   const softenProfanity = settings.softenProfanity !== false;
 
-  const modeKey = softenProfanity ? "soft" : "raw";
+  const modeKey = `${softenProfanity ? "soft" : "raw"}:${pronounStyle}`;
   const targetProvider = fastPreviewOnly ? "gtx" : effectiveProvider;
   const cacheKey = `${targetProvider}:${targetLang}:${translationStyle}:${modeKey}:${cleanText}`;
 
@@ -1033,17 +1157,21 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
   const task = (async () => {
     try {
       const sub2Promise = resolveSecondaryTranslation(cleanText, secondaryLang, targetLang);
+      const ctx = getTabContext(tabId, videoTitle);
 
       if (targetProvider === "gtx" || !rawKey) {
-        const [vi, sub2] = await Promise.all([
+        const [rawVi, sub2] = await Promise.all([
           translateWithGoogleFree(cleanText, targetLang),
           sub2Promise
         ]);
-        if (vi) setCached(`gtx:${targetLang}:natural:${cleanText}`, vi);
+        const vi =
+          targetLang === "vi"
+            ? harmonizeVietnamesePronouns(rawVi, pronounStyle, ctx.lockedFirstPerson)
+            : rawVi;
+        if (vi) setCached(`gtx:${targetLang}:natural:${modeKey}:${cleanText}`, vi);
         return { vi, sub2, provider: "gtx" };
       }
 
-      const ctx = getTabContext(tabId, videoTitle);
       try {
         const [result, sub2] = await Promise.all([
           targetProvider === "groq"
@@ -1055,6 +1183,8 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
                 preferredModel: settings.model || "auto",
                 targetLang,
                 translationStyle,
+                pronounStyle,
+                lockedPronounPair: ctx.lockedPronounPair,
                 softenProfanity
               })
             : translateWithGeminiAuto({
@@ -1065,16 +1195,22 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
                 preferredModel: settings.model || "auto",
                 targetLang,
                 translationStyle,
+                pronounStyle,
+                lockedPronounPair: ctx.lockedPronounPair,
                 softenProfanity
               }),
           sub2Promise
         ]);
 
-        if (result.vi) {
-          setCached(cacheKey, result.vi);
-          pushTabContext(tabId, videoTitle, cleanText, result.vi);
+        const finalVi =
+          targetLang === "vi"
+            ? harmonizeVietnamesePronouns(result.vi, pronounStyle, ctx.lockedFirstPerson)
+            : result.vi;
+        if (finalVi) {
+          setCached(cacheKey, finalVi);
+          pushTabContext(tabId, videoTitle, cleanText, finalVi);
         }
-        return { vi: result.vi, sub2, provider: targetProvider, modelUsed: result.modelUsed };
+        return { vi: finalVi, sub2, provider: targetProvider, modelUsed: result.modelUsed };
       } catch {
         // Âm thầm chuyển sang nhà cung cấp AI còn lại nếu người dùng có lưu cả 2 Key (Gemini <-> Groq)
         const backupProvider = targetProvider === "gemini" ? "groq" : "gemini";
@@ -1091,6 +1227,8 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
                     preferredModel: "auto",
                     targetLang,
                     translationStyle,
+                    pronounStyle,
+                    lockedPronounPair: ctx.lockedPronounPair,
                     softenProfanity
                   })
                 : translateWithGeminiAuto({
@@ -1101,15 +1239,21 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
                     preferredModel: "auto",
                     targetLang,
                     translationStyle,
+                    pronounStyle,
+                    lockedPronounPair: ctx.lockedPronounPair,
                     softenProfanity
                   }),
               sub2Promise
             ]);
             if (backupRes?.vi) {
-              setCached(cacheKey, backupRes.vi);
-              pushTabContext(tabId, videoTitle, cleanText, backupRes.vi);
+              const finalVi =
+                targetLang === "vi"
+                  ? harmonizeVietnamesePronouns(backupRes.vi, pronounStyle, ctx.lockedFirstPerson)
+                  : backupRes.vi;
+              setCached(cacheKey, finalVi);
+              pushTabContext(tabId, videoTitle, cleanText, finalVi);
               return {
-                vi: backupRes.vi,
+                vi: finalVi,
                 sub2,
                 provider: backupProvider,
                 modelUsed: backupRes.modelUsed
@@ -1122,12 +1266,16 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
 
         // Luôn âm thầm dự phòng qua Google Translate Free để không bao giờ hiện thông báo lỗi đỏ che video
         try {
-          const [vi, sub2] = await Promise.all([
+          const [rawVi, sub2] = await Promise.all([
             translateWithGoogleFree(cleanText, targetLang),
             sub2Promise
           ]);
+          const vi =
+            targetLang === "vi"
+              ? harmonizeVietnamesePronouns(rawVi, pronounStyle, ctx.lockedFirstPerson)
+              : rawVi;
           if (vi) {
-            setCached(`gtx:${targetLang}:natural:${cleanText}`, vi);
+            setCached(`gtx:${targetLang}:natural:${modeKey}:${cleanText}`, vi);
             pushTabContext(tabId, videoTitle, cleanText, vi);
             return { vi, sub2, provider: "gtx" };
           }
@@ -1163,16 +1311,17 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
   const { settings, rawKey, groqKey, geminiKey, effectiveProvider } = await getActiveConfig();
   const targetLang = settings.targetLang || "vi";
   const translationStyle = settings.translationStyle || "natural";
+  const pronounStyle = settings.pronounStyle || "auto";
   const softenProfanity = settings.softenProfanity !== false;
 
-  const modeKey = softenProfanity ? "soft" : "raw";
+  const modeKey = `${softenProfanity ? "soft" : "raw"}:${pronounStyle}`;
   const results = {};
   const uncached = [];
 
   for (const text of cleanList) {
     const cached =
       getCached(`${effectiveProvider}:${targetLang}:${translationStyle}:${modeKey}:${text}`) ||
-      getCached(`gtx:${targetLang}:natural:${text}`);
+      getCached(`gtx:${targetLang}:natural:${modeKey}:${text}`);
     if (cached) {
       results[text] = cached;
     } else {
@@ -1187,13 +1336,19 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
     return { results, provider: single?.provider, modelUsed: single?.modelUsed };
   }
 
+  const ctx = getTabContext(tabId, videoTitle);
+
   if (effectiveProvider === "gtx" || !rawKey) {
     await Promise.all(
       uncached.map(async (t) => {
         try {
-          const vi = await translateWithGoogleFree(t, targetLang);
+          const rawVi = await translateWithGoogleFree(t, targetLang);
+          const vi =
+            targetLang === "vi"
+              ? harmonizeVietnamesePronouns(rawVi, pronounStyle, ctx.lockedFirstPerson)
+              : rawVi;
           if (vi) {
-            setCached(`gtx:${targetLang}:natural:${t}`, vi);
+            setCached(`gtx:${targetLang}:natural:${modeKey}:${t}`, vi);
             results[t] = vi;
           }
         } catch {
@@ -1204,7 +1359,6 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
     return { results, provider: "gtx" };
   }
 
-  const ctx = getTabContext(tabId, videoTitle);
   try {
     const batchRes =
       effectiveProvider === "groq"
@@ -1216,6 +1370,8 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
             preferredModel: settings.model || "auto",
             targetLang,
             translationStyle,
+            pronounStyle,
+            lockedPronounPair: ctx.lockedPronounPair,
             softenProfanity
           })
         : await translateWithGeminiAuto({
@@ -1226,13 +1382,19 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
             preferredModel: settings.model || "auto",
             targetLang,
             translationStyle,
+            pronounStyle,
+            lockedPronounPair: ctx.lockedPronounPair,
             softenProfanity
           });
 
     const translations = batchRes.translations || [];
     for (let i = 0; i < uncached.length; i++) {
       const src = uncached[i];
-      const vi = (translations[i] || "").trim();
+      const rawVi = (translations[i] || "").trim();
+      const vi =
+        targetLang === "vi"
+          ? harmonizeVietnamesePronouns(rawVi, pronounStyle, ctx.lockedFirstPerson)
+          : rawVi;
       if (vi) {
         setCached(`${effectiveProvider}:${targetLang}:${translationStyle}:${modeKey}:${src}`, vi);
         pushTabContext(tabId, videoTitle, src, vi);
@@ -1256,6 +1418,8 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
                 preferredModel: "auto",
                 targetLang,
                 translationStyle,
+                pronounStyle,
+                lockedPronounPair: ctx.lockedPronounPair,
                 softenProfanity
               })
             : await translateWithGeminiAuto({
@@ -1266,12 +1430,18 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
                 preferredModel: "auto",
                 targetLang,
                 translationStyle,
+                pronounStyle,
+                lockedPronounPair: ctx.lockedPronounPair,
                 softenProfanity
               });
         const translations = backupBatch.translations || [];
         for (let i = 0; i < uncached.length; i++) {
           const src = uncached[i];
-          const vi = (translations[i] || "").trim();
+          const rawVi = (translations[i] || "").trim();
+          const vi =
+            targetLang === "vi"
+              ? harmonizeVietnamesePronouns(rawVi, pronounStyle, ctx.lockedFirstPerson)
+              : rawVi;
           if (vi) {
             setCached(`${effectiveProvider}:${targetLang}:${translationStyle}:${modeKey}:${src}`, vi);
             pushTabContext(tabId, videoTitle, src, vi);
@@ -1287,9 +1457,13 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
     await Promise.all(
       uncached.map(async (t) => {
         try {
-          const vi = await translateWithGoogleFree(t, targetLang);
+          const rawVi = await translateWithGoogleFree(t, targetLang);
+          const vi =
+            targetLang === "vi"
+              ? harmonizeVietnamesePronouns(rawVi, pronounStyle, ctx.lockedFirstPerson)
+              : rawVi;
           if (vi) {
-            setCached(`gtx:${targetLang}:natural:${t}`, vi);
+            setCached(`gtx:${targetLang}:natural:${modeKey}:${t}`, vi);
             results[t] = vi;
           }
         } catch {

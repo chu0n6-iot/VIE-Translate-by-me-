@@ -18,6 +18,7 @@ let settings = {
   targetLang: "vi",
   secondaryLang: "orig",
   translationStyle: "natural",
+  pronounStyle: "auto",
   subFont: "default",
   subSize: "100",
   subColor: "#fef08a",
@@ -135,7 +136,7 @@ const PLAYER_WRAPPER_SELECTORS = [
 ].join(", ");
 
 function getLocalCacheKey(text) {
-  return `${settings.targetLang}:${settings.secondaryLang}:${settings.translationStyle}:${settings.softenProfanity !== false ? "soft" : "raw"}:${text}`;
+  return `${settings.targetLang}:${settings.secondaryLang}:${settings.translationStyle}:${settings.pronounStyle || "auto"}:${settings.softenProfanity !== false ? "soft" : "raw"}:${text}`;
 }
 
 chrome.storage.local.get(settings, (res) => {
@@ -149,7 +150,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   for (const [k, change] of Object.entries(changes)) {
     if (k in settings) {
       settings[k] = change.newValue;
-      if (["provider", "targetLang", "secondaryLang", "translationStyle", "softenProfanity"].includes(k)) {
+      if (["provider", "targetLang", "secondaryLang", "translationStyle", "pronounStyle", "softenProfanity"].includes(k)) {
         clearCacheNeeded = true;
       }
     }
