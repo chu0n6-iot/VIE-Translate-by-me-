@@ -692,6 +692,6 @@ async function testAndDetectActiveModel(apiKey, selectedProvider, preferredModel
     provider,
     sample: vi,
     modelUsed,
-    availableModels: models.slice(0, 12)
+    availableModels: models.slice(0, 40)
   };
 }

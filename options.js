@@ -1,23 +1,3 @@
-const DEFAULT_MODELS_BY_PROVIDER = {
-  groq: [
-    "meta-llama/llama-4-scout-17b-16e-instruct",
-    "meta-llama/llama-4-maverick-17b-128e-instruct",
-    "openai/gpt-oss-120b",
-    "openai/gpt-oss-20b",
-    "qwen/qwen3-32b",
-    "llama-3.3-70b-versatile",
-    "llama-3.1-8b-instant"
-  ],
-  gemini: [
-    "gemini-flash-latest",
-    "gemini-flash-lite-latest",
-    "gemini-3.8-flash",
-    "gemini-3.6-flash",
-    "gemini-3.5-flash-lite",
-    "gemini-3-flash-preview"
-  ]
-};
-
 document.addEventListener("DOMContentLoaded", async () => {
   const enabledInput = document.getElementById("enabled");
   const dualSubInput = document.getElementById("dualSub");
@@ -27,17 +7,19 @@ document.addEventListener("DOMContentLoaded", async () => {
   const getKeyLink = document.getElementById("getKeyLink");
   const apiKeyInput = document.getElementById("apiKey");
   const toggleKeyBtn = document.getElementById("toggleKeyBtn");
+  const modelField = document.getElementById("modelField");
   const modelSelect = document.getElementById("model");
+  const modelCount = document.getElementById("modelCount");
   const detectedModelBadge = document.getElementById("detectedModelBadge");
   const fallbackInput = document.getElementById("fallbackToFree");
   const saveBtn = document.getElementById("saveBtn");
   const testBtn = document.getElementById("testBtn");
   const status = document.getElementById("status");
 
-  let keysByProvider = {
-    groq: "",
-    gemini: ""
-  };
+  let keysByProvider = { groq: "", gemini: "" };
+  // Key đã được xác thực thành công (chỉ khi key trong ô nhập == verifiedKey mới hiện danh sách model)
+  let verifiedKey = "";
+  let verifyToken = 0;
 
   function showStatus(msg, type = "ok") {
     if (!msg) {
@@ -52,36 +34,35 @@ document.addEventListener("DOMContentLoaded", async () => {
     status.style.display = "block";
   }
 
-  function showDetectedModel(modelName) {
-    if (modelName) {
-      detectedModelBadge.textContent = `✓ Model đang hoạt động: ${modelName}`;
+  function hideModelList() {
+    modelField.style.display = "none";
+    modelSelect.innerHTML = "";
+    modelCount.textContent = "";
+    detectedModelBadge.style.display = "none";
+  }
+
+  function showModelList(models, selectedModel) {
+    const list = Array.isArray(models) ? [...models] : [];
+    if (selectedModel && !list.includes(selectedModel)) list.unshift(selectedModel);
+
+    modelSelect.innerHTML = "";
+    for (const m of list) {
+      const opt = document.createElement("option");
+      opt.value = m;
+      opt.textContent = m === selectedModel ? `✓ ${m}` : m;
+      modelSelect.appendChild(opt);
+    }
+    if (selectedModel) modelSelect.value = selectedModel;
+
+    modelCount.textContent = `${list.length} model`;
+    modelField.style.display = list.length > 0 ? "block" : "none";
+
+    if (selectedModel) {
+      detectedModelBadge.textContent = `✓ Đã xác thực hoạt động: ${selectedModel}`;
       detectedModelBadge.style.display = "inline-block";
     } else {
       detectedModelBadge.style.display = "none";
     }
-  }
-
-  function populateModelOptions(provider, customList = [], selectedModel = "auto") {
-    const list =
-      Array.isArray(customList) && customList.length > 0
-        ? customList
-        : DEFAULT_MODELS_BY_PROVIDER[provider] || [];
-
-    modelSelect.innerHTML = "";
-    const autoOpt = document.createElement("option");
-    autoOpt.value = "auto";
-    autoOpt.textContent = "✨ Tự động dò Model đang hoạt động (Khuyên dùng)";
-    modelSelect.appendChild(autoOpt);
-
-    for (const m of list) {
-      const opt = document.createElement("option");
-      opt.value = m;
-      opt.textContent = m;
-      modelSelect.appendChild(opt);
-    }
-
-    const validValues = ["auto", ...list];
-    modelSelect.value = validValues.includes(selectedModel) ? selectedModel : "auto";
   }
 
   function updateProviderUI(provider, keepCurrentKeyInput = false) {
@@ -93,17 +74,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       apiKeyLabel.textContent = "Groq API Key (gsk_...):";
       getKeyLink.textContent = "Lấy key Groq Free ↗";
       getKeyLink.href = "https://console.groq.com/keys";
-      if (!keepCurrentKeyInput) {
-        apiKeyInput.value = keysByProvider.groq || "";
-      }
+      if (!keepCurrentKeyInput) apiKeyInput.value = keysByProvider.groq || "";
     } else if (provider === "gemini") {
       apiKeyLabel.textContent = "Gemini API Key (AQ. / AIza...):";
       getKeyLink.textContent = "Lấy key Gemini Free ↗";
       getKeyLink.href = "https://aistudio.google.com/apikey";
-      if (!keepCurrentKeyInput) {
-        apiKeyInput.value = keysByProvider.gemini || "";
-      }
+      if (!keepCurrentKeyInput) apiKeyInput.value = keysByProvider.gemini || "";
     }
+  }
+
+  function detectProviderFromKey(key) {
+    if (key.startsWith("gsk_")) return "groq";
+    if (key.startsWith("AQ.") || key.startsWith("AIza")) return "gemini";
+    return "";
   }
 
   // Đọc dữ liệu đã lưu
@@ -117,15 +100,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     model: "auto",
     detectedModel: "",
     availableModels: [],
+    verifiedKey: "",
     fallbackToFree: true
   });
 
-  keysByProvider.groq = stored.groqApiKey || (stored.apiKey.startsWith("gsk_") ? stored.apiKey : "");
+  keysByProvider.groq =
+    stored.groqApiKey || (stored.apiKey.startsWith("gsk_") ? stored.apiKey : "");
   keysByProvider.gemini =
     stored.geminiApiKey ||
     (stored.apiKey.startsWith("AQ.") || stored.apiKey.startsWith("AIza") ? stored.apiKey : "");
-
-  // Nếu có apiKey chung mà chưa phân loại
   if (stored.apiKey && !keysByProvider.groq && !keysByProvider.gemini) {
     keysByProvider[stored.provider === "gemini" ? "gemini" : "groq"] = stored.apiKey;
   }
@@ -136,8 +119,23 @@ document.addEventListener("DOMContentLoaded", async () => {
   fallbackInput.checked = Boolean(stored.fallbackToFree);
 
   updateProviderUI(providerSelect.value);
-  populateModelOptions(providerSelect.value, stored.availableModels, stored.model);
-  showDetectedModel(stored.detectedModel);
+
+  // Chỉ hiện danh sách model nếu key hiện tại đã từng được xác thực
+  verifiedKey = stored.verifiedKey || "";
+  const currentKey = apiKeyInput.value.trim();
+  if (
+    currentKey &&
+    currentKey === verifiedKey &&
+    stored.availableModels.length > 0 &&
+    providerSelect.value !== "gtx"
+  ) {
+    const sel = stored.availableModels.includes(stored.model)
+      ? stored.model
+      : stored.detectedModel || stored.availableModels[0];
+    showModelList(stored.availableModels, sel);
+  } else {
+    hideModelList();
+  }
 
   // Nút Hiện / Ẩn API Key
   toggleKeyBtn.addEventListener("click", () => {
@@ -150,34 +148,40 @@ document.addEventListener("DOMContentLoaded", async () => {
   providerSelect.addEventListener("change", () => {
     const p = providerSelect.value;
     updateProviderUI(p);
-    populateModelOptions(p, [], "auto");
-    showDetectedModel("");
+    hideModelList();
     showStatus("");
+    const key = apiKeyInput.value.trim();
+    if (p !== "gtx" && key && key === verifiedKey) {
+      // Key này đã xác thực trước đó → nạp lại danh sách
+      chrome.storage.local.get({ availableModels: [], model: "", detectedModel: "" }).then((s) => {
+        if (s.availableModels.length > 0) showModelList(s.availableModels, s.model || s.detectedModel);
+      });
+    }
   });
 
-  // Tự động nhận diện nhà cung cấp & tự động dò model ngay khi dán API Key
+  // Tự động nhận diện nhà cung cấp & xác thực key khi dán/nhập
   let autoDetectTimer = null;
   apiKeyInput.addEventListener("input", () => {
     const val = apiKeyInput.value.trim();
 
-    if (val.startsWith("gsk_") && providerSelect.value !== "groq") {
-      providerSelect.value = "groq";
-      updateProviderUI("groq", true);
-      populateModelOptions("groq", [], "auto");
-    } else if ((val.startsWith("AQ.") || val.startsWith("AIza")) && providerSelect.value !== "gemini") {
-      providerSelect.value = "gemini";
-      updateProviderUI("gemini", true);
-      populateModelOptions("gemini", [], "auto");
+    const detected = detectProviderFromKey(val);
+    if (detected && providerSelect.value !== detected) {
+      providerSelect.value = detected;
+      updateProviderUI(detected, true);
     }
 
     if (providerSelect.value === "groq") keysByProvider.groq = val;
     if (providerSelect.value === "gemini") keysByProvider.gemini = val;
 
+    // Key thay đổi → danh sách model cũ không còn hợp lệ
+    if (val !== verifiedKey) {
+      hideModelList();
+    }
+
     if (autoDetectTimer) clearTimeout(autoDetectTimer);
-    if (val.length >= 20) {
-      autoDetectTimer = setTimeout(() => {
-        runDetectAndTest(val, true);
-      }, 400);
+    verifyToken++;
+    if (val && val !== verifiedKey && detected && val.length >= 20) {
+      autoDetectTimer = setTimeout(() => verifyKey(val), 800);
     }
   });
 
@@ -189,73 +193,98 @@ document.addEventListener("DOMContentLoaded", async () => {
     chrome.storage.local.set({ dualSub: dualSubInput.checked });
   });
 
+  // Người dùng chọn model khác trong danh sách khả dụng
+  modelSelect.addEventListener("change", async () => {
+    const m = modelSelect.value;
+    await chrome.storage.local.set({ model: m, detectedModel: m });
+    chrome.runtime.sendMessage({ type: "CLEAR_CACHE" }, () => void chrome.runtime.lastError);
+    detectedModelBadge.textContent = `✓ Đang dùng model: ${m}`;
+    detectedModelBadge.style.display = "inline-block";
+    showStatus(`✓ Đã chọn model [${m}]. Nếu model lỗi, hệ thống tự chuyển sang model khác.`, "ok");
+  });
+
   async function saveCurrentSettings(silent = false) {
-    const currentKey = apiKeyInput.value.trim();
+    const key = apiKeyInput.value.trim();
     const p = providerSelect.value;
-    if (p === "groq") keysByProvider.groq = currentKey;
-    if (p === "gemini") keysByProvider.gemini = currentKey;
+    if (p === "groq") keysByProvider.groq = key;
+    if (p === "gemini") keysByProvider.gemini = key;
+
+    const modelValue =
+      modelField.style.display !== "none" && modelSelect.value ? modelSelect.value : "auto";
 
     await chrome.storage.local.set({
       enabled: enabledInput.checked,
       dualSub: dualSubInput.checked,
       provider: p,
-      apiKey: currentKey,
+      apiKey: key,
       groqApiKey: keysByProvider.groq,
       geminiApiKey: keysByProvider.gemini,
-      model: modelSelect.value,
+      model: modelValue,
       fallbackToFree: fallbackInput.checked
     });
 
-    if (!silent) {
-      showStatus("✓ Đã lưu cài đặt thành công!", "ok");
-    }
+    if (!silent) showStatus("✓ Đã lưu cài đặt thành công!", "ok");
   }
 
-  function runDetectAndTest(keyToTest, autoSave = false) {
+  // Xác thực key → nếu OK thì liệt kê các model dùng được
+  function verifyKey(keyToTest, keepSelectedModel = false) {
     const key = (keyToTest || apiKeyInput.value || "").trim();
     if (!key) {
-      showStatus("⚠ Vui lòng nhập API Key trước khi kiểm tra.", "err");
+      showStatus("⚠ Vui lòng nhập API Key trước.", "err");
       return;
     }
 
-    showStatus("⏳ Đang tự động dò tìm model đang hoạt động cho API Key...", "wait");
+    const token = ++verifyToken;
+    showStatus("⏳ Đang xác thực API Key và lấy danh sách model khả dụng...", "wait");
     testBtn.disabled = true;
 
-    // Khi mới dán key, ưu tiên truyền "auto" để tự động tìm model sống thay vì bị kẹt ở model cũ đã chết
-    const preferredModel = autoSave ? "auto" : modelSelect.value;
+    const preferred = keepSelectedModel && modelField.style.display !== "none" ? modelSelect.value : "auto";
 
     chrome.runtime.sendMessage(
       {
         type: "TEST_API",
         apiKey: key,
         provider: providerSelect.value,
-        model: preferredModel
+        model: preferred
       },
       async (res) => {
         testBtn.disabled = false;
+        // Key đã đổi trong lúc chờ → bỏ kết quả cũ
+        if (token !== verifyToken || apiKeyInput.value.trim() !== key) return;
+
         if (chrome.runtime.lastError) {
           showStatus(`✗ Lỗi: ${chrome.runtime.lastError.message}`, "err");
           return;
         }
-        if (res?.ok) {
-          if (res.provider && res.provider !== providerSelect.value) {
-            providerSelect.value = res.provider;
-            updateProviderUI(res.provider, true);
-          }
-          populateModelOptions(
-            providerSelect.value,
-            res.availableModels || [],
-            modelSelect.value === "auto" ? "auto" : res.modelUsed
-          );
-          showDetectedModel(res.modelUsed);
-          await saveCurrentSettings(true);
-          showStatus(
-            `✓ Hoạt động tốt! Tự động chọn model [${res.modelUsed}].\nDịch thử: "${res.sample}"`,
-            "ok"
-          );
-        } else {
-          showStatus(`✗ Lỗi: ${res?.error || "Không xác định"}`, "err");
+        if (!res?.ok) {
+          verifiedKey = "";
+          hideModelList();
+          showStatus(`✗ API Key không dùng được: ${res?.error || "Không xác định"}`, "err");
+          return;
         }
+
+        if (res.provider && res.provider !== providerSelect.value) {
+          providerSelect.value = res.provider;
+          updateProviderUI(res.provider, true);
+          if (res.provider === "groq") keysByProvider.groq = key;
+          if (res.provider === "gemini") keysByProvider.gemini = key;
+        }
+
+        verifiedKey = key;
+        showModelList(res.availableModels || [], res.modelUsed);
+
+        await saveCurrentSettings(true);
+        await chrome.storage.local.set({
+          verifiedKey: key,
+          availableModels: res.availableModels || [],
+          detectedModel: res.modelUsed,
+          model: res.modelUsed
+        });
+
+        showStatus(
+          `✓ API Key hợp lệ! Tìm thấy ${(res.availableModels || []).length} model. Đang dùng [${res.modelUsed}].\nDịch thử: "${res.sample}"`,
+          "ok"
+        );
       }
     );
   }
@@ -263,12 +292,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   saveBtn.addEventListener("click", async () => {
     await saveCurrentSettings(false);
     const key = apiKeyInput.value.trim();
-    if (providerSelect.value !== "gtx" && key) {
-      runDetectAndTest(key, true);
+    if (providerSelect.value !== "gtx" && key && key !== verifiedKey) {
+      verifyKey(key);
     }
   });
 
   testBtn.addEventListener("click", () => {
-    runDetectAndTest(apiKeyInput.value.trim(), true);
+    verifyKey(apiKeyInput.value.trim());
   });
 });
