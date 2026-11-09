@@ -10,7 +10,7 @@
     }
     body {
       font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
-      width: 390px;
+      width: 400px;
       max-width: 100%;
       margin: 0 auto;
       padding: 16px;
@@ -62,7 +62,7 @@
       cursor: pointer;
     }
     .field {
-      margin-bottom: 14px;
+      margin-bottom: 13px;
     }
     .label-row {
       display: flex;
@@ -101,6 +101,52 @@
     input:focus {
       border-color: #3b82f6;
     }
+    .auto-import-box {
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.18) 0%, rgba(16, 185, 129, 0.12) 100%);
+      border: 1px solid rgba(59, 130, 246, 0.42);
+      border-radius: 9px;
+      padding: 10px 11px;
+      margin-bottom: 13px;
+    }
+    .auto-import-actions {
+      display: flex;
+      gap: 6px;
+    }
+    .btn-auto-import {
+      flex: 1;
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      color: #ffffff;
+      border: none;
+      padding: 8px 10px;
+      font-size: 12.5px;
+      font-weight: 600;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: filter 0.15s;
+    }
+    .btn-auto-import:hover {
+      filter: brightness(1.1);
+    }
+    .btn-paste-key {
+      background: #1e293b;
+      color: #e2e8f0;
+      border: 1px solid #334155;
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 7px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-paste-key:hover {
+      background: #334155;
+    }
+    .auto-import-hint {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-top: 6px;
+      line-height: 1.4;
+    }
     .key-input-group {
       display: flex;
       gap: 8px;
@@ -122,6 +168,11 @@
     .btn-toggle-key:hover {
       background: #334155;
       color: #ffffff;
+    }
+    .model-count {
+      font-size: 11.5px;
+      color: #60a5fa;
+      font-weight: 600;
     }
     .model-badge {
       display: inline-block;
@@ -196,6 +247,7 @@
       font-size: 12.5px;
       line-height: 1.45;
       word-break: break-word;
+      white-space: pre-line;
     }
     #status.status-ok {
       display: block;
@@ -230,7 +282,7 @@
   <div class="header">
     <div class="brand">
       <span>VIE-Translate</span>
-      <span class="version">v0.4</span>
+      <span class="version">v0.5</span>
     </div>
     <div class="toggles">
       <label class="toggle-label" title="Hiển thị cả phụ đề gốc và tiếng Việt">
@@ -249,34 +301,49 @@
       <label for="provider">Nhà cung cấp API (Free):</label>
     </div>
     <select id="provider">
-      <option value="groq">Groq Cloud (Free - Siêu tốc độ)</option>
       <option value="gemini">Google Gemini AI (Free - Theo ngữ cảnh)</option>
+      <option value="groq">Groq Cloud (Free - Siêu tốc độ)</option>
       <option value="gtx">Google Translate (Free - Không cần Key)</option>
     </select>
   </div>
 
   <div id="apiSection">
+    <div id="autoImportBox" class="auto-import-box">
+      <div class="auto-import-actions">
+        <button type="button" id="autoImportBtn" class="btn-auto-import">
+          ⚡ Tự động nhập Key từ Google AI Studio
+        </button>
+        <button type="button" id="pasteKeyBtn" class="btn-paste-key" title="Tự nhận Key đã copy trong Clipboard">
+          📋 Dán nhanh
+        </button>
+      </div>
+      <div class="auto-import-hint">
+        Tự động mở Google AI Studio, trích xuất mã API Key và kích hoạt model tốt nhất cho bạn chỉ với 1 cú nhấp.
+      </div>
+    </div>
+
     <div class="field">
       <div class="label-row">
-        <label for="model">Model AI:</label>
+        <label id="apiKeyLabel" for="apiKey">Gemini API Key (AQ. / AIza...):</label>
+        <a id="getKeyLink" class="get-key-link" href="https://aistudio.google.com/apikey?vie_auto_import=1" target="_blank" rel="noopener noreferrer">
+          Lấy key Gemini Free ↗
+        </a>
+      </div>
+      <div class="key-input-group">
+        <input type="password" id="apiKey" placeholder="Dán AIza... / AQ.Ab8... hoặc gsk_..." autocomplete="off">
+        <button type="button" id="toggleKeyBtn" class="btn-toggle-key">Hiện</button>
+      </div>
+    </div>
+
+    <div id="modelField" class="field" style="display: none;">
+      <div class="label-row">
+        <label for="model">Model khả dụng của Key:</label>
+        <span id="modelCount" class="model-count"></span>
       </div>
       <select id="model">
         <option value="auto">✨ Tự động dò Model đang hoạt động (Khuyên dùng)</option>
       </select>
       <div id="detectedModelBadge" class="model-badge" style="display: none;"></div>
-    </div>
-
-    <div class="field">
-      <div class="label-row">
-        <label id="apiKeyLabel" for="apiKey">Groq API Key (gsk_...):</label>
-        <a id="getKeyLink" class="get-key-link" href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">
-          Lấy key Groq Free ↗
-        </a>
-      </div>
-      <div class="key-input-group">
-        <input type="password" id="apiKey" placeholder="Dán gsk_... hoặc AQ.Ab8... / AIza..." autocomplete="off">
-        <button type="button" id="toggleKeyBtn" class="btn-toggle-key">Hiện</button>
-      </div>
     </div>
 
     <label class="checkbox-row">
@@ -286,14 +353,14 @@
   </div>
 
   <div class="btn-group">
-    <button id="saveBtn" class="btn-save">Lưu cài đặt</button>
+    <button id="saveBtn" class="btn-save" type="button">Lưu cài đặt</button>
     <button id="testBtn" class="btn-test" type="button">Test API</button>
   </div>
 
   <div id="status"></div>
 
   <div class="tip-box">
-    💡 <b>Tự động thông minh:</b> Khi bạn dán API Key (<code>gsk_...</code> của Groq hoặc <code>AQ.</code> / <code>AIza...</code> của Gemini), hệ thống sẽ tự nhận diện nhà cung cấp, kiểm tra key, rồi hiện danh sách các model dùng được của key đó để bạn chọn.
+    💡 <b>Tự động thông minh:</b> Bấm <b>⚡ Tự động nhập Key từ Google AI Studio</b> hoặc dán API Key (<code>AIza...</code> / <code>AQ.</code> của Gemini hoặc <code>gsk_...</code> của Groq), hệ thống sẽ tự nhận diện nhà cung cấp, kiểm tra key và liệt kê danh sách các model thực tế dùng được của key đó.
   </div>
 
   <script src="options.js"></script>

@@ -1,20 +1,24 @@
 {
   "manifest_version": 3,
   "name": "VIE-Translate",
-  "version": "0.4.0",
-  "description": "Context-aware Vietnamese subtitle translator powered by Groq & Google Gemini",
-  "permissions": ["storage"],
+  "version": "0.5.0",
+  "description": "Context-aware Vietnamese subtitle translator for all video websites powered by Google Gemini, Groq Cloud & Google Translate",
+  "permissions": [
+    "storage",
+    "clipboardRead"
+  ],
   "host_permissions": [
     "https://api.groq.com/*",
     "https://generativelanguage.googleapis.com/*",
     "https://aiplatform.googleapis.com/*",
-    "https://translate.googleapis.com/*"
+    "https://translate.googleapis.com/*",
+    "https://aistudio.google.com/*"
   ],
   "background": {
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "VIE-Translate - Cài đặt",
+    "default_title": "VIE-Translate - Cài đặt & Tự động lấy API Key",
     "default_popup": "options.html"
   },
   "options_page": "options.html",
@@ -24,7 +28,17 @@
       "all_frames": true,
       "js": ["content.js"],
       "css": ["overlay.css"]
+    },
+    {
+      "matches": ["https://aistudio.google.com/*"],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "js": ["aistudio-page-hook.js"]
+    },
+    {
+      "matches": ["https://aistudio.google.com/*"],
+      "run_at": "document_idle",
+      "js": ["aistudio-helper.js"]
     }
   ]
 }
-
