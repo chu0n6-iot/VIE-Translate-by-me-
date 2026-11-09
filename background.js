@@ -167,6 +167,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg.type === "LOOKUP_WORD") {
+    handleLookupWord(msg.word, msg.sentence || "", msg.videoTitle || "")
+      .then(sendResponse)
+      .catch((err) => sendResponse({ ok: false, error: err.message || "Lỗi tra từ" }));
+    return true;
+  }
+
   if (msg.type === "CLEAR_CACHE") {
     cache.clear();
     contextByTab.clear();
@@ -2049,4 +2056,129 @@ async function handleAutoImportApiKey(rawKey) {
     sample: verifyRes.sample,
     availableModels: verifyRes.availableModels
   };
+}
+
+// ============================================================================
+// 6. TỪ ĐIỂN HỌC NGOẠI NGỮ THEO NGỮ CẢNH (INTERACTIVE LANGUAGE LEARNING)
+// ============================================================================
+
+async function handleLookupWord(rawWord, sentence, videoTitle) {
+  const word = (rawWord || "").trim();
+  if (!word) return { ok: false, error: "Chưa chọn từ cần tra" };
+
+  const { settings, rawKey, effectiveProvider } = await getActiveConfig();
+  const targetLang = settings.targetLang || "vi";
+  const langLabel = LANGUAGE_NAMES[targetLang] || "Tiếng Việt";
+
+  const cacheKey = `dict:${effectiveProvider}:${targetLang}:${word.toLowerCase()}:${(sentence || "").slice(0, 60)}`;
+  const cached = getCached(cacheKey);
+  if (cached) {
+    try {
+      return { ok: true, ...JSON.parse(cached), cached: true };
+    } catch {
+      // ignore invalid json
+    }
+  }
+
+  const prompt =
+    `Giải thích từ/cụm từ "${word}" xuất hiện trong câu phụ đề: "${sentence}"` +
+    (videoTitle ? ` (Video: "${videoTitle}")` : "") +
+    ` sang ${langLabel} để người học ngoại ngữ hiểu rõ.\n` +
+    `Trả về ĐÚNG 4 dòng ngắn gọn theo định dạng sau (không dùng markdown **, không giải thích thừa):\n` +
+    `PRON: [Phiên âm IPA hoặc cách đọc dễ hiểu]\n` +
+    `POS: [Từ loại: danh từ / động từ / tính từ / cụm từ / tiếng lóng...]\n` +
+    `MEANING: [Nghĩa chính xác nhất của "${word}" trong ngữ cảnh câu này bằng ${langLabel}]\n` +
+    `NOTE: [Mẹo nhớ nhanh hoặc 1 ví dụ ngắn kèm dịch ${langLabel}]`;
+
+  if (effectiveProvider !== "gtx" && rawKey) {
+    try {
+      const res =
+        effectiveProvider === "groq"
+          ? await translateWithGroqAuto({
+              text: prompt,
+              videoTitle: "",
+              history: [],
+              apiKey: rawKey,
+              preferredModel: settings.model || "auto",
+              targetLang,
+              translationStyle: "academic",
+              softenProfanity: false
+            })
+          : await translateWithGeminiAuto({
+              text: prompt,
+              videoTitle: "",
+              history: [],
+              apiKey: rawKey,
+              preferredModel: settings.model || "auto",
+              targetLang,
+              translationStyle: "academic",
+              softenProfanity: false
+            });
+
+      const out = (res?.vi || "").trim();
+      if (out) {
+        const parsed = parseLookupOutput(word, out);
+        setCached(cacheKey, JSON.stringify(parsed));
+        return { ok: true, ...parsed };
+      }
+    } catch {
+      // Fallback sang Google Translate bên dưới
+    }
+  }
+
+  const [wordMeaning, sentenceMeaning] = await Promise.all([
+    translateWithGoogleFree(word, targetLang),
+    sentence ? translateWithGoogleFree(sentence, targetLang) : Promise.resolve("")
+  ]);
+
+  const fallbackRes = {
+    word,
+    pron: "",
+    pos: "Từ vựng",
+    meaning: wordMeaning || word,
+    note: sentenceMeaning ? `Nghĩa cả câu: "${sentenceMeaning}"` : ""
+  };
+  setCached(cacheKey, JSON.stringify(fallbackRes));
+  return { ok: true, ...fallbackRes };
+}
+
+function parseLookupOutput(word, rawText) {
+  const lines = (rawText || "")
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^[-*•]+\s*/, "").trim())
+    .filter(Boolean);
+
+  let pron = "";
+  let pos = "";
+  let meaning = "";
+  let note = "";
+
+  for (const line of lines) {
+    const mPron = line.match(/^(?:PRON|Phiên âm|Cách đọc)\s*:\s*(.+)$/i);
+    if (mPron) {
+      pron = mPron[1].trim();
+      continue;
+    }
+    const mPos = line.match(/^(?:POS|Từ loại)\s*:\s*(.+)$/i);
+    if (mPos) {
+      pos = mPos[1].trim();
+      continue;
+    }
+    const mMean = line.match(/^(?:MEANING|Nghĩa)\s*:\s*(.+)$/i);
+    if (mMean) {
+      meaning = mMean[1].trim();
+      continue;
+    }
+    const mNote = line.match(/^(?:NOTE|Ví dụ|Ghi chú)\s*:\s*(.+)$/i);
+    if (mNote) {
+      note = mNote[1].trim();
+      continue;
+    }
+  }
+
+  if (!meaning) {
+    meaning = lines.join(" • ");
+  }
+
+  return { word, pron, pos, meaning, note };
 }

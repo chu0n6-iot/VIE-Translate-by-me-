@@ -27,7 +27,7 @@
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   z-index: 2147483647;
-  pointer-events: none;
+  pointer-events: auto;
   box-sizing: border-box;
   transition: opacity 0.12s ease;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.48);
@@ -65,6 +65,7 @@
 .vie-overlay.vie-hidden {
   opacity: 0;
   visibility: hidden;
+  pointer-events: none !important;
 }
 
 .vie-overlay .vie-orig {
@@ -181,4 +182,138 @@
 .vie-player-active .mejs__captions-layer {
   opacity: 0 !important;
   pointer-events: none !important;
+}
+/* Tương tác chạm từ để tra từ điển & học ngoại ngữ */
+.vie-overlay .vie-word {
+  display: inline-block;
+  padding: 0 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.vie-overlay .vie-word:hover,
+.vie-overlay .vie-word.vie-word-active {
+  background: rgba(251, 191, 36, 0.28);
+  color: #fef08a;
+  text-decoration: underline;
+  text-decoration-color: rgba(251, 191, 36, 0.85);
+}
+
+/* Thẻ từ điển nổi ngay trên phụ đề */
+.vie-dict-card {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%);
+  width: min(440px, 94vw);
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(11, 17, 32, 0.96) 0%, rgba(20, 32, 58, 0.96) 100%);
+  border: 1.5px solid rgba(251, 191, 36, 0.65);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65), 0 0 16px rgba(245, 158, 11, 0.22);
+  color: #f8fafc;
+  text-align: left;
+  font-size: 13.5px;
+  line-height: 1.45;
+  z-index: 2147483647;
+  pointer-events: auto;
+  backdrop-filter: blur(12px);
+}
+
+.vie-dict-card.vie-dict-hidden {
+  display: none !important;
+}
+
+.vie-dict-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.vie-dict-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.vie-dict-word {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fef08a;
+}
+
+.vie-dict-pron {
+  font-size: 12.5px;
+  color: #93c5fd;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+.vie-dict-pos {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(16, 185, 129, 0.45);
+  color: #6ee7b7;
+  font-weight: 600;
+}
+
+.vie-dict-loading {
+  font-size: 12px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.vie-dict-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vie-dict-speak,
+.vie-dict-save,
+.vie-dict-close {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(30, 41, 59, 0.85);
+  color: #e2e8f0;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.vie-dict-speak:hover,
+.vie-dict-save:hover,
+.vie-dict-close:hover {
+  background: rgba(51, 65, 85, 0.95);
+  border-color: #fbbf24;
+  color: #fef08a;
+}
+
+.vie-dict-save.vie-dict-saved {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: rgba(16, 185, 129, 0.55);
+  color: #6ee7b7;
+}
+
+.vie-dict-meaning {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.vie-dict-note {
+  font-size: 12px;
+  color: #cbd5e1;
+  background: rgba(15, 23, 42, 0.65);
+  padding: 6px 9px;
+  border-radius: 7px;
+  border-left: 3px solid #fbbf24;
 }

@@ -47,6 +47,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   const fallbackInput = document.getElementById("fallbackToFree");
   const autoAudioNoCCInput = document.getElementById("autoAudioNoCC");
   const softenProfanityInput = document.getElementById("softenProfanity");
+  const hoverPauseDictInput = document.getElementById("hoverPauseDict");
+  const connectedKeyBar = document.getElementById("connectedKeyBar");
+  const connectedKeyText = document.getElementById("connectedKeyText");
+  const changeKeyBtn = document.getElementById("changeKeyBtn");
+  const keyEditorBox = document.getElementById("keyEditorBox");
+  const vocabListEl = document.getElementById("vocabList");
+  const vocabCountBadge = document.getElementById("vocabCountBadge");
+  const exportVocabBtn = document.getElementById("exportVocabBtn");
+  const clearVocabBtn = document.getElementById("clearVocabBtn");
 
   // Ngôn ngữ, Xưng hô & Phong cách
   const targetLangSelect = document.getElementById("targetLang");
@@ -215,12 +224,43 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
+  function maskKey(k) {
+    const trimmed = (k || "").trim();
+    if (trimmed.length <= 12) return trimmed;
+    return `${trimmed.slice(0, 7)}•••${trimmed.slice(-4)}`;
+  }
+
+  function showCompactConnectedMode(key, providerName) {
+    if (!connectedKeyBar || !keyEditorBox) return;
+    const pLabel = providerName === "groq" ? "Groq Cloud" : "Google Gemini";
+    if (connectedKeyText) {
+      connectedKeyText.innerHTML = `Đã kết nối <b>${pLabel}</b> (${maskKey(key)})`;
+    }
+    connectedKeyBar.style.display = "flex";
+    keyEditorBox.style.display = "none";
+  }
+
+  function showKeyEditorMode() {
+    if (!connectedKeyBar || !keyEditorBox) return;
+    connectedKeyBar.style.display = "none";
+    keyEditorBox.style.display = "block";
+  }
+
+  if (changeKeyBtn) {
+    changeKeyBtn.addEventListener("click", () => {
+      showKeyEditorMode();
+      apiKeyInput.focus();
+      apiKeyInput.select();
+    });
+  }
+
   function hideModelList() {
     if (!modelField) return;
     modelField.style.display = "none";
     modelSelect.innerHTML = "";
     if (modelCount) modelCount.textContent = "";
     detectedModelBadge.style.display = "none";
+    showKeyEditorMode();
   }
 
   function showModelList(models, activeModel, preferredSetting = "auto") {
@@ -265,6 +305,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     } else {
       detectedModelBadge.style.display = "none";
     }
+    if (list.length > 0 && apiKeyInput.value.trim()) {
+      showCompactConnectedMode(apiKeyInput.value.trim(), providerSelect.value);
+    }
   }
 
   function updateProviderUI(provider, keepCurrentKeyInput = false) {
@@ -306,6 +349,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     fallbackToFree: true,
     autoAudioNoCC: false,
     softenProfanity: true,
+    hoverPauseDict: true,
+    savedVocab: [],
     targetLang: "vi",
     secondaryLang: "orig",
     pronounStyle: "auto",
@@ -334,6 +379,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   fallbackInput.checked = Boolean(stored.fallbackToFree);
   autoAudioNoCCInput.checked = Boolean(stored.autoAudioNoCC);
   if (softenProfanityInput) softenProfanityInput.checked = stored.softenProfanity !== false;
+  if (hoverPauseDictInput) hoverPauseDictInput.checked = stored.hoverPauseDict !== false;
 
   targetLangSelect.value = stored.targetLang || "vi";
   secondaryLangSelect.value = stored.secondaryLang || "orig";
@@ -466,6 +512,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       fallbackToFree: fallbackInput.checked,
       autoAudioNoCC: autoAudioNoCCInput.checked,
       softenProfanity: softenProfanityInput ? softenProfanityInput.checked : true,
+      hoverPauseDict: hoverPauseDictInput ? hoverPauseDictInput.checked : true,
       targetLang: targetLangSelect.value,
       secondaryLang: secondaryLangSelect.value,
       pronounStyle: pronounStyleSelect ? pronounStyleSelect.value : "auto",
@@ -792,4 +839,99 @@ document.addEventListener("DOMContentLoaded", async () => {
   testBtn.addEventListener("click", () => {
     verifyKey(apiKeyInput.value.trim());
   });
+
+  // ============================================================================
+  // SỔ TỪ VỰNG HỌC NGOẠI NGỮ (VOCABULARY NOTEBOOK)
+  // ============================================================================
+  function renderVocabNotebook(vocabArr) {
+    const list = Array.isArray(vocabArr) ? vocabArr : [];
+    if (vocabCountBadge) {
+      vocabCountBadge.textContent = list.length > 0 ? `(${list.length})` : "";
+    }
+    if (!vocabListEl) return;
+
+    if (list.length === 0) {
+      vocabListEl.innerHTML = `
+        <div class="vocab-empty">
+          🐸 <b>Sổ từ vựng của bạn đang trống!</b><br>
+          Khi xem video có bật <b>Song ngữ 2 dòng</b>, hãy rê chuột vào khung phụ đề (video sẽ tự dừng) và <b>bấm vào bất kỳ từ nào</b> để nghe phát âm, xem nghĩa ngữ cảnh & lưu từ vào đây nhé!
+        </div>
+      `;
+      return;
+    }
+
+    vocabListEl.innerHTML = "";
+    list.forEach((item, idx) => {
+      const card = document.createElement("div");
+      card.className = "vocab-item";
+      card.innerHTML = `
+        <div class="vocab-item-top">
+          <div>
+            <span class="vocab-word" title="Bấm để nghe phát âm">🔊 ${item.word || ""}</span>
+            ${item.pron ? `<span class="vocab-pron">/${item.pron.replace(/^\/|\/$/g, "")}/</span>` : ""}
+            ${item.pos ? `<span class="vocab-pos">${item.pos}</span>` : ""}
+          </div>
+          <button type="button" class="btn-toggle-key vocab-del-btn" data-idx="${idx}" style="padding:2px 6px;font-size:10.5px;">✕</button>
+        </div>
+        <div class="vocab-meaning">${item.meaning || ""}</div>
+        ${item.sentence ? `<div class="vocab-ctx">"${item.sentence}"</div>` : ""}
+      `;
+
+      card.querySelector(".vocab-word")?.addEventListener("click", () => {
+        if ("speechSynthesis" in window) {
+          window.speechSynthesis.cancel();
+          const u = new SpeechSynthesisUtterance(item.word);
+          u.rate = 0.95;
+          window.speechSynthesis.speak(u);
+        }
+      });
+
+      card.querySelector(".vocab-del-btn")?.addEventListener("click", async () => {
+        const next = list.filter((_, i) => i !== idx);
+        await chrome.storage.local.set({ savedVocab: next });
+        renderVocabNotebook(next);
+      });
+
+      vocabListEl.appendChild(card);
+    });
+  }
+
+  renderVocabNotebook(stored.savedVocab || []);
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.savedVocab) {
+      renderVocabNotebook(changes.savedVocab.newValue || []);
+    }
+  });
+
+  if (exportVocabBtn) {
+    exportVocabBtn.addEventListener("click", async () => {
+      const s = await chrome.storage.local.get({ savedVocab: [] });
+      const list = s.savedVocab || [];
+      if (!list.length) {
+        showStatus("⚠ Sổ từ vựng đang trống, hãy chạm từ trên phụ đề video để lưu trước nhé!", "err");
+        return;
+      }
+      const lines = list.map(
+        (v, i) =>
+          `${i + 1}. ${v.word} ${v.pron ? `(/${v.pron}/)` : ""} [${v.pos || "Từ vựng"}] — ${v.meaning}\n   Ngữ cảnh: "${v.sentence || ""}"`
+      );
+      const blob = new Blob([lines.join("\n\n")], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `VIE-Translate-Vocab-${new Date().toISOString().slice(0, 10)}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showStatus(`✓ Đã xuất ${list.length} từ vựng ra file .txt!`, "ok");
+    });
+  }
+
+  if (clearVocabBtn) {
+    clearVocabBtn.addEventListener("click", async () => {
+      await chrome.storage.local.set({ savedVocab: [] });
+      renderVocabNotebook([]);
+      showStatus("✓ Đã xóa sạch Sổ từ vựng.", "ok");
+    });
+  }
 });

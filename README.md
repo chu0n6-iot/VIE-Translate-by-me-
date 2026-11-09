@@ -46,6 +46,11 @@
 7. **🛡️ Chuyển Đổi Model Âm Thầm & Bật/Tắt Giảm Nhẹ Lời Nói Tục**:
    - **Zero-Interruption Silent Failover**: Khi một model chạm giới hạn băng thông (HTTP 429/Quota), tiện ích **tự động chuyển âm thầm sang model dự phòng trong <50ms** mà không bao giờ hiện cảnh báo đỏ làm che khuất video.
    - **Chế độ Thân thiện (Mặc định) / Nguyên văn**: Tùy chọn làm mềm từ ngữ nhạy cảm sang cách diễn đạt lịch sự hoặc giữ nguyên văn phong gốc của người nói.
+8. **📚 Học Ngoại Ngữ Qua Phụ Đề Song Ngữ (Hover Pause, Từ Điển Chạm Từ AI & Sổ Từ Vựng)**:
+   - **Rê chuột tự dừng video (`Hover-to-Pause`)**: Đưa chuột vào khung phụ đề để video tự động tạm dừng giúp bạn đọc kỹ câu thoại; rời chuột ra video tự phát tiếp.
+   - **Chạm từ bất kỳ để tra nghĩa theo ngữ cảnh (`Click-to-Define`)**: Bấm vào bất kỳ từ nào trên dòng phụ đề gốc để nghe phát âm chuẩn (`🔊`) và xem thẻ từ điển AI ngay trên phụ đề (gồm **Phiên âm IPA, Từ loại, Nghĩa sát ngữ cảnh câu thoại và Ví dụ/Mẹo nhớ**).
+   - **Sổ Từ Vựng (`📚 Học Từ`)**: Lưu từ vựng chỉ với 1 cú nhấp (`⭐ Lưu từ`), ôn tập lại kèm câu thoại gốc ngay trong popup và xuất ra file `.txt` bất cứ lúc nào.
+   - **Giao diện kết nối thu gọn (`Compact Connected Bar`)**: Tự động thu gọn vùng nhập API Key sau khi đã kết nối thành công, giữ giao diện luôn thoáng và gọn.
 
 ---
 

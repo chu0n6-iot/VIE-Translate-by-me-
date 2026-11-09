@@ -705,6 +705,137 @@
       border: 1px solid rgba(251, 191, 36, 0.45);
       color: #fef08a;
     }
+
+    /* COMPACT CONNECTED API BAR */
+    .connected-bar {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 11px;
+      margin-bottom: 8px;
+      background: rgba(16, 185, 129, 0.14);
+      border: 1px solid rgba(52, 211, 153, 0.45);
+      border-radius: 10px;
+      font-size: 11.5px;
+      color: #d1fae5;
+    }
+
+    .connected-bar-info {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      overflow: hidden;
+    }
+
+    .connected-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+      flex-shrink: 0;
+    }
+
+    .connected-text {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .btn-change-key {
+      background: rgba(15, 23, 42, 0.75);
+      color: #fde68a;
+      border: 1px solid rgba(251, 191, 36, 0.45);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .btn-change-key:hover {
+      background: rgba(30, 41, 59, 0.95);
+    }
+
+    /* VOCABULARY NOTEBOOK */
+    .vocab-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .vocab-list {
+      max-height: 220px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      padding-right: 2px;
+    }
+
+    .vocab-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 9px;
+      padding: 8px 10px;
+      font-size: 12px;
+    }
+
+    .vocab-item-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      margin-bottom: 3px;
+    }
+
+    .vocab-word {
+      font-weight: 700;
+      font-size: 13.5px;
+      color: #fef08a;
+      cursor: pointer;
+    }
+
+    .vocab-pron {
+      color: #93c5fd;
+      font-size: 11.5px;
+      margin-left: 4px;
+    }
+
+    .vocab-pos {
+      font-size: 10.5px;
+      padding: 1px 6px;
+      border-radius: 99px;
+      background: rgba(16, 185, 129, 0.18);
+      color: #6ee7b7;
+      margin-left: 4px;
+    }
+
+    .vocab-meaning {
+      color: #f8fafc;
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+
+    .vocab-ctx {
+      color: #94a3b8;
+      font-size: 11px;
+      font-style: italic;
+    }
+
+    .vocab-empty {
+      text-align: center;
+      padding: 20px 12px;
+      color: #cbd5e1;
+      font-size: 12px;
+      background: var(--bg-card);
+      border: 1px dashed var(--border-subtle);
+      border-radius: 10px;
+      line-height: 1.5;
+    }
   </style>
 </head>
 <body>
@@ -738,9 +869,10 @@
 
   <!-- 3-TAB BAR -->
   <div class="nav-tabs">
-    <button type="button" class="tab-btn active" data-tab="tab-api">🔑 AI & Kết Nối</button>
-    <button type="button" class="tab-btn" data-tab="tab-lang">🌍 Ngôn Ngữ & Xưng Hô</button>
-    <button type="button" class="tab-btn" data-tab="tab-style">🎨 Giao Diện Sub</button>
+    <button type="button" class="tab-btn active" data-tab="tab-api">🔑 Kết Nối</button>
+    <button type="button" class="tab-btn" data-tab="tab-lang">🌍 Ngôn Ngữ</button>
+    <button type="button" class="tab-btn" data-tab="tab-style">🎨 Giao Diện</button>
+    <button type="button" class="tab-btn" data-tab="tab-vocab">📚 Học Từ <span id="vocabCountBadge"></span></button>
   </div>
 
   <!-- TAB 1: AI & API KEY -->
@@ -755,30 +887,40 @@
     </div>
 
     <div id="apiSection">
-      <div class="auto-import-box">
-        <div class="auto-import-actions">
-          <button type="button" id="autoImportBtn" class="btn-auto-import">
-            🚀 Tự động lấy Key từ Google AI Studio
-          </button>
-          <button type="button" id="pasteKeyBtn" class="btn-paste-key" title="Tự nhận Key trong Clipboard">
-            📋 Dán nhanh
-          </button>
+      <div id="connectedKeyBar" class="connected-bar">
+        <div class="connected-bar-info">
+          <span class="connected-dot"></span>
+          <span id="connectedKeyText" class="connected-text">Đã kết nối API Key</span>
         </div>
-        <div class="auto-import-hint">
-          Bấm 1 chạm để Cóc mở AI Studio, tự trích xuất Key & chọn model miễn phí khỏe nhất!
-        </div>
+        <button type="button" id="changeKeyBtn" class="btn-change-key">Đổi Key</button>
       </div>
 
-      <div class="field">
-        <div class="label-row">
-          <label id="apiKeyLabel" for="apiKey">Gemini API Key (AIza... / AQ.):</label>
-          <a id="getKeyLink" class="get-key-link" href="https://aistudio.google.com/apikey?vie_auto_import=1" target="_blank" rel="noopener noreferrer">
-            Lấy key Free ↗
-          </a>
+      <div id="keyEditorBox">
+        <div class="auto-import-box">
+          <div class="auto-import-actions">
+            <button type="button" id="autoImportBtn" class="btn-auto-import">
+              🚀 Tự động lấy Key từ Google AI Studio
+            </button>
+            <button type="button" id="pasteKeyBtn" class="btn-paste-key" title="Tự nhận Key trong Clipboard">
+              📋 Dán nhanh
+            </button>
+          </div>
+          <div class="auto-import-hint">
+            Bấm 1 chạm để Cóc mở AI Studio, tự trích xuất Key & chọn model miễn phí khỏe nhất!
+          </div>
         </div>
-        <div class="key-input-group">
-          <input type="password" id="apiKey" placeholder="Dán AIza... / AQ... hoặc gsk_..." autocomplete="off">
-          <button type="button" id="toggleKeyBtn" class="btn-toggle-key">Hiện</button>
+
+        <div class="field">
+          <div class="label-row">
+            <label id="apiKeyLabel" for="apiKey">Gemini API Key (AIza... / AQ.):</label>
+            <a id="getKeyLink" class="get-key-link" href="https://aistudio.google.com/apikey?vie_auto_import=1" target="_blank" rel="noopener noreferrer">
+              Lấy key Free ↗
+            </a>
+          </div>
+          <div class="key-input-group">
+            <input type="password" id="apiKey" placeholder="Dán AIza... / AQ... hoặc gsk_..." autocomplete="off">
+            <button type="button" id="toggleKeyBtn" class="btn-toggle-key">Hiện</button>
+          </div>
         </div>
       </div>
 
@@ -808,6 +950,10 @@
       <label class="checkbox-row" title="Chủ động làm mềm từ ngữ chửi thề/nói tục sang biểu cảm lịch sự ('chết tiệt', 'trời đất ơi') mà không ngắt quãng phụ đề">
         <input type="checkbox" id="softenProfanity" checked>
         <span>🛡️ <b>Chế độ thân thiện (Family-friendly)</b>: Làm dịu từ nhạy cảm, nói tục</span>
+      </label>
+      <label class="checkbox-row" title="Rê chuột vào phụ đề để tự động tạm dừng video, bấm vào từ bất kỳ trên dòng phụ đề gốc để tra nghĩa, nghe phát âm và lưu từ vựng">
+        <input type="checkbox" id="hoverPauseDict" checked>
+        <span>📖 <b>Rê chuột tự dừng video & Chạm từ để tra nghĩa</b> (Học ngoại ngữ qua phụ đề)</span>
       </label>
     </div>
   </div>
@@ -937,6 +1083,18 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- TAB 4: SỔ TỪ VỰNG HỌC NGOẠI NGỮ -->
+  <div id="tab-vocab" class="tab-pane">
+    <div class="vocab-header">
+      <span style="font-size: 11.5px; color: #cbd5e1;">💡 Bấm vào từ bất kỳ trên phụ đề video để tra & lưu từ</span>
+      <div style="display: flex; gap: 5px;">
+        <button type="button" id="exportVocabBtn" class="btn-toggle-key" style="padding: 4px 8px; font-size: 11px;">📥 Xuất file</button>
+        <button type="button" id="clearVocabBtn" class="btn-toggle-key" style="padding: 4px 8px; font-size: 11px; color: #fca5a5;">🗑 Xóa hết</button>
+      </div>
+    </div>
+    <div id="vocabList" class="vocab-list"></div>
   </div>
 
   <!-- ACTION BUTTONS -->
