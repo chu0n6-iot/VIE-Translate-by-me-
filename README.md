@@ -39,9 +39,13 @@
 4. **🎨 Studio Tùy Chỉnh Giao Diện Phụ Đề & Xem Trước Trực Tiếp (Live Preview)**:
    - Giao diện **Translate Toad** sống động với khung **Xem trước trực tiếp**.
    - Tùy biến **4 kiểu khung nền** (*🐸 Translate Toad viền vàng*, *✨ Kính mờ Frosted Glass*, *🎬 Hộp đen Cinema*, *🌟 Không nền - Viền chữ đậm kiểu Netflix/Anime*).
-   - Tùy chỉnh **5 bộ Phông chữ**, thanh trượt **Cỡ chữ (`75%–150%`)**, **Vị trí độ cao (`4%–45%`)**, và **Màu sắc từng dòng phụ đề**.
+   - Tùy chỉnh **5 bộ Phông chữ**, thanh trượt **Độ rộng khung (`30%–100%`)** (giúp khung cố định, không bị co giãn giật lắc), **Cỡ chữ (`75%–150%`)**, **Vị trí độ cao (`4%–45%`)**, và **Màu sắc từng dòng phụ đề**.
 5. **🔑 Tự Động Nhập API Key Từ Google AI Studio Chỉ Với 1 Cú Nhấp**:
    - Bấm **"⚡ Tự động lấy Key từ Google AI Studio"**, trợ lý nổi của Cóc sẽ tự mở AI Studio, trích xuất mã Key (`AIza...` / `AQ...`), kiểm tra danh sách model thực tế của tài khoản và lưu tự động.
+6. **🛡️ Tùy Chọn Bật/Tắt Giảm Nhẹ Lời Nói Tục & Chửi Thề (Family-Friendly / Censoring Control)**:
+   - **Chế độ Thân thiện (Mặc định)**: Khi YouTuber nói tục hoặc chửi thề (`fuck`, `shit`, `damn`...), AI sẽ chủ động **giảm nhẹ tình tiết và làm mềm ngôn từ** sang cách diễn đạt văn minh, lịch sự (*"chết tiệt"*, *"trời đất ơi"*, *"quái quỷ"*, *"khốn khổ"*...). Phụ đề luôn hiển thị trọn vẹn, **tuyệt đối không bị ngắt quãng, không bị AI từ chối dịch hay che dấu `***`**.
+   - **Chế độ Nguyên văn**: Dịch trung thực, giữ nguyên văn phong đời thường và sắc thái tự nhiên của người nói.
+   - **Bộ nhớ đệm độc lập**: Tự động làm mới cache khi đổi chế độ, phụ đề mới áp dụng ngay lập tức.
 
 ---
 
@@ -103,9 +107,13 @@
    - Mix and match any primary and secondary language (**Vietnamese, English, French, Japanese, Korean, Simplified/Traditional Chinese, German, Spanish, Russian, Thai**—e.g. display **French + Vietnamese** subtitles on any video!).
    - Choose from **5 AI Translation Personas**: *Natural & Conversational*, *Cinema / Netflix*, *Academic / Technical*, *GenZ / Humor*, or *Literal (Language Learning)*.
 4. **🎨 Interactive Subtitle Studio with Live Preview**:
-   - Customize **Background Themes** (*🐸 Translate Toad Gold*, *✨ Frosted Glass*, *🎬 Cinema Dark*, *🌟 Clean Outline*), **5 Font Families**, **Font Size (`75%–150%`)**, **Vertical Position (`4%–45%`)**, and **Custom Colors** with an instant live preview inside the popup.
+   - Customize **Background Themes** (*🐸 Translate Toad Gold*, *✨ Frosted Glass*, *🎬 Cinema Dark*, *🌟 Clean Outline*), **5 Font Families**, **Box Width (`30%–100%`)** (stabilizes subtitle box against horizontal jitter), **Font Size (`75%–150%`)**, **Vertical Position (`4%–45%`)**, and **Custom Colors** with an instant live preview inside the popup.
 5. **🔑 1-Click Auto-Import API Key from Google AI Studio**:
    - Click **"⚡ Tự động lấy Key từ Google AI Studio"** to open Google AI Studio and automatically extract, verify, and save your Gemini API key (`AIza...` / `AQ...`) and active model list.
+6. **🛡️ Configurable Family-Friendly Profanity Softening (Censoring Control)**:
+   - **Family-Friendly Mode (Default)**: Automatically softens swear words, slurs, and profanities (`fuck`, `shit`, `damn`, `bitch`...) into polite expressions (*"darn it"*, *"oh goodness"*, *"frustrating"*, *"heavens"*...) without breaking subtitle continuity or triggering model refusal errors.
+   - **Raw / Uncensored Mode**: Provides authentic, true-to-life translations capturing the speaker's full emotional slang.
+   - **Isolated Mode Caching**: Employs separate cache routes so switching between family-friendly and raw modes refreshes immediately.
 
 ---
 
