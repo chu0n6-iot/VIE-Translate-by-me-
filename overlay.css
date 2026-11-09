@@ -13,17 +13,18 @@
   transform: translateX(-50%);
   width: var(--vie-w, 72%);
   max-width: 96%;
-  min-height: 3.4em;
-  padding: 9px 18px;
+  min-height: 3.5em;
+  padding: 10px 22px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
+  align-items: stretch;
   background: rgba(10, 12, 18, 0.78);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   color: #ffffff;
   font-family: var(--vie-font-family);
-  text-align: center;
+  text-align: left;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   z-index: 2147483647;
@@ -31,6 +32,13 @@
   box-sizing: border-box;
   transition: opacity 0.12s ease;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.48);
+}
+
+.vie-overlay[data-align="center"],
+#vie-overlay[data-align="center"] {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
 }
 
 /* Các kiểu khung nền tùy chọn */
@@ -69,10 +77,12 @@
 }
 
 .vie-overlay .vie-orig {
+  width: 100%;
   font-size: calc(clamp(12.5px, 1.35vw, 17px) * var(--vie-scale, 1));
   color: var(--vie-second-color, #e2e8f0);
   margin-bottom: 4px;
   line-height: 1.35;
+  text-align: inherit;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 5px rgba(0, 0, 0, 0.85);
   white-space: normal;
   word-break: break-word;
@@ -88,13 +98,32 @@
 }
 
 .vie-overlay .vie-vi {
+  width: 100%;
   font-size: calc(clamp(16px, 2.05vw, 26px) * var(--vie-scale, 1));
   font-weight: 650;
   color: var(--vie-primary-color, #fef08a);
   line-height: 1.4;
+  text-align: inherit;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.75);
   white-space: normal;
   word-break: break-word;
+}
+
+.vie-overlay .vie-vi-word {
+  display: inline;
+}
+
+.vie-overlay .vie-word-appear {
+  animation: vieWordFadeIn 0.12s ease-out;
+}
+
+@keyframes vieWordFadeIn {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .vie-overlay[data-bg-style="outline"] .vie-vi {
@@ -107,7 +136,7 @@
 }
 
 .vie-overlay .vie-vi.vie-preview {
-  opacity: 0.93;
+  opacity: 0.96;
 }
 
 .vie-overlay .vie-vi.vie-error {
@@ -408,13 +437,17 @@
 .vie-learn-bar {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 7px;
   max-height: 0;
   opacity: 0;
   overflow: hidden;
   margin-top: 0;
   transition: max-height 0.18s ease, opacity 0.18s ease, margin-top 0.18s ease;
+}
+
+.vie-overlay[data-align="center"] .vie-learn-bar {
+  justify-content: center;
 }
 
 .vie-overlay:hover .vie-learn-bar,
