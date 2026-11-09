@@ -17,6 +17,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local") return;
   if (changes.enabled) settings.enabled = changes.enabled.newValue;
   if (changes.dualSub) settings.dualSub = changes.dualSub.newValue;
+  if (changes.model || changes.provider || changes.apiKey || changes.groqApiKey || changes.geminiApiKey) {
+    clearTranslations();
+  }
   applySettingsToDOM();
 });
 
@@ -94,7 +97,11 @@ function getVideoState(video) {
     state = {
       lastText: "",
       reqSeq: 0,
-      debounceTimer: null
+      debounceTimer: null,
+      cues: [], // cue của YouTube (timedtext) để dịch trước
+      tracks: [], // textTrack HTML5
+      ytVid: "",
+      prefetchTimer: null
     };
     videoStateMap.set(video, state);
   }
@@ -135,6 +142,129 @@ function scheduleTranslate(video, rawText, immediate = false) {
   }
 }
 
+// ============================================================================
+// DỊCH SONG SONG: hàng đợi + cache phía trang
+// ============================================================================
+const MAX_PARALLEL = 3;
+const trCache = new Map(); // text gốc -> bản dịch
+const trPending = new Map(); // text gốc -> entry đang chờ/đang dịch
+const trQueue = [];
+let trActive = 0;
+let recentPairs = []; // các cặp {src, vi} gần nhất để làm ngữ cảnh
+
+function clearTranslations() {
+  trCache.clear();
+  recentPairs = [];
+  clearQueue();
+}
+
+function clearQueue() {
+  while (trQueue.length) {
+    const e = trQueue.shift();
+    if (!e.started) {
+      trPending.delete(e.text);
+      e.resolve({});
+    }
+  }
+}
+
+function startEntry(entry) {
+  if (entry.started) return;
+  entry.started = true;
+  trActive++;
+
+  const finish = (res) => {
+    trActive--;
+    trPending.delete(entry.text);
+    const vi = (res?.vi || "").trim();
+    if (vi && !res.error) {
+      trCache.set(entry.text, vi);
+      recentPairs.push({ src: entry.text, vi });
+      if (recentPairs.length > 5) recentPairs.shift();
+    }
+    entry.resolve(res || {});
+    pumpQueue();
+  };
+
+  try {
+    chrome.runtime.sendMessage(
+      {
+        type: "TRANSLATE",
+        text: entry.text,
+        videoTitle: getVideoTitle(),
+        history: recentPairs.slice(-5)
+      },
+      (res) => {
+        if (chrome.runtime.lastError) {
+          finish({ error: "Mất kết nối extension, hãy tải lại trang" });
+          return;
+        }
+        finish(res);
+      }
+    );
+  } catch {
+    finish({ error: "Extension vừa được cập nhật, hãy tải lại trang" });
+  }
+}
+
+function pumpQueue() {
+  while (trActive < MAX_PARALLEL && trQueue.length) {
+    startEntry(trQueue.shift());
+  }
+}
+
+// urgent = câu đang hiển thị trên màn hình → chạy ngay, không chờ hàng đợi
+function requestTranslation(text, urgent = false) {
+  if (trCache.has(text)) return Promise.resolve({ vi: trCache.get(text) });
+
+  let entry = trPending.get(text);
+  if (!entry) {
+    entry = { text, started: false };
+    entry.promise = new Promise((resolve) => (entry.resolve = resolve));
+    trPending.set(text, entry);
+    if (!urgent) trQueue.push(entry);
+  }
+  if (urgent && !entry.started) startEntry(entry);
+  else if (!urgent) pumpQueue();
+  return entry.promise;
+}
+
+// Dịch trước các cue sắp tới (song song, tối đa MAX_PARALLEL)
+function getUpcomingCues(video, state) {
+  let cues = state.cues;
+  if (!cues.length && state.tracks.length) {
+    cues = [];
+    for (const track of state.tracks) {
+      if (!track.cues) continue;
+      for (const c of Array.from(track.cues)) {
+        const text = (c.text || "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+        if (text) cues.push({ start: c.startTime, end: c.endTime, text });
+      }
+    }
+  }
+  const t = video.currentTime || 0;
+  return cues.filter((c) => c.end >= t - 1 && c.start <= t + 120).sort((a, b) => a.start - b.start);
+}
+
+function startPrefetch(video) {
+  const state = getVideoState(video);
+  if (state.prefetchTimer) return;
+
+  const tick = () => {
+    if (!settings.enabled || video.paused && video.readyState < 2) return;
+    if (trQueue.length > 20) return;
+    for (const c of getUpcomingCues(video, state).slice(0, 25)) {
+      if (!trCache.has(c.text) && !trPending.has(c.text)) {
+        requestTranslation(c.text, false);
+      }
+    }
+  };
+
+  state.prefetchTimer = setInterval(tick, 1500);
+  video.addEventListener("seeking", () => clearQueue());
+  tick();
+}
+
 function translateAndShow(video, text) {
   const state = getVideoState(video);
   const currentSeq = ++state.reqSeq;
@@ -147,35 +277,75 @@ function translateAndShow(video, text) {
     origEl.style.display = settings.dualSub ? "block" : "none";
   }
 
-  chrome.runtime.sendMessage(
-    {
-      type: "TRANSLATE",
-      text,
-      videoTitle: getVideoTitle()
-    },
-    (res) => {
-      if (chrome.runtime.lastError) return;
-      // Bỏ qua nếu đã có câu phụ đề mới hơn
-      if (currentSeq !== state.reqSeq || !settings.enabled) return;
+  // Đã dịch trước → hiện ngay, không độ trễ
+  if (trCache.has(text)) {
+    viEl.classList.remove("vie-error", "vie-loading");
+    viEl.textContent = trCache.get(text);
+    overlay.classList.remove("vie-hidden");
+    return;
+  }
 
-      if (res?.error) {
-        viEl.textContent = `⚠ ${res.error}`;
-        viEl.classList.add("vie-error");
-        overlay.classList.remove("vie-hidden");
-        return;
-      }
+  // Hiện phụ đề gốc ngay, dòng Việt hiện "…" trong lúc chờ
+  viEl.classList.remove("vie-error");
+  viEl.classList.add("vie-loading");
+  viEl.textContent = "…";
+  overlay.classList.remove("vie-hidden");
 
-      const viText = (res?.vi || "").trim();
-      if (!viText) {
-        hideOverlay(video);
-        return;
-      }
+  requestTranslation(text, true).then((res) => {
+    // Bỏ qua nếu đã có câu phụ đề mới hơn
+    if (currentSeq !== state.reqSeq || !settings.enabled) return;
+    viEl.classList.remove("vie-loading");
 
-      viEl.classList.remove("vie-error");
-      viEl.textContent = viText;
-      overlay.classList.remove("vie-hidden");
+    if (res?.error) {
+      viEl.textContent = `⚠ ${res.error}`;
+      viEl.classList.add("vie-error");
+      return;
     }
-  );
+    const viText = (res?.vi || "").trim();
+    if (!viText) {
+      hideOverlay(video);
+      return;
+    }
+    viEl.classList.remove("vie-error");
+    viEl.textContent = viText;
+    overlay.classList.remove("vie-hidden");
+  });
+}
+
+// Tải toàn bộ phụ đề YouTube (timedtext) để dịch trước; lỗi thì chỉ dịch theo từng câu
+async function loadYouTubeCues(video) {
+  const state = getVideoState(video);
+  const vid = new URL(location.href).searchParams.get("v");
+  if (!vid || state.ytVid === vid) return;
+  state.ytVid = vid;
+  state.cues = [];
+  clearQueue();
+
+  try {
+    const html = await (await fetch(`/watch?v=${vid}`, { credentials: "include" })).text();
+    const m = html.match(/"captionTracks":(\[\{.*?\}\]),"/);
+    if (!m) return;
+    const tracks = JSON.parse(m[1]);
+    if (!tracks.length) return;
+
+    const notVi = tracks.filter((t) => !/^vi/i.test(t.languageCode || ""));
+    const pool = notVi.length ? notVi : tracks;
+    const track = pool.find((t) => t.kind !== "asr") || pool[0];
+
+    const res = await fetch(`${track.baseUrl}&fmt=json3`, { credentials: "include" });
+    const data = await res.json();
+    const cues = [];
+    for (const ev of data.events || []) {
+      if (!ev.segs) continue;
+      const text = ev.segs.map((sg) => sg.utf8 || "").join("").replace(/\s+/g, " ").trim();
+      if (!text) continue;
+      const start = (ev.tStartMs || 0) / 1000;
+      cues.push({ start, end: start + (ev.dDurationMs || 2000) / 1000, text });
+    }
+    if (state.ytVid === vid) state.cues = cues;
+  } catch {
+    // Không lấy được cue → vẫn dịch theo từng câu hiển thị
+  }
 }
 
 // 1. Theo dõi phụ đề trên YouTube (.ytp-caption-window-container)
@@ -223,6 +393,7 @@ function bindTextTrack(video, track) {
   if (watchedTracks.has(track)) return;
   if (track.kind !== "subtitles" && track.kind !== "captions") return;
   watchedTracks.add(track);
+  getVideoState(video).tracks.push(track);
 
   if (settings.enabled && track.mode === "showing") {
     track.mode = "hidden";
@@ -247,9 +418,11 @@ function bindTextTrack(video, track) {
 function watchVideo(video) {
   // Trên YouTube, container .ytp-caption-window-container có thể xuất hiện trễ
   observeYouTubeCaptions(video);
+  if (video.closest(".html5-video-player")) loadYouTubeCues(video);
 
   if (watchedVideos.has(video)) return;
   watchedVideos.add(video);
+  startPrefetch(video);
 
   if (video.textTracks) {
     for (const track of video.textTracks) {

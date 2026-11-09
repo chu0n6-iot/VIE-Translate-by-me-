@@ -38,7 +38,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.type === "TRANSLATE") {
     const tabId = sender.tab?.id ?? "global";
-    handleTranslate(msg.text, msg.videoTitle || "", tabId)
+    handleTranslate(msg.text, msg.videoTitle || "", tabId, msg.history)
       .then(sendResponse)
       .catch((err) => sendResponse({ error: err.message || "Lỗi dịch phụ đề" }));
     return true;
@@ -541,7 +541,7 @@ async function translateWithGeminiAuto({ text, videoTitle, history, apiKey, pref
 // 3. ĐIỀU PHỐI DỊCH CHÍNH & KIỂM TRA API
 // ============================================================================
 
-async function handleTranslate(rawText, videoTitle, tabId) {
+async function handleTranslate(rawText, videoTitle, tabId, historyFromPage) {
   const cleanText = (rawText || "").replace(/\s+/g, " ").trim();
   if (!cleanText) return { vi: "" };
 
@@ -592,21 +592,28 @@ async function handleTranslate(rawText, videoTitle, tabId) {
         return { error: "Chưa nhập API Key trong Cài đặt" };
       }
 
+      // Khi dịch song song, trang gửi kèm các câu liền trước để giữ ngữ cảnh/ngôi xưng
       const ctx = getTabContext(tabId, videoTitle);
+      const hist =
+        Array.isArray(historyFromPage) && historyFromPage.length > 0
+          ? historyFromPage
+              .filter((h) => h && h.src && h.vi)
+              .slice(-MAX_CONTEXT_ITEMS)
+          : ctx.items;
       try {
         const result =
           effectiveProvider === "groq"
             ? await translateWithGroqAuto({
                 text: cleanText,
                 videoTitle,
-                history: ctx.items,
+                history: hist,
                 apiKey: rawKey,
                 preferredModel: settings.model || "auto"
               })
             : await translateWithGeminiAuto({
                 text: cleanText,
                 videoTitle,
-                history: ctx.items,
+                history: hist,
                 apiKey: rawKey,
                 preferredModel: settings.model || "auto"
               });

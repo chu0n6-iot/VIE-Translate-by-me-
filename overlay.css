@@ -55,3 +55,6 @@
   opacity: 0 !important;
   pointer-events: none !important;
 }
+.vie-overlay .vie-vi.vie-loading {
+  opacity: 0.55;
+}
