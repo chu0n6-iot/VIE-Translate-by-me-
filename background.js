@@ -438,12 +438,23 @@ function buildSystemPrompt({
     ? " CHẾ ĐỘ THÂN THIỆN (Family-friendly) ĐANG BẬT: nếu câu gốc có từ nói tục, chửi thề hoặc nhạy cảm (fuck, shit, damn, bitch, ass...), hãy CHỦ ĐỘNG GIẢM NHẸ TÌNH TIẾT và LÀM MỀM NGÔN TỪ, thay bằng các từ ngữ biểu cảm nhẹ nhàng, lịch sự và văn minh (ví dụ: 'chết tiệt', 'trời đất ơi', 'quái quỷ', 'bực thật', 'khốn khổ'). TUYỆT ĐỐI KHÔNG bỏ sót câu, KHÔNG từ chối dịch, giữ trọn vẹn ý nghĩa và ngữ cảnh câu chuyện."
     : " CHẾ ĐỘ NGUYÊN VĂN ĐANG BẬT: nếu câu gốc có tiếng lóng, từ cảm thán hoặc từ chửi thề (fuck, shit, damn, bitch, ass...), BẮT BUỘC dịch thẳng sang từ tương đương tự nhiên theo văn phong đời thường (đệch, mẹ kiếp, chết tiệt, vãi...), TUYỆT ĐỐI KHÔNG kiểm duyệt, không bỏ sót và không từ chối dịch.";
 
+  const punctuationRule =
+    " QUY TẮC DẤU CÂU & NỐT NHẠC BIỂU CẢM ĐA DẠNG:\n" +
+    "- Nếu câu là lời bài hát, câu hát hoặc giai điệu (hoặc câu gốc có nốt nhạc ♪/♫), BẮT BUỘC thêm ký hiệu nốt nhạc ♪ ở đầu và cuối câu dịch (ví dụ: ♪ Lời bài hát ngân vang ♪).\n" +
+    "- Thêm dấu câu biểu cảm phù hợp vào các câu đặc thù để phụ đề phong phú và giàu cảm xúc:\n" +
+    "  + Dùng dấu hỏi '?' cho câu nghi vấn, thắc mắc, hỏi han.\n" +
+    "  + Dùng dấu chấm than '!' hoặc '!?' cho câu cảm thán, hô hoán, ngạc nhiên, cảnh báo hoặc nhấn mạnh cảm xúc mạnh.\n" +
+    "  + Dùng dấu ba chấm '...' cho câu ngập ngừng, thì thầm, bỏ lửng hoặc suy tư dang dở.\n" +
+    "  + Dùng dấu ngoặc kép “...” khi trích dẫn câu nói của ai đó, tiêu đề hoặc thuật ngữ đặc biệt.\n" +
+    "- TUYỆT ĐỐI không dịch cộc lốc thiếu dấu câu đối với các câu cảm xúc hoặc câu hỏi.";
+
   if (isBatch) {
     return (
       `Bạn là biên dịch viên phụ đề video chuyên nghiệp sang ${langLabel}. ` +
       `Hãy dịch từng câu được đánh số [1], [2]... sang ${langLabel} như một kịch bản liền mạch cùng một người nói/hội thoại. ${styleDesc} ${pronounRule} ` +
       `BẮT BUỘC giữ nguyên định dạng đánh số [1], [2]... trên từng dòng tương ứng và ĐỒNG NHẤT 100% NGÔI XƯNG từ câu [1] đến câu cuối cùng, không giải thích thêm.` +
-      profanityRule
+      profanityRule +
+      `\n${punctuationRule}`
     );
   }
 
@@ -451,7 +462,8 @@ function buildSystemPrompt({
     `Bạn là biên dịch viên phụ đề video chuyên nghiệp sang ${langLabel}. ` +
     `Hãy dịch câu thoại sang ${langLabel} ngắn gọn, dễ đọc trên màn hình. ${styleDesc} ${pronounRule} ` +
     `Chỉ trả về duy nhất câu ${langLabel} đã dịch, không giải thích, không suy nghĩ dài dòng, không thêm dấu ngoặc kép.` +
-    profanityRule
+    profanityRule +
+    `\n${punctuationRule}`
   );
 }
 
@@ -1550,6 +1562,10 @@ function parseSyncedLrcToCues(lrcText) {
   const rawCues = [];
   const timeRegex = /\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
 
+  // Hỗ trợ đọc offset toàn cục trong chuẩn LRC (ví dụ [offset: 500] hoặc [offset: -1200])
+  const offsetMatch = lrcText.match(/\[offset:\s*(-?\d+)\]/i);
+  const headerOffsetSec = offsetMatch ? (parseInt(offsetMatch[1], 10) || 0) / 1000 : 0;
+
   for (const line of lines) {
     timeRegex.lastIndex = 0;
     const times = [];
@@ -1559,7 +1575,7 @@ function parseSyncedLrcToCues(lrcText) {
       const sec = parseInt(match[2], 10);
       const fracRaw = match[3] || "0";
       const frac = parseInt(fracRaw.padEnd(3, "0").slice(0, 3), 10) / 1000;
-      times.push(min * 60 + sec + frac);
+      times.push(min * 60 + sec + frac + headerOffsetSec);
     }
     if (!times.length) continue;
 
@@ -1571,7 +1587,7 @@ function parseSyncedLrcToCues(lrcText) {
     if (!text || /^(instrumental|intro|outro|music)$/i.test(text)) continue;
 
     for (const t of times) {
-      rawCues.push({ start: t, text });
+      rawCues.push({ start: Math.max(0, t), text });
     }
   }
 
@@ -1652,10 +1668,16 @@ async function handleSearchSongLyrics(msg, tabId) {
     const cues = parseSyncedLrcToCues(bestSynced.syncedLyrics);
     if (cues.length >= 4) {
       const plain = bestSynced.plainLyrics || cues.map((c) => c.text).join("\n");
+      // Nếu video dài hơn bản audio album đáng kể (do có đoạn hội thoại / cảnh phim mở đầu MV)
+      const durationDelta =
+        duration > 15 && bestSynced.duration > 15 ? duration - bestSynced.duration : 0;
       const out = {
         found: true,
         synced: true,
         cues,
+        durationDelta,
+        trackDuration: bestSynced.duration || 0,
+        videoDuration: duration,
         plainLyrics: plain.slice(0, 2500),
         trackName: bestSynced.trackName || primary,
         artistName: bestSynced.artistName || channelName

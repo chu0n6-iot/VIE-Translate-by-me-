@@ -845,6 +845,87 @@ document.addEventListener("DOMContentLoaded", async () => {
     verifyKey(apiKeyInput.value.trim());
   });
 
+  const LANG_SPEECH_MAP = {
+    en: "en-US",
+    fr: "fr-FR",
+    ja: "ja-JP",
+    ko: "ko-KR",
+    "zh-CN": "zh-CN",
+    "zh-TW": "zh-TW",
+    de: "de-DE",
+    es: "es-ES",
+    ru: "ru-RU",
+    th: "th-TH",
+    vi: "vi-VN"
+  };
+
+  function detectLanguageForSpeech(text, langHint = "") {
+    if (langHint && LANG_SPEECH_MAP[langHint]) {
+      return LANG_SPEECH_MAP[langHint];
+    }
+    const t = String(text || "").trim();
+    if (!t) return "en-US";
+    if (/[\u3040-\u309F\u30A0-\u30FF]/.test(t)) return "ja-JP";
+    if (/[\uAC00-\uD7AF\u1100-\u11FF]/.test(t)) return "ko-KR";
+    if (/[\u4E00-\u9FFF]/.test(t)) return "zh-CN";
+    if (/[\u0400-\u04FF]/.test(t)) return "ru-RU";
+    if (/[\u0E00-\u0E7F]/.test(t)) return "th-TH";
+    if (/[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđĐ]/.test(t)) {
+      return "vi-VN";
+    }
+    if (/[éèêëàâôûùçîïœæ]/i.test(t)) return "fr-FR";
+    if (/[äöüß]/i.test(t)) return "de-DE";
+    if (/[áéíóúñ¿¡]/i.test(t)) return "es-ES";
+    if (secondaryLangSelect?.value && LANG_SPEECH_MAP[secondaryLangSelect.value]) {
+      return LANG_SPEECH_MAP[secondaryLangSelect.value];
+    }
+    return "en-US";
+  }
+
+  function getBestVoiceForLang(bcpLang) {
+    if (!("speechSynthesis" in window)) return null;
+    const voices = window.speechSynthesis.getVoices() || [];
+    if (!voices.length) return null;
+    const cleanTarget = bcpLang.toLowerCase().replace("_", "-");
+    const primaryTag = cleanTarget.split("-")[0];
+    let match = voices.find((v) => (v.lang || "").toLowerCase().replace("_", "-") === cleanTarget);
+    if (match) return match;
+    const tagMatches = voices.filter((v) =>
+      (v.lang || "").toLowerCase().replace("_", "-").startsWith(primaryTag)
+    );
+    if (tagMatches.length > 0) {
+      const natural = tagMatches.find((v) => /google|natural|premium|online/i.test(v.name));
+      return natural || tagMatches[0];
+    }
+    return null;
+  }
+
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.onvoiceschanged = () => {
+      try {
+        window.speechSynthesis.getVoices();
+      } catch {}
+    };
+  }
+
+  function speakWordWithNativeVoice(word, langHint = "") {
+    if (!("speechSynthesis" in window) || !word) return;
+    try {
+      window.speechSynthesis.cancel();
+      const targetLang = detectLanguageForSpeech(word, langHint);
+      const u = new SpeechSynthesisUtterance(word);
+      u.lang = targetLang;
+      const voice = getBestVoiceForLang(targetLang);
+      if (voice) {
+        u.voice = voice;
+      }
+      u.rate = 0.95;
+      window.speechSynthesis.speak(u);
+    } catch {
+      // ignore
+    }
+  }
+
   // ============================================================================
   // SỔ TỪ VỰNG HỌC NGOẠI NGỮ (VOCABULARY NOTEBOOK)
   // ============================================================================
@@ -872,7 +953,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       card.innerHTML = `
         <div class="vocab-item-top">
           <div>
-            <span class="vocab-word" title="Bấm để nghe phát âm">🔊 ${item.word || ""}</span>
+            <span class="vocab-word" title="Bấm để nghe phát âm giọng bản xứ">🔊 ${item.word || ""}</span>
             ${item.pron ? `<span class="vocab-pron">/${item.pron.replace(/^\/|\/$/g, "")}/</span>` : ""}
             ${item.pos ? `<span class="vocab-pos">${item.pos}</span>` : ""}
           </div>
@@ -883,12 +964,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       `;
 
       card.querySelector(".vocab-word")?.addEventListener("click", () => {
-        if ("speechSynthesis" in window) {
-          window.speechSynthesis.cancel();
-          const u = new SpeechSynthesisUtterance(item.word);
-          u.rate = 0.95;
-          window.speechSynthesis.speak(u);
-        }
+        speakWordWithNativeVoice(item.word, item.lang || "");
       });
 
       card.querySelector(".vocab-del-btn")?.addEventListener("click", async () => {
