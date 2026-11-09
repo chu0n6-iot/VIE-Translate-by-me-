@@ -829,13 +829,14 @@ async function translateWithGeminiAuto({
   translationStyle = "natural",
   softenProfanity = true
 }) {
-  const candidates = await discoverGeminiModels(apiKey);
+  const isVertexKey = apiKey.startsWith("AQ.");
+  const candidates = isVertexKey ? FALLBACK_GEMINI_MODELS : await discoverGeminiModels(apiKey);
   const savedRoute = activeRouteByKey.get(apiKey);
 
-  const endpointTypes = apiKey.startsWith("AQ.")
-    ? savedRoute?.endpointType === "vertex"
-      ? ["vertex", "aistudio"]
-      : ["aistudio", "vertex"]
+  const endpointTypes = isVertexKey
+    ? savedRoute?.endpointType === "aistudio"
+      ? ["aistudio", "vertex"]
+      : ["vertex", "aistudio"]
     : ["aistudio"];
 
   const ordered = buildOrderedCandidates(candidates, apiKey, preferredModel, savedRoute?.model);
@@ -863,11 +864,27 @@ async function translateWithGeminiAuto({
         }
         return { vi: out, modelUsed: candidate };
       } catch (err) {
-        lastError = err;
         const status = err.status || 0;
         const msg = (err.message || "").toLowerCase();
 
+        // Không ghi đè lỗi chi tiết của endpoint chính bằng lỗi "API key not valid" của endpoint phụ
+        if (!lastError || !msg.includes("api key not valid")) {
+          lastError = err;
+        }
+
         if (err.refused) continue;
+
+        // Lỗi cấp độ API Key / Google Cloud Project chưa bật API -> ngắt luôn vòng lặp endpoint này, không phạt model
+        if (
+          status === 401 ||
+          status === 403 ||
+          msg.includes("api key not valid") ||
+          msg.includes("has not been used in project") ||
+          msg.includes("is disabled") ||
+          msg.includes("permission_denied")
+        ) {
+          break;
+        }
 
         if (status === 404 || status === 400 || msg.includes("not found")) {
           markModelCooldown(apiKey, candidate, 24 * 60 * 60 * 1000);
@@ -879,8 +896,6 @@ async function translateWithGeminiAuto({
           msg.includes("exhausted")
         ) {
           markModelCooldown(apiKey, candidate, 3 * 60 * 1000);
-        } else if (status === 401 || status === 403) {
-          break;
         } else {
           markModelCooldown(apiKey, candidate, 45 * 1000);
         }
@@ -888,7 +903,20 @@ async function translateWithGeminiAuto({
     }
   }
 
-  throw lastError || new Error("Không tìm thấy model Gemini khả dụng cho API Key này.");
+  if (lastError) {
+    const rawMsg = lastError.message || "";
+    const urlMatch = rawMsg.match(/https:\/\/console\.developers\.google\.com\/[^\s]+/);
+    if (rawMsg.includes("has not been used in project") || rawMsg.includes("is disabled")) {
+      const enableUrl =
+        urlMatch?.[0] || "https://console.cloud.google.com/apis/library/aiplatform.googleapis.com";
+      throw new Error(
+        `Project Google Cloud chứa Key này chưa bật API. Hãy mở link sau và bấm "ENABLE" (Bật), đợi 1 phút rồi thử lại: ${enableUrl} — HOẶC lấy Key chuẩn (AIza...) tại https://aistudio.google.com/apikey`
+      );
+    }
+    throw lastError;
+  }
+
+  throw new Error("Không tìm thấy model Gemini khả dụng cho API Key này.");
 }
 
 // ============================================================================

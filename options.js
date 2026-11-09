@@ -504,8 +504,24 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   autoImportBtn.addEventListener("click", async () => {
-    const fromClip = await tryAutoReadClipboard(true);
-    if (fromClip) return;
+    try {
+      const clipText = await navigator.clipboard.readText();
+      const match = (clipText || "").trim().match(CLIPBOARD_KEY_REGEX);
+      if (match && match[1] !== apiKeyInput.value.trim()) {
+        const foundKey = match[1];
+        const detected = detectProviderFromKey(foundKey);
+        if (detected) {
+          providerSelect.value = detected;
+          keysByProvider[detected] = foundKey;
+          updateProviderUI(detected, true);
+        }
+        apiKeyInput.value = foundKey;
+        verifyKey(foundKey);
+        return;
+      }
+    } catch {
+      // Tiếp tục mở Google AI Studio bên dưới
+    }
 
     setToadSay("Ộp! Đang mở Google AI Studio để lấy Key cho bạn... 🐸🚀");
     showStatus("⏳ Đang kết nối tới Google AI Studio để tự động lấy API Key...", "wait");
