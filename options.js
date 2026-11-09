@@ -356,7 +356,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     pronounStyle: "auto",
     translationStyle: "natural",
     subFont: "default",
-    subAlign: "left",
     overlayWidth: 72,
     subSize: "100",
     subColor: "#fef08a",
@@ -389,7 +388,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   subBgStyleSelect.value = stored.subBgStyle || "toad";
   subFontSelect.value = stored.subFont || "default";
-  if (subAlignSelect) subAlignSelect.value = stored.subAlign || "left";
   if (overlayWidthInput) overlayWidthInput.value = stored.overlayWidth || 72;
   subSizeInput.value = stored.subSize || "100";
   subBottomPosInput.value = stored.subBottomPos || "12";
@@ -521,7 +519,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       translationStyle: translationStyleSelect.value,
       subBgStyle: subBgStyleSelect.value,
       subFont: subFontSelect.value,
-      subAlign: subAlignSelect ? subAlignSelect.value : "left",
       overlayWidth: overlayWidthInput ? Number(overlayWidthInput.value) || 72 : 72,
       subSize: subSizeInput.value,
       overlayScale: Number(subSizeInput.value) || 100,
@@ -555,8 +552,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     pronounStyleSelect,
     translationStyleSelect,
     subBgStyleSelect,
-    subFontSelect,
-    subAlignSelect
+    subFontSelect
   ]
     .filter(Boolean)
     .forEach((el) => {
@@ -608,7 +604,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   resetStyleBtn.addEventListener("click", () => {
     subBgStyleSelect.value = "toad";
     subFontSelect.value = "default";
-    if (subAlignSelect) subAlignSelect.value = "left";
     if (overlayWidthInput) overlayWidthInput.value = "72";
     subSizeInput.value = "100";
     subBottomPosInput.value = "12";
