@@ -27,7 +27,8 @@ let settings = {
   overlayWidth: 72,
   overlayScale: 100,
   overlayBottom: 12,
-  autoAudioNoCC: false
+  autoAudioNoCC: false,
+  softenProfanity: true
 };
 
 const PLATFORM_CAPTION_CONFIGS = [
@@ -134,7 +135,7 @@ const PLAYER_WRAPPER_SELECTORS = [
 ].join(", ");
 
 function getLocalCacheKey(text) {
-  return `${settings.targetLang}:${settings.secondaryLang}:${settings.translationStyle}:${text}`;
+  return `${settings.targetLang}:${settings.secondaryLang}:${settings.translationStyle}:${settings.softenProfanity !== false ? "soft" : "raw"}:${text}`;
 }
 
 chrome.storage.local.get(settings, (res) => {
@@ -148,7 +149,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   for (const [k, change] of Object.entries(changes)) {
     if (k in settings) {
       settings[k] = change.newValue;
-      if (["provider", "targetLang", "secondaryLang", "translationStyle"].includes(k)) {
+      if (["provider", "targetLang", "secondaryLang", "translationStyle", "softenProfanity"].includes(k)) {
         clearCacheNeeded = true;
       }
     }

@@ -41,6 +41,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const detectedModelBadge = document.getElementById("detectedModelBadge");
   const fallbackInput = document.getElementById("fallbackToFree");
   const autoAudioNoCCInput = document.getElementById("autoAudioNoCC");
+  const softenProfanityInput = document.getElementById("softenProfanity");
 
   // Ngôn ngữ & Phong cách
   const targetLangSelect = document.getElementById("targetLang");
@@ -242,6 +243,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     verifiedKey: "",
     fallbackToFree: true,
     autoAudioNoCC: false,
+    softenProfanity: true,
     targetLang: "vi",
     secondaryLang: "orig",
     translationStyle: "natural",
@@ -268,6 +270,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   providerSelect.value = stored.provider || "gemini";
   fallbackInput.checked = Boolean(stored.fallbackToFree);
   autoAudioNoCCInput.checked = Boolean(stored.autoAudioNoCC);
+  if (softenProfanityInput) softenProfanityInput.checked = stored.softenProfanity !== false;
 
   targetLangSelect.value = stored.targetLang || "vi";
   secondaryLangSelect.value = stored.secondaryLang || "orig";
@@ -394,6 +397,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       dualSub: dualSubInput.checked,
       fallbackToFree: fallbackInput.checked,
       autoAudioNoCC: autoAudioNoCCInput.checked,
+      softenProfanity: softenProfanityInput ? softenProfanityInput.checked : true,
       targetLang: targetLangSelect.value,
       secondaryLang: secondaryLangSelect.value,
       translationStyle: translationStyleSelect.value,
@@ -414,6 +418,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     dualSubInput,
     fallbackInput,
     autoAudioNoCCInput,
+    softenProfanityInput,
     targetLangSelect,
     secondaryLangSelect,
     translationStyleSelect,
