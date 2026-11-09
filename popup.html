@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>VIE-Translate</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --success: #10b981;
+      --error: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px;
+      width: 350px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge {
+      background: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    h1 {
+      font-size: 16px;
+      margin: 0;
+      font-weight: 700;
+    }
+    /* Toggle switch */
+    .toggle-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .toggle-wrap input {
+      accent-color: var(--success);
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+    .field {
+      margin-bottom: 12px;
+    }
+    .label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 5px;
+    }
+    label {
+      font-weight: 600;
+      color: #e2e8f0;
+      font-size: 12px;
+    }
+    .get-key-link {
+      color: #60a5fa;
+      text-decoration: none;
+      font-size: 11px;
+    }
+    .get-key-link:hover {
+      text-decoration: underline;
+    }
+    select, input[type="password"], input[type="text"] {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+    }
+    select:focus, input:focus {
+      border-color: var(--primary);
+    }
+    .key-input-group {
+      display: flex;
+      gap: 6px;
+    }
+    .icon-btn {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 6px;
+      padding: 0 10px;
+      cursor: pointer;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .icon-btn:hover {
+      color: var(--text);
+      border-color: #475569;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    button.primary {
+      flex: 1;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 9px 12px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    button.primary:hover {
+      background: var(--primary-hover);
+    }
+    button.secondary {
+      background: var(--card);
+      color: #e2e8f0;
+      border: 1px solid var(--border);
+      padding: 9px 12px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    button.secondary:hover {
+      background: #334155;
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    #status {
+      margin-top: 12px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      line-height: 1.4;
+      display: none;
+      word-break: break-word;
+    }
+    #status.ok {
+      display: block;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #6ee7b7;
+    }
+    #status.err {
+      display: block;
+      background: rgba(248, 113, 113, 0.15);
+      border: 1px solid rgba(248, 113, 113, 0.4);
+      color: #fca5a5;
+    }
+    .hint {
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">
+      <h1>VIE-Translate</h1>
+      <span class="badge">v0.2</span>
+    </div>
+    <label class="toggle-wrap" title="Bật hoặc tắt dịch phụ đề">
+      <input type="checkbox" id="enabledToggle" checked>
+      <span id="enabledLabel">Đang bật</span>
+    </label>
+  </div>
+
+  <div class="field">
+    <div class="label-row">
+      <label for="providerSelect">Nhà cung cấp API (Free):</label>
+    </div>
+    <select id="providerSelect">
+      <option value="gemini">Google Gemini (Free - AI Studio)</option>
+      <option value="groq">Groq Cloud (Free - Siêu tốc độ)</option>
+    </select>
+  </div>
+
+  <div class="field">
+    <div class="label-row">
+      <label for="modelSelect">Model AI:</label>
+    </div>
+    <select id="modelSelect"></select>
+  </div>
+
+  <div class="field">
+    <div class="label-row">
+      <label for="apiKey" id="apiKeyLabel">Gemini API Key:</label>
+      <a id="getKeyLink" class="get-key-link" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Lấy key Free ↗</a>
+    </div>
+    <div class="key-input-group">
+      <input type="password" id="apiKey" placeholder="AIzaSy..." autocomplete="off">
+      <button type="button" id="toggleEyeBtn" class="icon-btn" title="Hiện/Ẩn API Key">Hiện</button>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button type="button" id="saveBtn" class="primary">Lưu cài đặt</button>
+    <button type="button" id="testBtn" class="secondary">Test API</button>
+  </div>
+
+  <div id="status"></div>
+
+  <div class="hint" id="providerHint">
+    💡 <b>Mẹo:</b> Chọn <code>gemini-2.5-flash-lite</code> hoặc <b>Groq</b> để dịch phụ đề nhanh và ít bị giới hạn lượt gọi mỗi phút nhất.
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
