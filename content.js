@@ -29,7 +29,8 @@ let settings = {
   overlayScale: 100,
   overlayBottom: 12,
   autoAudioNoCC: false,
-  softenProfanity: true
+  softenProfanity: true,
+  hoverPauseDict: true
 };
 
 const PLATFORM_CAPTION_CONFIGS = [
@@ -243,6 +244,11 @@ function getOrCreateOverlay(video) {
     overlay = document.createElement("div");
     overlay.className = "vie-overlay vie-hidden";
 
+    // Hộp tra từ nhanh & Học ngoại ngữ (nằm ngay phía trên khung phụ đề)
+    const dictCard = document.createElement("div");
+    dictCard.className = "vie-dict-card vie-dict-hidden";
+    overlay.appendChild(dictCard);
+
     const origLine = document.createElement("div");
     origLine.className = "vie-orig";
 
@@ -252,9 +258,220 @@ function getOrCreateOverlay(video) {
     overlay.appendChild(origLine);
     overlay.appendChild(viLine);
     container.appendChild(overlay);
+
+    bindInteractiveOverlayEvents(video, overlay, origLine, dictCard);
   }
   applyOverlayVisualStyle(overlay);
   return overlay;
+}
+
+function speakWord(word) {
+  try {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(word);
+    utter.rate = 0.95;
+    window.speechSynthesis.speak(utter);
+  } catch {
+    // ignore speech errors
+  }
+}
+
+async function saveWordToVocab(item, saveBtnEl) {
+  try {
+    const stored = await chrome.storage.local.get({ savedVocab: [] });
+    const list = Array.isArray(stored.savedVocab) ? stored.savedVocab : [];
+    const existsIdx = list.findIndex(
+      (x) => (x.word || "").toLowerCase() === (item.word || "").toLowerCase()
+    );
+    const entry = {
+      word: item.word,
+      pron: item.pron || "",
+      pos: item.pos || "",
+      meaning: item.meaning || "",
+      note: item.note || "",
+      sentence: item.sentence || "",
+      videoTitle: getVideoTitle(),
+      savedAt: Date.now()
+    };
+    if (existsIdx >= 0) {
+      list[existsIdx] = entry;
+    } else {
+      list.unshift(entry);
+    }
+    await chrome.storage.local.set({ savedVocab: list.slice(0, 300) });
+    if (saveBtnEl) {
+      saveBtnEl.textContent = "✓ Đã lưu vào Sổ từ";
+      saveBtnEl.classList.add("vie-dict-saved");
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function openWordLookup(video, overlay, dictCard, word, sentence, wordSpan) {
+  overlay.querySelectorAll(".vie-word.vie-word-active").forEach((el) => {
+    el.classList.remove("vie-word-active");
+  });
+  if (wordSpan) wordSpan.classList.add("vie-word-active");
+
+  dictCard.classList.remove("vie-dict-hidden");
+  dictCard.innerHTML = `
+    <div class="vie-dict-header">
+      <div class="vie-dict-title">
+        <span class="vie-dict-word">${escapeHtml(word)}</span>
+        <span class="vie-dict-loading">⏳ Cóc đang phân tích ngữ cảnh...</span>
+      </div>
+      <button type="button" class="vie-dict-close" title="Đóng">✕</button>
+    </div>
+  `;
+
+  dictCard.querySelector(".vie-dict-close")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    dictCard.classList.add("vie-dict-hidden");
+    overlay.querySelectorAll(".vie-word.vie-word-active").forEach((el) => {
+      el.classList.remove("vie-word-active");
+    });
+  });
+
+  chrome.runtime.sendMessage(
+    {
+      type: "LOOKUP_WORD",
+      word,
+      sentence,
+      videoTitle: getVideoTitle()
+    },
+    (res) => {
+      if (chrome.runtime.lastError || !res?.ok) {
+        dictCard.innerHTML = `
+          <div class="vie-dict-header">
+            <span class="vie-dict-word">${escapeHtml(word)}</span>
+            <button type="button" class="vie-dict-close">✕</button>
+          </div>
+          <div class="vie-dict-meaning">Không thể tra từ lúc này.</div>
+        `;
+        dictCard.querySelector(".vie-dict-close")?.addEventListener("click", (e) => {
+          e.stopPropagation();
+          dictCard.classList.add("vie-dict-hidden");
+        });
+        return;
+      }
+
+      dictCard.innerHTML = `
+        <div class="vie-dict-header">
+          <div class="vie-dict-title">
+            <span class="vie-dict-word">${escapeHtml(res.word || word)}</span>
+            ${res.pron ? `<span class="vie-dict-pron">/${escapeHtml(res.pron.replace(/^\/|\/$/g, ""))}/</span>` : ""}
+            ${res.pos ? `<span class="vie-dict-pos">${escapeHtml(res.pos)}</span>` : ""}
+            <button type="button" class="vie-dict-speak" title="Nghe phát âm">🔊</button>
+          </div>
+          <div class="vie-dict-actions">
+            <button type="button" class="vie-dict-save" title="Lưu vào Sổ từ vựng để ôn tập">⭐ Lưu từ</button>
+            <button type="button" class="vie-dict-close" title="Đóng">✕</button>
+          </div>
+        </div>
+        <div class="vie-dict-meaning">${escapeHtml(res.meaning || "")}</div>
+        ${res.note ? `<div class="vie-dict-note">💡 ${escapeHtml(res.note)}</div>` : ""}
+      `;
+
+      dictCard.querySelector(".vie-dict-speak")?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        speakWord(res.word || word);
+      });
+
+      const saveBtn = dictCard.querySelector(".vie-dict-save");
+      saveBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        saveWordToVocab({ ...res, word: res.word || word, sentence }, saveBtn);
+      });
+
+      dictCard.querySelector(".vie-dict-close")?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        dictCard.classList.add("vie-dict-hidden");
+        overlay.querySelectorAll(".vie-word.vie-word-active").forEach((el) => {
+          el.classList.remove("vie-word-active");
+        });
+      });
+    }
+  );
+}
+
+function escapeHtml(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function renderInteractiveWords(origEl, text) {
+  if (!origEl) return;
+  if (origEl.dataset.rawText === text && origEl.children.length > 0) return;
+  origEl.dataset.rawText = text;
+  origEl.innerHTML = "";
+
+  const tokens = (text || "").split(/(\s+)/);
+  for (const tok of tokens) {
+    if (!tok) continue;
+    if (/^\s+$/.test(tok)) {
+      origEl.appendChild(document.createTextNode(tok));
+      continue;
+    }
+    const cleanWord = tok.replace(/^[.,!?;:"“”'‘’()\[\]{}<>…\-]+|[.,!?;:"“”'‘’()\[\]{}<>…\-]+$/g, "");
+    if (!cleanWord) {
+      origEl.appendChild(document.createTextNode(tok));
+      continue;
+    }
+    const span = document.createElement("span");
+    span.className = "vie-word";
+    span.dataset.word = cleanWord;
+    span.textContent = tok;
+    origEl.appendChild(span);
+  }
+}
+
+function bindInteractiveOverlayEvents(video, overlay, origEl, dictCard) {
+  const state = getVideoState(video);
+
+  overlay.addEventListener("mouseenter", () => {
+    state.isHoveringOverlay = true;
+    if (state.hideTimer) {
+      clearTimeout(state.hideTimer);
+      state.hideTimer = null;
+    }
+    if (settings.hoverPauseDict !== false && !video.paused && !video.ended) {
+      state.pausedByHover = true;
+      video.pause();
+    }
+  });
+
+  overlay.addEventListener("mouseleave", () => {
+    state.isHoveringOverlay = false;
+    dictCard.classList.add("vie-dict-hidden");
+    overlay.querySelectorAll(".vie-word.vie-word-active").forEach((el) => {
+      el.classList.remove("vie-word-active");
+    });
+    if (state.pausedByHover) {
+      state.pausedByHover = false;
+      video.play().catch(() => {});
+    }
+  });
+
+  overlay.addEventListener("click", (e) => {
+    e.stopPropagation();
+  });
+
+  origEl.addEventListener("click", (e) => {
+    const wordSpan = e.target.closest(".vie-word");
+    if (!wordSpan) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const word = wordSpan.dataset.word || wordSpan.textContent.trim();
+    const sentence = origEl.dataset.rawText || origEl.textContent.trim();
+    if (!word) return;
+    speakWord(word);
+    openWordLookup(video, overlay, dictCard, word, sentence, wordSpan);
+  });
 }
 
 function hideOverlay(video) {
@@ -374,7 +591,8 @@ function renderTranslation(video, origText, viText, sub2Text = "", isPreview = f
 
   const showSecondary = Boolean(settings.dualSub) && settings.secondaryLang !== "none";
   if (origEl) {
-    origEl.textContent = getSecondaryDisplayLine(origText, sub2Text);
+    const secondLine = getSecondaryDisplayLine(origText, sub2Text);
+    renderInteractiveWords(origEl, secondLine);
     origEl.style.display = showSecondary ? "block" : "none";
   }
 
@@ -407,6 +625,7 @@ function scheduleTranslate(video, rawText, immediate = false) {
     }
     if (state.hideTimer) clearTimeout(state.hideTimer);
     state.hideTimer = setTimeout(() => {
+      if (state.isHoveringOverlay) return;
       state.lastText = "";
       state.reqSeq++;
       state.lastRenderedSeq = state.reqSeq;
@@ -488,7 +707,7 @@ function translateAndShow(video, text, fastStreamMode = false) {
   const overlay = getOrCreateOverlay(video);
   const origEl = overlay.querySelector(".vie-orig");
   if (origEl && settings.secondaryLang === "orig") {
-    origEl.textContent = text;
+    renderInteractiveWords(origEl, text);
     origEl.style.display = settings.dualSub ? "block" : "none";
   }
 
