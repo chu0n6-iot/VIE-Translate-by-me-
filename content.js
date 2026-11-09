@@ -1,18 +1,35 @@
 const watchedVideos = new WeakSet();
 const watchedTracks = new WeakSet();
 const watchedCaptionContainers = new WeakSet();
-const localCache = new Map();
+const localCache = new Map(); // cacheKey -> { vi, sub2 }
+
+const FONT_FAMILY_MAP = {
+  default: '"Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  serif: 'Georgia, "Times New Roman", Times, serif',
+  mono: '"JetBrains Mono", Consolas, "Courier New", monospace',
+  rounded: '"Trebuchet MS", "Segoe UI", Verdana, sans-serif',
+  impact: '"Arial Black", Impact, "Segoe UI", sans-serif'
+};
 
 let settings = {
   enabled: true,
   dualSub: true,
   provider: "gemini",
-  overlayWidth: 70,
+  targetLang: "vi",
+  secondaryLang: "orig",
+  translationStyle: "natural",
+  subFont: "default",
+  subSize: "100",
+  subColor: "#fef08a",
+  subSecondColor: "#e2e8f0",
+  subBgStyle: "toad",
+  subBottomPos: "12",
+  overlayWidth: 72,
   overlayScale: 100,
-  overlayBottom: 12
+  overlayBottom: 12,
+  autoAudioNoCC: false
 };
 
-// Cấu hình danh sách các bộ chọn (selectors) vùng chứa phụ đề của các nền tảng video phổ biến
 const PLATFORM_CAPTION_CONFIGS = [
   {
     name: "youtube",
@@ -116,33 +133,54 @@ const PLAYER_WRAPPER_SELECTORS = [
   ".watch-video"
 ].join(", ");
 
-chrome.storage.local.get(
-  { enabled: true, dualSub: true, provider: "gemini", overlayWidth: 70, overlayScale: 100, overlayBottom: 12 },
-  (res) => {
-    settings = { ...settings, ...res };
-    applySettingsToDOM();
-  }
-);
+function getLocalCacheKey(text) {
+  return `${settings.targetLang}:${settings.secondaryLang}:${settings.translationStyle}:${text}`;
+}
+
+chrome.storage.local.get(settings, (res) => {
+  settings = { ...settings, ...res };
+  applySettingsToDOM();
+});
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local") return;
-  if (changes.enabled) settings.enabled = changes.enabled.newValue;
-  if (changes.dualSub) settings.dualSub = changes.dualSub.newValue;
-  if (changes.overlayWidth) settings.overlayWidth = changes.overlayWidth.newValue;
-  if (changes.overlayScale) settings.overlayScale = changes.overlayScale.newValue;
-  if (changes.overlayBottom) settings.overlayBottom = changes.overlayBottom.newValue;
-  if (changes.provider) {
-    settings.provider = changes.provider.newValue;
+  let clearCacheNeeded = false;
+  for (const [k, change] of Object.entries(changes)) {
+    if (k in settings) {
+      settings[k] = change.newValue;
+      if (["provider", "targetLang", "secondaryLang", "translationStyle"].includes(k)) {
+        clearCacheNeeded = true;
+      }
+    }
+  }
+  if (clearCacheNeeded) {
     localCache.clear();
   }
   applySettingsToDOM();
 });
 
-// Áp kích thước/vị trí khung phụ đề theo tuỳ chỉnh của người dùng
-function applyOverlayStyle(overlay) {
-  overlay.style.setProperty("--vie-w", `${Number(settings.overlayWidth) || 70}%`);
-  overlay.style.setProperty("--vie-scale", String((Number(settings.overlayScale) || 100) / 100));
-  overlay.style.setProperty("--vie-bottom", `${Number(settings.overlayBottom) || 12}%`);
+function applyOverlayVisualStyle(overlay) {
+  if (!overlay) return;
+  const fontStack = FONT_FAMILY_MAP[settings.subFont] || FONT_FAMILY_MAP.default;
+  const rawScale = Number(settings.subSize) || Number(settings.overlayScale) || 100;
+  const scale = Math.max(0.6, Math.min(2.0, rawScale / 100));
+  const rawBottom = Number(settings.subBottomPos) || Number(settings.overlayBottom) || 12;
+  const bottomPos = Math.max(2, Math.min(60, rawBottom));
+  const widthPct = Math.max(30, Math.min(100, Number(settings.overlayWidth) || 72));
+
+  overlay.style.setProperty("--vie-font-family", fontStack);
+  overlay.style.setProperty("--vie-scale", String(scale));
+  overlay.style.setProperty("--vie-w", `${widthPct}%`);
+  overlay.style.setProperty("--vie-bottom", `${bottomPos}%`);
+  overlay.style.setProperty("--vie-primary-color", settings.subColor || "#fef08a");
+  overlay.style.setProperty("--vie-second-color", settings.subSecondColor || "#e2e8f0");
+  overlay.setAttribute("data-bg-style", settings.subBgStyle || "toad");
+
+  const origEl = overlay.querySelector(".vie-orig");
+  if (origEl) {
+    const showSecondary = Boolean(settings.dualSub) && settings.secondaryLang !== "none";
+    origEl.style.display = showSecondary ? "block" : "none";
+  }
 }
 
 function applySettingsToDOM() {
@@ -170,14 +208,10 @@ function applySettingsToDOM() {
   });
 
   document.querySelectorAll(".vie-overlay").forEach((overlay) => {
-    applyOverlayStyle(overlay);
     if (!settings.enabled) {
       overlay.classList.add("vie-hidden");
     }
-    const origEl = overlay.querySelector(".vie-orig");
-    if (origEl) {
-      origEl.style.display = settings.dualSub ? "block" : "none";
-    }
+    applyOverlayVisualStyle(overlay);
   });
 }
 
@@ -206,11 +240,9 @@ function getOrCreateOverlay(video) {
   if (!overlay) {
     overlay = document.createElement("div");
     overlay.className = "vie-overlay vie-hidden";
-    applyOverlayStyle(overlay);
 
     const origLine = document.createElement("div");
     origLine.className = "vie-orig";
-    origLine.style.display = settings.dualSub ? "block" : "none";
 
     const viLine = document.createElement("div");
     viLine.className = "vie-vi";
@@ -219,6 +251,7 @@ function getOrCreateOverlay(video) {
     overlay.appendChild(viLine);
     container.appendChild(overlay);
   }
+  applyOverlayVisualStyle(overlay);
   return overlay;
 }
 
@@ -255,79 +288,41 @@ function getVideoState(video) {
     state = {
       lastText: "",
       reqSeq: 0,
-      debounceTimer: null,
+      lastRenderedSeq: 0,
+      lastSendAt: 0,
+      hideTimer: null,
+      throttleTimer: null,
+      aiRefineTimer: null,
       previewTimer: null,
-      prefetchedTrackCues: new WeakSet()
+      prefetchedTrackCues: new WeakSet(),
+      hasReceivedAnySubtitle: false,
+      audioCaptureActive: false,
+      audioRecorder: null,
+      audioInterval: null,
+      toadBtnEl: null
     };
     videoStateMap.set(video, state);
   }
   return state;
 }
 
-function scheduleTranslate(video, rawText, immediate = false) {
-  const state = getVideoState(video);
-  if (state.debounceTimer) {
-    clearTimeout(state.debounceTimer);
-    state.debounceTimer = null;
+function getSecondaryDisplayLine(origText, sub2Text) {
+  if (!settings.dualSub || settings.secondaryLang === "none") return "";
+  if (settings.secondaryLang && settings.secondaryLang !== "orig" && sub2Text) {
+    return sub2Text;
   }
-
-  if (!settings.enabled) {
-    hideOverlay(video);
-    return;
-  }
-
-  const cleanText = normalizeSubtitleText(rawText);
-  if (!cleanText) {
-    // Ẩn trễ: tránh nháy ẩn/hiện khi YouTube đổi dòng phụ đề
-    if (state.hideTimer) clearTimeout(state.hideTimer);
-    state.hideTimer = setTimeout(() => {
-      state.lastText = "";
-      state.reqSeq++;
-      hideOverlay(video);
-    }, 900);
-    return;
-  }
-  if (state.hideTimer) {
-    clearTimeout(state.hideTimer);
-    state.hideTimer = null;
-  }
-
-  if (cleanText === state.lastText) return;
-
-  if (localCache.has(cleanText)) {
-    state.lastText = cleanText;
-    renderTranslation(video, cleanText, localCache.get(cleanText), false);
-    return;
-  }
-
-  const isStreamingExtension =
-    !immediate &&
-    state.lastText &&
-    cleanText.startsWith(state.lastText) &&
-    cleanText.length - state.lastText.length < 18;
-
-  const delayMs = immediate ? 0 : isStreamingExtension ? 220 : 90;
-
-  const run = () => {
-    state.lastText = cleanText;
-    translateAndShow(video, cleanText);
-  };
-
-  if (delayMs === 0) {
-    run();
-  } else {
-    state.debounceTimer = setTimeout(run, delayMs);
-  }
+  return origText;
 }
 
-function renderTranslation(video, origText, viText, isPreview = false, isError = false) {
+function renderTranslation(video, origText, viText, sub2Text = "", isPreview = false, isError = false) {
   const overlay = getOrCreateOverlay(video);
   const origEl = overlay.querySelector(".vie-orig");
   const viEl = overlay.querySelector(".vie-vi");
 
+  const showSecondary = Boolean(settings.dualSub) && settings.secondaryLang !== "none";
   if (origEl) {
-    origEl.textContent = origText;
-    origEl.style.display = settings.dualSub ? "block" : "none";
+    origEl.textContent = getSecondaryDisplayLine(origText, sub2Text);
+    origEl.style.display = showSecondary ? "block" : "none";
   }
 
   if (viEl) {
@@ -339,27 +334,117 @@ function renderTranslation(video, origText, viText, isPreview = false, isError =
   overlay.classList.remove("vie-hidden");
 }
 
-function translateAndShow(video, text) {
+function scheduleTranslate(video, rawText, immediate = false) {
+  const state = getVideoState(video);
+
+  if (!settings.enabled) {
+    hideOverlay(video);
+    return;
+  }
+
+  const cleanText = normalizeSubtitleText(rawText);
+  if (!cleanText) {
+    if (state.throttleTimer) {
+      clearTimeout(state.throttleTimer);
+      state.throttleTimer = null;
+    }
+    if (state.aiRefineTimer) {
+      clearTimeout(state.aiRefineTimer);
+      state.aiRefineTimer = null;
+    }
+    if (state.hideTimer) clearTimeout(state.hideTimer);
+    state.hideTimer = setTimeout(() => {
+      state.lastText = "";
+      state.reqSeq++;
+      state.lastRenderedSeq = state.reqSeq;
+      hideOverlay(video);
+    }, 900);
+    return;
+  }
+
+  if (state.hideTimer) {
+    clearTimeout(state.hideTimer);
+    state.hideTimer = null;
+  }
+
+  state.hasReceivedAnySubtitle = true;
+  if (cleanText === state.lastText) return;
+
+  const ck = getLocalCacheKey(cleanText);
+  if (localCache.has(ck)) {
+    state.lastText = cleanText;
+    const cachedObj = localCache.get(ck);
+    renderTranslation(video, cleanText, cachedObj.vi, cachedObj.sub2, false, false);
+    return;
+  }
+
+  const isStreamingGrowth =
+    !immediate &&
+    state.lastText &&
+    (cleanText.startsWith(state.lastText) ||
+      cleanText.includes(state.lastText.slice(-20)));
+
+  state.lastText = cleanText;
+
+  if (immediate) {
+    if (state.throttleTimer) {
+      clearTimeout(state.throttleTimer);
+      state.throttleTimer = null;
+    }
+    state.lastSendAt = Date.now();
+    translateAndShow(video, cleanText, false);
+    return;
+  }
+
+  const now = Date.now();
+  const elapsed = now - state.lastSendAt;
+  const THROTTLE_MS = 250;
+
+  if (elapsed >= THROTTLE_MS) {
+    state.lastSendAt = now;
+    translateAndShow(video, cleanText, isStreamingGrowth && settings.provider !== "gtx");
+  } else if (!state.throttleTimer) {
+    state.throttleTimer = setTimeout(() => {
+      state.throttleTimer = null;
+      state.lastSendAt = Date.now();
+      if (state.lastText) {
+        translateAndShow(video, state.lastText, false);
+      }
+    }, THROTTLE_MS - elapsed);
+  }
+
+  if (settings.provider !== "gtx") {
+    if (state.aiRefineTimer) clearTimeout(state.aiRefineTimer);
+    const endsWithPunct = /[.,!?;:]$/.test(cleanText);
+    state.aiRefineTimer = setTimeout(
+      () => {
+        state.aiRefineTimer = null;
+        if (state.lastText && settings.enabled) {
+          translateAndShow(video, state.lastText, false);
+        }
+      },
+      endsWithPunct ? 120 : 380
+    );
+  }
+}
+
+function translateAndShow(video, text, fastStreamMode = false) {
   const state = getVideoState(video);
   const currentSeq = ++state.reqSeq;
 
-  if (state.previewTimer) {
-    clearTimeout(state.previewTimer);
-    state.previewTimer = null;
-  }
-
   const overlay = getOrCreateOverlay(video);
   const origEl = overlay.querySelector(".vie-orig");
-  if (origEl) {
+  if (origEl && settings.secondaryLang === "orig") {
     origEl.textContent = text;
     origEl.style.display = settings.dualSub ? "block" : "none";
   }
 
   let settled = false;
 
-  if (settings.provider !== "gtx") {
+  if (!fastStreamMode && settings.provider !== "gtx") {
+    if (state.previewTimer) clearTimeout(state.previewTimer);
     state.previewTimer = setTimeout(() => {
-      if (settled || currentSeq !== state.reqSeq || !settings.enabled) return;
+      if (settled || currentSeq < state.lastRenderedSeq || !settings.enabled) return;
       chrome.runtime.sendMessage(
         {
           type: "TRANSLATE",
@@ -369,21 +454,23 @@ function translateAndShow(video, text) {
         },
         (previewRes) => {
           if (chrome.runtime.lastError) return;
-          if (settled || currentSeq !== state.reqSeq || !settings.enabled) return;
+          if (settled || currentSeq < state.lastRenderedSeq || !settings.enabled) return;
           const previewVi = (previewRes?.vi || "").trim();
           if (previewVi) {
-            renderTranslation(video, text, previewVi, true, false);
+            state.lastRenderedSeq = Math.max(state.lastRenderedSeq, currentSeq);
+            renderTranslation(video, text, previewVi, previewRes?.sub2 || "", true, false);
           }
         }
       );
-    }, 220);
+    }, 190);
   }
 
   chrome.runtime.sendMessage(
     {
       type: "TRANSLATE",
       text,
-      videoTitle: getVideoTitle()
+      videoTitle: getVideoTitle(),
+      fastPreviewOnly: fastStreamMode
     },
     (res) => {
       settled = true;
@@ -392,31 +479,35 @@ function translateAndShow(video, text) {
         state.previewTimer = null;
       }
       if (chrome.runtime.lastError) return;
-      if (currentSeq !== state.reqSeq || !settings.enabled) return;
+      if (currentSeq < state.lastRenderedSeq || !settings.enabled) return;
 
       if (res?.error) {
-        renderTranslation(video, text, `⚠ ${res.error}`, false, true);
+        state.lastRenderedSeq = currentSeq;
+        renderTranslation(video, text, `⚠ ${res.error}`, "", false, true);
         return;
       }
 
       const viText = (res?.vi || "").trim();
-      if (!viText) {
-        hideOverlay(video);
-        return;
+      if (!viText) return;
+
+      state.lastRenderedSeq = currentSeq;
+      const sub2Text = (res?.sub2 || "").trim();
+
+      if (!fastStreamMode) {
+        const ck = getLocalCacheKey(text);
+        localCache.set(ck, { vi: viText, sub2: sub2Text });
+        if (localCache.size > 500) {
+          const oldest = localCache.keys().next().value;
+          localCache.delete(oldest);
+        }
       }
 
-      localCache.set(text, viText);
-      if (localCache.size > 500) {
-        const oldest = localCache.keys().next().value;
-        localCache.delete(oldest);
-      }
-
-      renderTranslation(video, text, viText, false, false);
+      renderTranslation(video, text, viText, sub2Text, fastStreamMode, false);
     }
   );
 }
 
-// Dịch trước (Lookahead Prefetch) các câu phụ đề sắp tới trong <track> để hiển thị 0ms
+// Dịch trước (Lookahead Prefetch) các câu phụ đề sắp tới trong <track>
 function prefetchUpcomingCues(video, track) {
   if (!settings.enabled || !track.cues || track.cues.length === 0) return;
   const state = getVideoState(video);
@@ -430,7 +521,7 @@ function prefetchUpcomingCues(video, track) {
     if (state.prefetchedTrackCues.has(cue)) continue;
 
     const clean = normalizeSubtitleText(cue.text || "");
-    if (clean && !localCache.has(clean)) {
+    if (clean && !localCache.has(getLocalCacheKey(clean))) {
       upcomingTexts.push({ cue, clean });
       if (upcomingTexts.length >= 8) break;
     }
@@ -452,15 +543,15 @@ function prefetchUpcomingCues(video, track) {
       if (chrome.runtime.lastError || !res?.results) return;
       for (const [src, vi] of Object.entries(res.results)) {
         if (src && vi) {
-          localCache.set(src, vi);
+          localCache.set(getLocalCacheKey(src), { vi, sub2: "" });
         }
       }
     }
   );
 }
 
-// Dịch trước phụ đề YouTube: tải cả file timedtext, dịch theo lô các câu sắp tới
-const ytCueState = { vid: "", cues: [], sent: new Set(), timer: null };
+// Dịch trước & đồng bộ theo thời gian cho YouTube (gộp câu thông minh cho cả Auto-Captions ASR)
+const ytCueState = { vid: "", cues: [], sent: new Set(), timer: null, renderTimer: null };
 
 function mergeEventsIntoSentences(events) {
   const out = [];
@@ -483,7 +574,6 @@ function mergeEventsIntoSentences(events) {
     }
   }
   flush();
-  // Kéo dài thời gian hiển thị tới khi câu sau bắt đầu (tối đa 1.5s) để không bị nháy
   for (let i = 0; i < out.length; i++) {
     const next = out[i + 1];
     const maxEnd = next ? next.start : out[i].end + 1.5;
@@ -493,6 +583,7 @@ function mergeEventsIntoSentences(events) {
 }
 
 async function loadYouTubeCues() {
+  if (!location.hostname.includes("youtube.com")) return;
   const vid = new URL(location.href).searchParams.get("v");
   if (!vid || ytCueState.vid === vid) return;
   ytCueState.vid = vid;
@@ -503,8 +594,10 @@ async function loadYouTubeCues() {
     const m = html.match(/"captionTracks":(\[\{.*?\}\]),"/);
     if (!m) return;
     const tracks = JSON.parse(m[1]);
-    const notVi = tracks.filter((t) => !/^vi/i.test(t.languageCode || ""));
-    const pool = notVi.length ? notVi : tracks;
+    const notTarget = tracks.filter(
+      (t) => !(t.languageCode || "").toLowerCase().startsWith((settings.targetLang || "vi").toLowerCase())
+    );
+    const pool = notTarget.length ? notTarget : tracks;
     const track = pool.find((t) => t.kind !== "asr") || pool[0];
     if (!track) return;
     const data = await (await fetch(`${track.baseUrl}&fmt=json3`, { credentials: "include" })).json();
@@ -516,11 +609,10 @@ async function loadYouTubeCues() {
       const start = (ev.tStartMs || 0) / 1000;
       events.push({ start, end: start + (ev.dDurationMs || 2000) / 1000, text });
     }
-    // Phụ đề tự động (ASR) chạy từng cụm từ → gộp thành câu hoàn chỉnh để hiển thị ổn định
     const cues = track.kind === "asr" ? mergeEventsIntoSentences(events) : events;
     if (ytCueState.vid === vid) ytCueState.cues = cues;
   } catch {
-    // Không lấy được → vẫn dịch từng câu theo thời gian thực
+    // Nếu YouTube chặn tải trước timedtext thì vẫn dịch trực tiếp real-time từ DOM
   }
 }
 
@@ -531,27 +623,27 @@ function prefetchYouTubeCues(video) {
   for (const c of ytCueState.cues) {
     if (c.end < now) continue;
     if (c.start > now + 90) break;
-    if (ytCueState.sent.has(c.text) || localCache.has(c.text)) continue;
+    const ck = getLocalCacheKey(c.text);
+    if (ytCueState.sent.has(ck) || localCache.has(ck)) continue;
     batch.push(c.text);
     if (batch.length >= 8) break;
   }
   if (!batch.length) return;
-  batch.forEach((t) => ytCueState.sent.add(t));
+  batch.forEach((t) => ytCueState.sent.add(getLocalCacheKey(t)));
   chrome.runtime.sendMessage(
     { type: "TRANSLATE_BATCH", texts: batch, videoTitle: getVideoTitle() },
     (res) => {
       if (chrome.runtime.lastError || !res?.results) {
-        batch.forEach((t) => ytCueState.sent.delete(t));
+        batch.forEach((t) => ytCueState.sent.delete(getLocalCacheKey(t)));
         return;
       }
       for (const [src, vi] of Object.entries(res.results)) {
-        if (src && vi) localCache.set(src, vi);
+        if (src && vi) localCache.set(getLocalCacheKey(src), { vi, sub2: "" });
       }
     }
   );
 }
 
-// Hiển thị phụ đề YouTube theo thời gian video (không phụ thuộc DOM nhảy từng chữ của YouTube)
 function renderYouTubeByTime(video) {
   const cues = ytCueState.cues;
   if (!cues.length || !settings.enabled) return false;
@@ -587,10 +679,13 @@ function renderYouTubeByTime(video) {
   }
   if (cue.text !== state.lastText) {
     state.lastText = cue.text;
-    if (localCache.has(cue.text)) {
-      renderTranslation(video, cue.text, localCache.get(cue.text), false);
+    state.hasReceivedAnySubtitle = true;
+    const ck = getLocalCacheKey(cue.text);
+    if (localCache.has(ck) && (settings.secondaryLang === "orig" || settings.secondaryLang === "none")) {
+      const cachedObj = localCache.get(ck);
+      renderTranslation(video, cue.text, cachedObj.vi, cachedObj.sub2, false, false);
     } else {
-      translateAndShow(video, cue.text);
+      translateAndShow(video, cue.text, false);
     }
   }
   return true;
@@ -604,8 +699,240 @@ function startYouTubePrefetch(video) {
     loadYouTubeCues();
     prefetchYouTubeCues(video);
   }, 2000);
-  setInterval(() => renderYouTubeByTime(video), 120);
+  ytCueState.renderTimer = setInterval(() => renderYouTubeByTime(video), 120);
   video.addEventListener("seeking", () => ytCueState.sent.clear());
+}
+
+// ============================================================================
+// TÍNH NĂNG MỞ RỘNG: DỊCH VIDEO TRÊN TRANG WEB KHÔNG CÓ NÚT CC / SUBTITLES
+// ============================================================================
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const dataUrl = String(reader.result || "");
+      const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : "";
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+function stopVideoAudioCapture(video) {
+  const state = getVideoState(video);
+  state.audioCaptureActive = false;
+  if (state.audioInterval) {
+    clearInterval(state.audioInterval);
+    state.audioInterval = null;
+  }
+  if (state.audioRecorder && state.audioRecorder.state !== "inactive") {
+    try {
+      state.audioRecorder.stop();
+    } catch {
+      // Bỏ qua
+    }
+  }
+  state.audioRecorder = null;
+  if (state.toadBtnEl) {
+    state.toadBtnEl.classList.remove("vie-audio-active");
+    const span = state.toadBtnEl.querySelector("span");
+    if (span) span.textContent = "AI Nghe & Dịch (Không cần CC)";
+  }
+}
+
+function startVideoAudioCapture(video) {
+  const state = getVideoState(video);
+  if (state.audioCaptureActive) {
+    stopVideoAudioCapture(video);
+    return;
+  }
+
+  const captureFn = video.captureStream || video.mozCaptureStream;
+  if (typeof captureFn !== "function") {
+    renderTranslation(
+      video,
+      "",
+      "⚠ Trình duyệt không hỗ trợ thu luồng âm thanh trực tiếp từ video này.",
+      "",
+      false,
+      true
+    );
+    return;
+  }
+
+  let fullStream;
+  try {
+    fullStream = captureFn.call(video);
+  } catch {
+    renderTranslation(
+      video,
+      "",
+      "⚠ Video này bị giới hạn bảo mật CORS nên không thể thu âm trực tiếp. Hãy bật CC nếu có.",
+      "",
+      false,
+      true
+    );
+    return;
+  }
+
+  const audioTracks = fullStream.getAudioTracks();
+  if (!audioTracks || audioTracks.length === 0) {
+    renderTranslation(
+      video,
+      "",
+      "⚠ Chưa phát hiện âm thanh từ video (Hãy chắc chắn video đang phát và không tắt tiếng).",
+      "",
+      false,
+      true
+    );
+    return;
+  }
+
+  const audioOnlyStream = new MediaStream(audioTracks);
+  const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+    ? "audio/webm;codecs=opus"
+    : MediaRecorder.isTypeSupported("audio/webm")
+    ? "audio/webm"
+    : "";
+
+  state.audioCaptureActive = true;
+  if (state.toadBtnEl) {
+    state.toadBtnEl.classList.add("vie-audio-active");
+    const span = state.toadBtnEl.querySelector("span");
+    if (span) span.textContent = "🎙️ Đang nghe & dịch AI...";
+  }
+
+  renderTranslation(
+    video,
+    "🐸 Translate Toad AI Audio",
+    "Đang lắng nghe âm thanh video để tạo phụ đề trực tiếp...",
+    "",
+    true,
+    false
+  );
+
+  const recordSlice = () => {
+    if (!state.audioCaptureActive || !settings.enabled) {
+      stopVideoAudioCapture(video);
+      return;
+    }
+    if (video.paused || video.ended || video.muted || video.volume === 0) return;
+
+    try {
+      const recorder = mimeType
+        ? new MediaRecorder(audioOnlyStream, { mimeType, audioBitsPerSecond: 32000 })
+        : new MediaRecorder(audioOnlyStream);
+      const chunks = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunks.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        if (!state.audioCaptureActive || chunks.length === 0) return;
+        const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+        if (blob.size < 800) return;
+        try {
+          const audioBase64 = await blobToBase64(blob);
+          chrome.runtime.sendMessage(
+            {
+              type: "TRANSCRIBE_AUDIO",
+              audioBase64,
+              mimeType: recorder.mimeType || "audio/webm",
+              videoTitle: getVideoTitle()
+            },
+            (res) => {
+              if (chrome.runtime.lastError || !state.audioCaptureActive) return;
+              if (res?.error) {
+                renderTranslation(video, "", `⚠ ${res.error}`, "", false, true);
+                return;
+              }
+              if (res?.vi) {
+                renderTranslation(
+                  video,
+                  res.orig || "",
+                  res.vi,
+                  res.sub2 || "",
+                  false,
+                  false
+                );
+              }
+            }
+          );
+        } catch {
+          // Bỏ qua lỗi chuyển đổi
+        }
+      };
+
+      state.audioRecorder = recorder;
+      recorder.start();
+      setTimeout(() => {
+        if (recorder.state === "recording") {
+          try {
+            recorder.stop();
+          } catch {
+            // Bỏ qua
+          }
+        }
+      }, 3100);
+    } catch {
+      stopVideoAudioCapture(video);
+    }
+  };
+
+  recordSlice();
+  state.audioInterval = setInterval(recordSlice, 3200);
+}
+
+function ensureToadAudioButton(video) {
+  const state = getVideoState(video);
+  const container = getContainer(video);
+  if (!container) return;
+
+  if (video.clientWidth > 0 && video.clientWidth < 240) return;
+
+  let btn = container.querySelector(":scope > .vie-toad-audio-btn");
+  if (!btn) {
+    btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "vie-toad-audio-btn";
+    btn.title =
+      "Bật/Tắt chế độ Translate Toad AI tự nghe âm thanh và tạo phụ đề cho các video không có nút CC/Subtitles";
+
+    const iconUrl = chrome.runtime.getURL("assets/icon48.png");
+    btn.innerHTML = `<img src="${iconUrl}" alt="Toad"><span>AI Nghe & Dịch (Không cần CC)</span>`;
+
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      startVideoAudioCapture(video);
+    });
+
+    container.appendChild(btn);
+    state.toadBtnEl = btn;
+  }
+}
+
+function autoUnlockHiddenTracks(video) {
+  if (!video.textTracks || video.textTracks.length === 0) return;
+  let hasActive = false;
+  for (const t of video.textTracks) {
+    if ((t.kind === "subtitles" || t.kind === "captions") && t.mode !== "disabled") {
+      hasActive = true;
+      break;
+    }
+  }
+  if (!hasActive && settings.enabled) {
+    for (const t of video.textTracks) {
+      if (t.kind === "subtitles" || t.kind === "captions") {
+        t.mode = "hidden";
+        bindTextTrack(video, t);
+        break;
+      }
+    }
+  }
 }
 
 function observePlatformCaptions(video) {
@@ -621,14 +948,25 @@ function observePlatformCaptions(video) {
     player.classList.toggle("vie-yt-active", Boolean(settings.enabled));
 
     const readCaption = () => {
-      if (cfg.name === "youtube" && ytCueState.cues.length) return; // đã hiển thị theo thời gian video
+      if (cfg.name === "youtube" && ytCueState.cues.length) return;
       if (!settings.enabled) {
         hideOverlay(video);
         return;
       }
 
       let text = "";
-      if (cfg.segmentSelector) {
+      if (cfg.name === "youtube") {
+        const lines = captionContainer.querySelectorAll(".ytp-caption-line");
+        if (lines.length > 0) {
+          const recentLines = Array.from(lines).slice(-2);
+          text = recentLines.map((l) => l.textContent || "").join(" ");
+        } else {
+          const segments = captionContainer.querySelectorAll(cfg.segmentSelector);
+          text = Array.from(segments)
+            .map((seg) => seg.textContent || "")
+            .join(" ");
+        }
+      } else if (cfg.segmentSelector) {
         const segments = captionContainer.querySelectorAll(cfg.segmentSelector);
         if (segments.length > 0) {
           text = Array.from(segments)
@@ -689,6 +1027,8 @@ function bindTextTrack(video, track) {
 function watchVideo(video) {
   observePlatformCaptions(video);
   startYouTubePrefetch(video);
+  autoUnlockHiddenTracks(video);
+  ensureToadAudioButton(video);
 
   if (watchedVideos.has(video)) return;
   watchedVideos.add(video);
@@ -698,12 +1038,33 @@ function watchVideo(video) {
       bindTextTrack(video, track);
     }
     video.textTracks.addEventListener("addtrack", (e) => {
-      if (e.track) bindTextTrack(video, e.track);
+      if (e.track) {
+        bindTextTrack(video, e.track);
+        autoUnlockHiddenTracks(video);
+      }
     });
   }
 
-  video.addEventListener("loadedmetadata", () => observePlatformCaptions(video));
-  video.addEventListener("play", () => observePlatformCaptions(video));
+  video.addEventListener("loadedmetadata", () => {
+    observePlatformCaptions(video);
+    autoUnlockHiddenTracks(video);
+    ensureToadAudioButton(video);
+  });
+
+  video.addEventListener("play", () => {
+    observePlatformCaptions(video);
+    autoUnlockHiddenTracks(video);
+    ensureToadAudioButton(video);
+
+    if (settings.autoAudioNoCC && settings.enabled) {
+      setTimeout(() => {
+        const st = getVideoState(video);
+        if (!st.hasReceivedAnySubtitle && !st.audioCaptureActive && !video.paused) {
+          startVideoAudioCapture(video);
+        }
+      }, 3500);
+    }
+  });
 }
 
 function scanVideos() {
@@ -727,9 +1088,9 @@ function scanVideos() {
     document.querySelectorAll("video").forEach((video) => {
       const state = videoStateMap.get(video);
       if (state && state.lastText && settings.enabled) {
-        const cached = localCache.get(state.lastText);
+        const cached = localCache.get(getLocalCacheKey(state.lastText));
         if (cached) {
-          renderTranslation(video, state.lastText, cached, false, false);
+          renderTranslation(video, state.lastText, cached.vi, cached.sub2, false, false);
         }
       }
     });

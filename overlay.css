@@ -1,26 +1,65 @@
 .vie-overlay,
 #vie-overlay {
+  --vie-font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --vie-scale: 1;
+  --vie-w: 72%;
+  --vie-bottom: 11%;
+  --vie-primary-color: #fef08a;
+  --vie-second-color: #e2e8f0;
+
   position: absolute;
-  /* Khung cố định: luôn cách đều 2 bên, không co giãn theo độ dài câu */
   left: 50%;
-  bottom: var(--vie-bottom, 12%);
+  bottom: var(--vie-bottom, 11%);
   transform: translateX(-50%);
-  width: var(--vie-w, 70%);
-  max-width: 98%;
-  padding: 8px 16px;
+  width: var(--vie-w, 72%);
+  max-width: 96%;
+  min-height: 3.4em;
+  padding: 9px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   background: rgba(10, 12, 18, 0.78);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: #ffffff;
-  font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--vie-font-family);
   text-align: center;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   z-index: 2147483647;
   pointer-events: none;
   box-sizing: border-box;
-  transition: opacity 0.14s ease;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  transition: opacity 0.12s ease;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.48);
+}
+
+/* Các kiểu khung nền tùy chọn */
+.vie-overlay[data-bg-style="toad"] {
+  background: linear-gradient(135deg, rgba(12, 18, 34, 0.88) 0%, rgba(23, 37, 68, 0.88) 100%);
+  border: 1.5px solid rgba(251, 191, 36, 0.55);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55), 0 0 14px rgba(245, 158, 11, 0.18);
+}
+
+.vie-overlay[data-bg-style="glass"] {
+  background: rgba(12, 16, 26, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.vie-overlay[data-bg-style="dark"] {
+  background: rgba(5, 7, 12, 0.94);
+  backdrop-filter: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.vie-overlay[data-bg-style="outline"] {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 4px 10px;
 }
 
 .vie-overlay.vie-hidden {
@@ -30,38 +69,101 @@
 
 .vie-overlay .vie-orig {
   font-size: calc(clamp(12.5px, 1.35vw, 17px) * var(--vie-scale, 1));
-  color: #cbd5e1;
+  color: var(--vie-second-color, #e2e8f0);
   margin-bottom: 4px;
   line-height: 1.35;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 5px rgba(0, 0, 0, 0.85);
   white-space: normal;
   word-break: break-word;
-  min-height: 1.35em;
+}
+
+.vie-overlay[data-bg-style="outline"] .vie-orig {
+  text-shadow:
+    -1.5px -1.5px 0 #000,
+     1.5px -1.5px 0 #000,
+    -1.5px  1.5px 0 #000,
+     1.5px  1.5px 0 #000,
+     0 2px 6px rgba(0, 0, 0, 0.95);
 }
 
 .vie-overlay .vie-vi {
   font-size: calc(clamp(16px, 2.05vw, 26px) * var(--vie-scale, 1));
-  font-weight: 600;
-  color: #fef08a;
+  font-weight: 650;
+  color: var(--vie-primary-color, #fef08a);
   line-height: 1.4;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.75);
   white-space: normal;
   word-break: break-word;
-  /* Giữ sẵn chiều cao 2 dòng để khung không nhảy lên xuống */
-  min-height: 2.8em;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+}
+
+.vie-overlay[data-bg-style="outline"] .vie-vi {
+  text-shadow:
+    -2px -2px 0 #000,
+     2px -2px 0 #000,
+    -2px  2px 0 #000,
+     2px  2px 0 #000,
+     0 3px 8px rgba(0, 0, 0, 0.98);
 }
 
 .vie-overlay .vie-vi.vie-preview {
-  color: #fde68a;
-  opacity: 0.92;
+  opacity: 0.93;
 }
 
 .vie-overlay .vie-vi.vie-error {
   color: #fca5a5;
-  font-size: clamp(13px, 1.4vw, 17px);
+  font-size: calc(clamp(13px, 1.4vw, 17px) * var(--vie-scale, 1));
+}
+
+/* Nút nổi Translate Toad AI Audio trên góc video (cho video không có CC) */
+.vie-toad-audio-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2147483646;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: rgba(12, 18, 34, 0.82);
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  color: #fef08a;
+  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.2s ease, transform 0.2s ease, background 0.15s ease;
+  pointer-events: auto;
+  user-select: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+*:hover > .vie-toad-audio-btn,
+.vie-toad-audio-btn:hover,
+.vie-toad-audio-btn.vie-audio-active {
+  opacity: 0.95;
+  transform: translateY(0);
+}
+
+.vie-toad-audio-btn:hover {
+  background: rgba(23, 37, 68, 0.95);
+  border-color: #fbbf24;
+}
+
+.vie-toad-audio-btn.vie-audio-active {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+  color: #ffffff;
+  border-color: #fde68a;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.55);
+}
+
+.vie-toad-audio-btn img {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 /* Ẩn phụ đề gốc trên các trình phát phổ biến khi VIE-Translate đang hoạt động nhưng vẫn giữ DOM để đọc */
