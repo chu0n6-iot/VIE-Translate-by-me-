@@ -7,7 +7,7 @@
   <style>
     body {
       font-family: "Segoe UI", Roboto, Arial, sans-serif;
-      width: 380px;
+      width: 400px;
       max-width: 100%;
       margin: 0 auto;
       padding: 16px;
@@ -50,17 +50,52 @@
     }
     .hint {
       font-size: 12px;
-      color: #6b7280;
-      margin-top: 4px;
-      line-height: 1.4;
+      color: #4b5563;
+      margin-top: 5px;
+      line-height: 1.45;
     }
-    .hint a {
+    .hint a,
+    .guide-box a {
       color: #2563eb;
       text-decoration: none;
       font-weight: 600;
     }
-    .hint a:hover {
+    .hint a:hover,
+    .guide-box a:hover {
       text-decoration: underline;
+    }
+    .guide-box {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 14px;
+      font-size: 12px;
+      color: #1e3a8a;
+      line-height: 1.5;
+    }
+    .guide-box strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 12.5px;
+    }
+    .guide-box ol {
+      margin: 4px 0 0 18px;
+      padding: 0;
+    }
+    .guide-box li {
+      margin-bottom: 3px;
+    }
+    .model-pill {
+      display: inline-block;
+      margin-top: 5px;
+      font-size: 11.5px;
+      background: #ecfdf5;
+      color: #047857;
+      border: 1px solid #a7f3d0;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-weight: 600;
     }
     input[type="password"],
     input[type="text"],
@@ -141,7 +176,7 @@
   <div class="card">
     <h2>
       <span>VIE-Translate</span>
-      <span class="badge">Google Free API</span>
+      <span class="badge">Auto Free Model</span>
     </h2>
 
     <label class="checkbox-row">
@@ -163,22 +198,34 @@
     </div>
 
     <div id="geminiSection">
+      <div class="guide-box">
+        <strong>📌 Hướng dẫn lấy Gemini API Key miễn phí (30 giây):</strong>
+        <ol>
+          <li>Truy cập <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio (aistudio.google.com/apikey)</a> và đăng nhập Gmail.</li>
+          <li>Bấm nút <b>"Create API key"</b> (Tạo khóa API).</li>
+          <li>Copy mã Key (bắt đầu bằng <code>AQ.Ab8...</code> hoặc <code>AIza...</code>) rồi dán vào ô bên dưới.</li>
+        </ol>
+      </div>
+
       <div class="field">
-        <label for="apiKey">Google Gemini API Key (Miễn phí):</label>
-        <input type="password" id="apiKey" placeholder="Nhập AIzaSy..." autocomplete="off">
+        <label for="apiKey">Google Gemini API Key:</label>
+        <input type="password" id="apiKey" placeholder="Nhập AQ.Ab8... hoặc AIzaSy..." autocomplete="off">
         <div class="hint">
-          Lấy API Key miễn phí tại
-          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a>.
+          Một API Key dùng chung được cho tất cả các model Gemini miễn phí.
         </div>
       </div>
 
       <div class="field">
-        <label for="model">Model Gemini:</label>
+        <label for="model">Chế độ chọn Model:</label>
         <select id="model">
-          <option value="gemini-2.5-flash">gemini-2.5-flash (Khuyên dùng - Nhanh & Tự nhiên)</option>
-          <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite (Siêu nhanh, hạn mức cao)</option>
-          <option value="gemini-2.0-flash">gemini-2.0-flash (Ổn định)</option>
+          <option value="auto">✨ Tự động chọn Model Free tốt nhất (Khuyên dùng)</option>
+          <option value="gemini-flash-latest">gemini-flash-latest (Luôn trỏ tới bản Flash mới nhất)</option>
+          <option value="gemini-flash-lite-latest">gemini-flash-lite-latest (Siêu nhanh, hạn mức cao)</option>
+          <option value="gemini-3.8-flash">gemini-3.8-flash</option>
+          <option value="gemini-3.6-flash">gemini-3.6-flash</option>
+          <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite</option>
         </select>
+        <div id="detectedModelBadge" class="model-pill" style="display: none;"></div>
       </div>
 
       <label class="checkbox-row">
@@ -189,7 +236,7 @@
 
     <div class="btn-group">
       <button id="saveBtn">Lưu cài đặt</button>
-      <button id="testBtn" class="secondary" type="button">Kiểm tra Key</button>
+      <button id="testBtn" class="secondary" type="button">Kiểm tra & Dò Model</button>
     </div>
 
     <div id="status"></div>
