@@ -263,10 +263,17 @@ function getOrCreateOverlay(video) {
       <button type="button" class="vie-learn-btn vie-learn-scene-btn" title="Xem giải thích vì sao đoạn này dịch như vậy, cách dùng thực tế & từ vựng quan trọng">
         🎓 Xem thêm: Ngữ cảnh &amp; Cách dùng thực tế
       </button>
-      <button type="button" class="vie-learn-btn vie-learn-speak-all-btn" title="Nghe phát âm cả câu">
+      <button type="button" class="vie-learn-btn vie-learn-speak-all-btn" title="Nghe phát âm cả câu bằng giọng bản xứ">
         🔊 Nghe câu
       </button>
-      <span class="vie-learn-tip">💡 Bấm từ bất kỳ để tra từ điển</span>
+      <div class="vie-sync-group" title="Chỉnh độ lệch phụ đề / lyrics (nếu sub chạy trước tiếng nhạc hoặc chạy sau)">
+        <span class="vie-sync-label">⏱️ Lệch:</span>
+        <button type="button" class="vie-sync-btn vie-sync-minus" title="Chạy sớm hơn 1s (giảm độ trễ)">⏪ -1s</button>
+        <span class="vie-sync-val">0s</span>
+        <button type="button" class="vie-sync-btn vie-sync-plus" title="Trễ lại 1s (nếu sub đang chạy trước tiếng hát/thoại)">+1s ⏩</button>
+        <button type="button" class="vie-sync-btn vie-sync-reset" title="Đặt lại độ lệch về 0s" style="display:none;">↺</button>
+      </div>
+      <span class="vie-learn-tip">💡 Chạm từ để tra</span>
     `;
 
     overlay.appendChild(origLine);
@@ -280,11 +287,98 @@ function getOrCreateOverlay(video) {
   return overlay;
 }
 
-function speakWord(word) {
+const LANG_SPEECH_MAP = {
+  en: "en-US",
+  fr: "fr-FR",
+  ja: "ja-JP",
+  ko: "ko-KR",
+  "zh-CN": "zh-CN",
+  "zh-TW": "zh-TW",
+  de: "de-DE",
+  es: "es-ES",
+  ru: "ru-RU",
+  th: "th-TH",
+  vi: "vi-VN"
+};
+
+function detectLanguageForSpeech(text, langHint = "") {
+  if (langHint && LANG_SPEECH_MAP[langHint]) {
+    return LANG_SPEECH_MAP[langHint];
+  }
+  const t = String(text || "").trim();
+  if (!t) return "en-US";
+
+  // Nhận diện theo bảng chữ cái đặc thù
+  if (/[\u3040-\u309F\u30A0-\u30FF]/.test(t)) return "ja-JP"; // Tiếng Nhật
+  if (/[\uAC00-\uD7AF\u1100-\u11FF]/.test(t)) return "ko-KR"; // Tiếng Hàn
+  if (/[\u4E00-\u9FFF]/.test(t)) return "zh-CN"; // Tiếng Trung
+  if (/[\u0400-\u04FF]/.test(t)) return "ru-RU"; // Tiếng Nga / Cyrillic
+  if (/[\u0E00-\u0E7F]/.test(t)) return "th-TH"; // Tiếng Thái
+
+  // Dấu Tiếng Việt đặc thù
+  if (/[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđĐ]/.test(t)) {
+    return "vi-VN";
+  }
+
+  // Dấu Tiếng Pháp đặc thù
+  if (/[éèêëàâôûùçîïœæ]/i.test(t)) return "fr-FR";
+  // Dấu Tiếng Đức đặc thù
+  if (/[äöüß]/i.test(t)) return "de-DE";
+  // Dấu Tiếng Tây Ban Nha đặc thù
+  if (/[áéíóúñ¿¡]/i.test(t)) return "es-ES";
+
+  // Ưu tiên theo cấu hình dòng phụ song ngữ người dùng đang chọn
+  if (settings.secondaryLang && LANG_SPEECH_MAP[settings.secondaryLang]) {
+    return LANG_SPEECH_MAP[settings.secondaryLang];
+  }
+
+  // Mặc định cho ký tự Latin ngoại ngữ là Tiếng Anh chuẩn bản ngữ (en-US)
+  return "en-US";
+}
+
+function getBestVoiceForLang(bcpLang) {
+  if (!("speechSynthesis" in window)) return null;
+  const voices = window.speechSynthesis.getVoices() || [];
+  if (!voices.length) return null;
+
+  const cleanTarget = bcpLang.toLowerCase().replace("_", "-");
+  const primaryTag = cleanTarget.split("-")[0];
+
+  // 1. Khớp chính xác mã BCP-47 (ví dụ en-US, fr-FR, ja-JP)
+  let match = voices.find((v) => (v.lang || "").toLowerCase().replace("_", "-") === cleanTarget);
+  if (match) return match;
+
+  // 2. Khớp tiền tố ngôn ngữ (ví dụ en-GB, fr-CA)
+  const tagMatches = voices.filter((v) =>
+    (v.lang || "").toLowerCase().replace("_", "-").startsWith(primaryTag)
+  );
+  if (tagMatches.length > 0) {
+    const natural = tagMatches.find((v) => /google|natural|premium|online/i.test(v.name));
+    return natural || tagMatches[0];
+  }
+
+  return null;
+}
+
+if ("speechSynthesis" in window) {
+  window.speechSynthesis.onvoiceschanged = () => {
+    try {
+      window.speechSynthesis.getVoices();
+    } catch {}
+  };
+}
+
+function speakWord(word, langHint = "") {
   try {
-    if (!("speechSynthesis" in window)) return;
+    if (!("speechSynthesis" in window) || !word) return;
     window.speechSynthesis.cancel();
+    const targetLang = detectLanguageForSpeech(word, langHint);
     const utter = new SpeechSynthesisUtterance(word);
+    utter.lang = targetLang;
+    const voice = getBestVoiceForLang(targetLang);
+    if (voice) {
+      utter.voice = voice;
+    }
     utter.rate = 0.95;
     window.speechSynthesis.speak(utter);
   } catch {
@@ -305,6 +399,7 @@ async function saveWordToVocab(item, saveBtnEl) {
       pos: item.pos || "",
       meaning: item.meaning || "",
       note: item.note || "",
+      lang: detectLanguageForSpeech(item.word),
       sentence: item.sentence || "",
       videoTitle: getVideoTitle(),
       savedAt: Date.now()
@@ -784,6 +879,42 @@ function bindInteractiveOverlayEvents(video, overlay, origEl, viEl, dictCard, le
     const sentence = origEl.dataset.rawText || state.lastText || origEl.textContent.trim();
     if (sentence) speakWord(sentence);
   });
+
+  const syncValEl = learnBar.querySelector(".vie-sync-val");
+  const syncResetBtn = learnBar.querySelector(".vie-sync-reset");
+
+  const updateSyncUI = () => {
+    if (!syncValEl) return;
+    const offset = state.subSyncOffset || 0;
+    syncValEl.textContent = offset === 0 ? "0s" : offset > 0 ? `+${offset}s` : `${offset}s`;
+    if (syncResetBtn) {
+      syncResetBtn.style.display = offset !== 0 ? "inline-flex" : "none";
+    }
+  };
+
+  learnBar.querySelector(".vie-sync-minus")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    state.subSyncOffset = Math.round(((state.subSyncOffset || 0) - 1.0) * 10) / 10;
+    updateSyncUI();
+    renderYouTubeByTime(video);
+  });
+
+  learnBar.querySelector(".vie-sync-plus")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    state.subSyncOffset = Math.round(((state.subSyncOffset || 0) + 1.0) * 10) / 10;
+    updateSyncUI();
+    renderYouTubeByTime(video);
+  });
+
+  syncResetBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    state.subSyncOffset = 0;
+    updateSyncUI();
+    renderYouTubeByTime(video);
+  });
 }
 
 function hideOverlay(video) {
@@ -871,6 +1002,7 @@ function getVideoState(video) {
       audioRetryTimer: null,
       capturedSrc: "",
       videoNavKey: "",
+      subSyncOffset: 0,
       toadBtnEl: null
     };
     videoStateMap.set(video, state);
@@ -905,24 +1037,67 @@ function getSecondaryDisplayLine(origText, sub2Text) {
   return origText;
 }
 
+function formatSubtitleDecorations(origText, viText, isMusicOrLyrics = false) {
+  let finalOrig = (origText || "").trim();
+  let finalVi = (viText || "").trim();
+
+  if (!finalVi && !finalOrig) return { formattedOrig: finalOrig, formattedVi: finalVi };
+
+  // 1. Thêm nốt nhạc ♪ ở đầu và cuối nếu là bài hát / câu hát / lyrics
+  const hasMusicNote = /[♪♫♬]/.test(finalOrig) || /[♪♫♬]/.test(finalVi) || isMusicOrLyrics;
+  if (hasMusicNote) {
+    if (finalOrig && !finalOrig.startsWith("♪") && !finalOrig.startsWith("♫")) {
+      finalOrig = `♪ ${finalOrig}`;
+    }
+    if (finalOrig && !finalOrig.endsWith("♪") && !finalOrig.endsWith("♫")) {
+      finalOrig = `${finalOrig} ♪`;
+    }
+    if (finalVi && !finalVi.startsWith("♪") && !finalVi.startsWith("♫")) {
+      finalVi = `♪ ${finalVi}`;
+    }
+    if (finalVi && !finalVi.endsWith("♪") && !finalVi.endsWith("♫")) {
+      finalVi = `${finalVi} ♪`;
+    }
+  }
+
+  // 2. Đồng bộ các dấu câu đặc thù: ?, !, ... sang câu dịch
+  const cleanOrig = finalOrig.replace(/^[♪♫♬\s]+|[♪♫♬\s]+$/g, "").trim();
+  const cleanVi = finalVi.replace(/^[♪♫♬\s]+|[♪♫♬\s]+$/g, "").trim();
+
+  if (finalVi) {
+    if (/\?$/.test(cleanOrig) && !/\?$/.test(cleanVi)) {
+      finalVi = hasMusicNote ? finalVi.replace(/\s*♪$/, "? ♪") : `${finalVi}?`;
+    } else if (/!$/.test(cleanOrig) && !/[!?]$/.test(cleanVi)) {
+      finalVi = hasMusicNote ? finalVi.replace(/\s*♪$/, "! ♪") : `${finalVi}!`;
+    } else if (/(\.{3}|…)$/.test(cleanOrig) && !/(\.{3}|…)$/.test(cleanVi)) {
+      finalVi = hasMusicNote ? finalVi.replace(/\s*♪$/, "... ♪") : `${finalVi}...`;
+    }
+  }
+
+  return { formattedOrig: finalOrig, formattedVi: finalVi };
+}
+
 function renderTranslation(video, origText, viText, sub2Text = "", isPreview = false, isError = false) {
   const state = getVideoState(video);
   const overlay = getOrCreateOverlay(video);
   const origEl = overlay.querySelector(".vie-orig");
   const viEl = overlay.querySelector(".vie-vi");
 
-  const finalViText = !isError
-    ? stabilizeStreamingTranslation(state.renderedOrigText, state.renderedViText, origText, viText)
-    : viText;
+  const isMusic = ytCueState.isLyrics || looksLikeMusicVideo(getVideoTitle());
+  const { formattedOrig, formattedVi } = formatSubtitleDecorations(origText, viText, isMusic);
 
-  if (!isError && origText && finalViText) {
-    state.renderedOrigText = origText;
+  const finalViText = !isError
+    ? stabilizeStreamingTranslation(state.renderedOrigText, state.renderedViText, formattedOrig, formattedVi)
+    : formattedVi;
+
+  if (!isError && formattedOrig && finalViText) {
+    state.renderedOrigText = formattedOrig;
     state.renderedViText = finalViText;
   }
 
   const showSecondary = Boolean(settings.dualSub) && settings.secondaryLang !== "none";
   if (origEl) {
-    const secondLine = getSecondaryDisplayLine(origText, sub2Text);
+    const secondLine = getSecondaryDisplayLine(formattedOrig, sub2Text);
     renderInteractiveWords(origEl, secondLine);
     origEl.style.display = showSecondary ? "block" : "none";
   }
@@ -1211,7 +1386,7 @@ function extractYouTubeMetaFromHtml(html) {
   return { title: title.trim(), author: author.trim(), duration };
 }
 
-function tryLoadSongLyricsForVideo(video, expectedVid = "", metaOverride = null) {
+function tryLoadSongLyricsForVideo(video, expectedVid = "", metaOverride = null, refEvents = []) {
   return new Promise((resolve) => {
     const title = (metaOverride?.title || getVideoTitle() || "").trim();
     if (!title || title.length < 3) {
@@ -1241,7 +1416,45 @@ function tryLoadSongLyricsForVideo(video, expectedVid = "", metaOverride = null)
           return;
         }
         if (res.synced && Array.isArray(res.cues) && res.cues.length >= 4) {
-          ytCueState.cues = res.cues;
+          let cues = res.cues;
+          let autoOffset = 0;
+
+          // Tự động căn chỉnh độ lệch Intro của MV ca nhạc so với bản thu âm Album (LRC):
+          // TH1: Dùng mốc thời gian thực của phụ đề YouTube ASR/Manual (nếu video có sẵn track)
+          if (Array.isArray(refEvents) && refEvents.length > 0 && cues.length > 0) {
+            const firstRef = refEvents.find((e) => e.text && e.text.trim().length >= 3);
+            const firstLrc = cues[0];
+            if (firstRef && firstLrc) {
+              const firstWords = firstLrc.text.toLowerCase().split(/\s+/).slice(0, 3).join(" ");
+              const matchedRef = refEvents.find(
+                (e) => firstWords.length >= 4 && e.text.toLowerCase().includes(firstWords)
+              );
+              if (matchedRef) {
+                autoOffset = Math.max(0, matchedRef.start - firstLrc.start);
+              } else if (firstRef.start > firstLrc.start + 2.5) {
+                autoOffset = Math.max(0, firstRef.start - firstLrc.start);
+              }
+            }
+          }
+          // TH2: Video không có track phụ đề nhưng video dài hơn bản album (durationDelta do cảnh intro MV)
+          else if (
+            res.durationDelta &&
+            res.durationDelta >= 4.0 &&
+            res.durationDelta <= 65.0 &&
+            looksLikeMusicVideo(title, "", duration)
+          ) {
+            autoOffset = res.durationDelta;
+          }
+
+          if (autoOffset > 1.0 && autoOffset < 90.0) {
+            cues = cues.map((c) => ({
+              start: Math.round((c.start + autoOffset) * 100) / 100,
+              end: Math.round((c.end + autoOffset) * 100) / 100,
+              text: c.text
+            }));
+          }
+
+          ytCueState.cues = cues;
           ytCueState.isLyrics = true;
           ytCueState.sent.clear();
           const st = getVideoState(video);
@@ -1323,27 +1536,33 @@ async function loadYouTubeCues(video) {
       asrTrack = pool.find((t) => t.kind === "asr") || pool[0] || null;
     }
 
-    // Với video nhạc: ưu tiên tìm Lyrics chuẩn nhịp nhạc (LRC) trên mạng trước nếu không có sub thủ công
-    // hoặc khi người dùng bật chế độ AI Nghe & Dịch
+    const chosenTrack = manualTrack || asrTrack;
+    let events = [];
+    if (chosenTrack) {
+      try {
+        const data = await (
+          await fetch(`${chosenTrack.baseUrl}&fmt=json3`, { credentials: "include" })
+        ).json();
+        for (const ev of data.events || []) {
+          if (!ev.segs) continue;
+          const text = normalizeSubtitleText(ev.segs.map((sg) => sg.utf8 || "").join(""));
+          if (!text) continue;
+          const start = (ev.tStartMs || 0) / 1000;
+          events.push({ start, end: start + (ev.dDurationMs || 2000) / 1000, text });
+        }
+      } catch {
+        // Bỏ qua lỗi nạp track
+      }
+    }
+
+    // Với video nhạc: thử tìm Lyrics chuẩn nhịp nhạc (LRC), truyền kèm events để tự động cân chỉnh độ lệch intro
     if (isMusic && (!manualTrack || userWantsAudioCapture)) {
       ytCueState.lyricsSearchedTitle = title;
-      const foundSynced = await tryLoadSongLyricsForVideo(video, vid, htmlMeta);
+      const foundSynced = await tryLoadSongLyricsForVideo(video, vid, htmlMeta, events);
       if (foundSynced) return;
     }
 
-    const chosenTrack = manualTrack || asrTrack;
-    if (chosenTrack) {
-      const data = await (
-        await fetch(`${chosenTrack.baseUrl}&fmt=json3`, { credentials: "include" })
-      ).json();
-      const events = [];
-      for (const ev of data.events || []) {
-        if (!ev.segs) continue;
-        const text = normalizeSubtitleText(ev.segs.map((sg) => sg.utf8 || "").join(""));
-        if (!text) continue;
-        const start = (ev.tStartMs || 0) / 1000;
-        events.push({ start, end: start + (ev.dDurationMs || 2000) / 1000, text });
-      }
+    if (events.length > 0) {
       const cues = chosenTrack.kind === "asr" ? mergeEventsIntoSentences(events) : events;
       if (ytCueState.vid === vid && cues.length > 0) {
         ytCueState.cues = cues;
@@ -1359,7 +1578,7 @@ async function loadYouTubeCues(video) {
     // Nếu video hoàn toàn không có captionTracks trên YouTube, thử tìm Lyrics bài hát trên mạng
     if (!ytCueState.lyricsSearchedTitle && title) {
       ytCueState.lyricsSearchedTitle = title;
-      await tryLoadSongLyricsForVideo(video, vid, htmlMeta);
+      await tryLoadSongLyricsForVideo(video, vid, htmlMeta, []);
     }
   } catch {
     // Nếu YouTube chặn tải trước timedtext thì vẫn dịch trực tiếp real-time từ DOM hoặc Lyrics
@@ -1408,7 +1627,10 @@ function renderYouTubeByTime(video) {
     }
   }
 
-  const t = video.currentTime || 0;
+  const state = getVideoState(video);
+  const tRaw = video.currentTime || 0;
+  const t = Math.max(0, tRaw - (state.subSyncOffset || 0));
+
   let lo = 0;
   let hi = cues.length - 1;
   let idx = -1;
@@ -1421,7 +1643,6 @@ function renderYouTubeByTime(video) {
       hi = mid - 1;
     }
   }
-  const state = getVideoState(video);
   const cue = idx >= 0 && t <= cues[idx].end ? cues[idx] : null;
   if (!cue) {
     if (state.lastText) {
