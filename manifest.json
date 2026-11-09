@@ -1,8 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "VIE-Translate",
-  "version": "0.5.0",
-  "description": "Context-aware Vietnamese subtitle translator for all video websites powered by Google Gemini, Groq Cloud & Google Translate",
+  "name": "VIE-Translate — Translate Toad AI",
+  "version": "0.6.0",
+  "description": "Real-time customizable bilingual subtitle translator & AI audio captioner for all video websites (Gemini, Groq & Google Translate)",
+  "icons": {
+    "16": "assets/icon16.png",
+    "48": "assets/icon48.png",
+    "128": "assets/icon128.png"
+  },
   "permissions": [
     "storage",
     "clipboardRead"
@@ -18,10 +23,24 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "VIE-Translate - Cài đặt & Tự động lấy API Key",
-    "default_popup": "options.html"
+    "default_title": "VIE-Translate (Translate Toad AI)",
+    "default_popup": "options.html",
+    "default_icon": {
+      "16": "assets/icon16.png",
+      "48": "assets/icon48.png",
+      "128": "assets/icon128.png"
+    }
   },
   "options_page": "options.html",
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "assets/translate-toad.png",
+        "assets/icon48.png"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],

@@ -3,379 +3,781 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VIE-Translate - Cài đặt</title>
+  <title>VIE-Translate — Translate Toad Studio</title>
   <style>
+    :root {
+      --bg-deep: #090e1a;
+      --bg-card: #121b2e;
+      --bg-elevated: #1a2640;
+      --border-subtle: #293856;
+      --gold-main: #fbbf24;
+      --gold-soft: #fef08a;
+      --gold-glow: rgba(251, 191, 36, 0.25);
+      --accent-blue: #3b82f6;
+      --text-light: #f8fafc;
+      --text-dim: #94a3b8;
+    }
+
     * {
       box-sizing: border-box;
     }
+
     body {
       font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
-      width: 400px;
+      width: 425px;
       max-width: 100%;
       margin: 0 auto;
-      padding: 16px;
-      background: #0b0f19;
-      color: #f3f4f6;
+      padding: 12px;
+      background: radial-gradient(circle at 85% 10%, #1e293b 0%, var(--bg-deep) 65%);
+      color: var(--text-light);
+      user-select: none;
     }
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding-bottom: 12px;
-      margin-bottom: 14px;
-      border-bottom: 1px solid #1f2937;
-    }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 17px;
-      font-weight: 700;
-      color: #ffffff;
-    }
-    .version {
-      font-size: 11px;
-      background: #1e293b;
-      color: #60a5fa;
-      padding: 2px 7px;
-      border-radius: 6px;
-      font-weight: 600;
-    }
-    .toggles {
+
+    /* HERO BANNER: TRANSLATE TOAD */
+    .toad-hero {
+      position: relative;
       display: flex;
       align-items: center;
       gap: 12px;
+      background: linear-gradient(135deg, #152238 0%, #1e1b4b 55%, #2e1f14 100%);
+      border: 1.5px solid rgba(251, 191, 36, 0.45);
+      border-radius: 14px;
+      padding: 11px 13px;
+      margin-bottom: 11px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      overflow: hidden;
     }
-    .toggle-label {
+
+    .toad-hero::after {
+      content: "";
+      position: absolute;
+      top: -30px;
+      right: -30px;
+      width: 110px;
+      height: 110px;
+      background: radial-gradient(circle, rgba(251, 191, 36, 0.22) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .toad-avatar-wrap {
+      position: relative;
+      flex: 0 0 68px;
+      height: 68px;
+      border-radius: 14px;
+      background: radial-gradient(circle at 50% 50%, rgba(251, 191, 36, 0.22), rgba(15, 23, 42, 0.6));
+      border: 1px solid rgba(251, 191, 36, 0.4);
       display: flex;
       align-items: center;
+      justify-content: center;
+      padding: 3px;
+    }
+
+    .toad-avatar {
+      width: 62px;
+      height: 62px;
+      object-fit: contain;
+      filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5));
+      animation: toadBob 3s ease-in-out infinite;
+    }
+
+    @keyframes toadBob {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-3px) rotate(1.5deg); }
+    }
+
+    .toad-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .toad-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      margin-bottom: 3px;
+    }
+
+    .toad-brand {
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      background: linear-gradient(90deg, #ffffff 0%, #fde68a 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .toad-badge {
+      font-size: 10.5px;
+      background: rgba(251, 191, 36, 0.18);
+      color: var(--gold-main);
+      border: 1px solid rgba(251, 191, 36, 0.45);
+      padding: 1.5px 7px;
+      border-radius: 999px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .toad-speech {
+      font-size: 11.5px;
+      color: #fde68a;
+      background: rgba(9, 14, 26, 0.55);
+      border-left: 2.5px solid var(--gold-main);
+      padding: 4px 8px;
+      border-radius: 0 7px 7px 0;
+      margin-bottom: 7px;
+      line-height: 1.35;
+    }
+
+    .master-toggles {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .pill-toggle {
+      display: inline-flex;
+      align-items: center;
       gap: 5px;
-      font-size: 12.5px;
-      color: #d1d5db;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #e2e8f0;
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--border-subtle);
+      padding: 3px 9px;
+      border-radius: 999px;
       cursor: pointer;
-      user-select: none;
+      transition: border-color 0.15s;
     }
-    .toggle-label input {
-      accent-color: #10b981;
-      width: 15px;
-      height: 15px;
+
+    .pill-toggle:hover {
+      border-color: var(--gold-main);
+    }
+
+    .pill-toggle input {
+      accent-color: var(--gold-main);
+      width: 13.5px;
+      height: 13.5px;
+      margin: 0;
       cursor: pointer;
     }
+
+    /* NAVIGATION TABS */
+    .nav-tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 5px;
+      background: var(--bg-card);
+      padding: 4px;
+      border-radius: 10px;
+      border: 1px solid var(--border-subtle);
+      margin-bottom: 11px;
+    }
+
+    .tab-btn {
+      background: transparent;
+      color: var(--text-dim);
+      border: none;
+      padding: 7px 6px;
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .tab-btn:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .tab-btn.active {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+    }
+
+    .tab-pane {
+      display: none;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 13px;
+    }
+
+    .tab-pane.active {
+      display: block;
+    }
+
     .field {
-      margin-bottom: 13px;
+      margin-bottom: 12px;
     }
+
+    .field:last-child {
+      margin-bottom: 0;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+      margin-bottom: 12px;
+    }
+
     .label-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 6px;
+      margin-bottom: 5px;
     }
+
     label {
       font-weight: 600;
-      font-size: 13px;
-      color: #e5e7eb;
+      font-size: 12.5px;
+      color: #e2e8f0;
+      display: block;
+      margin-bottom: 5px;
     }
+
+    .label-row label {
+      margin-bottom: 0;
+    }
+
     .get-key-link {
-      font-size: 12px;
-      color: #3b82f6;
+      font-size: 11.5px;
+      color: var(--gold-main);
       text-decoration: none;
       font-weight: 600;
     }
+
     .get-key-link:hover {
       text-decoration: underline;
     }
+
     select,
     input[type="password"],
     input[type="text"] {
       width: 100%;
-      padding: 9px 11px;
-      font-size: 13px;
-      background: #131c2e;
+      padding: 8px 10px;
+      font-size: 12.5px;
+      background: var(--bg-elevated);
       color: #f9fafb;
-      border: 1px solid #2e3b52;
-      border-radius: 7px;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
       outline: none;
       transition: border-color 0.15s;
     }
+
     select:focus,
     input:focus {
-      border-color: #3b82f6;
+      border-color: var(--gold-main);
     }
+
+    /* 1-CLICK AUTO IMPORT BOX */
     .auto-import-box {
-      background: linear-gradient(135deg, rgba(37, 99, 235, 0.18) 0%, rgba(16, 185, 129, 0.12) 100%);
-      border: 1px solid rgba(59, 130, 246, 0.42);
-      border-radius: 9px;
-      padding: 10px 11px;
-      margin-bottom: 13px;
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.14) 0%, rgba(37, 99, 235, 0.16) 100%);
+      border: 1px solid rgba(251, 191, 36, 0.4);
+      border-radius: 10px;
+      padding: 9px 10px;
+      margin-bottom: 11px;
     }
+
     .auto-import-actions {
       display: flex;
       gap: 6px;
     }
+
     .btn-auto-import {
       flex: 1;
-      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-      color: #ffffff;
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      color: #090e1a;
       border: none;
       padding: 8px 10px;
-      font-size: 12.5px;
-      font-weight: 600;
+      font-size: 12px;
+      font-weight: 800;
       border-radius: 7px;
       cursor: pointer;
       transition: filter 0.15s;
     }
+
     .btn-auto-import:hover {
-      filter: brightness(1.1);
+      filter: brightness(1.08);
     }
+
     .btn-paste-key {
-      background: #1e293b;
-      color: #e2e8f0;
-      border: 1px solid #334155;
+      background: var(--bg-elevated);
+      color: #fde68a;
+      border: 1px solid rgba(251, 191, 36, 0.4);
       padding: 8px 10px;
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 700;
       border-radius: 7px;
       cursor: pointer;
       white-space: nowrap;
     }
+
     .btn-paste-key:hover {
-      background: #334155;
+      background: #263554;
     }
+
     .auto-import-hint {
       font-size: 11px;
-      color: #9ca3af;
-      margin-top: 6px;
-      line-height: 1.4;
+      color: #cbd5e1;
+      margin-top: 5px;
+      line-height: 1.35;
     }
+
     .key-input-group {
       display: flex;
-      gap: 8px;
+      gap: 6px;
     }
+
     .key-input-group input {
       flex: 1;
     }
+
     .btn-toggle-key {
-      background: #1e293b;
+      background: var(--bg-elevated);
       color: #cbd5e1;
-      border: 1px solid #334155;
-      padding: 0 12px;
-      border-radius: 7px;
-      font-size: 12.5px;
+      border: 1px solid var(--border-subtle);
+      padding: 0 11px;
+      border-radius: 8px;
+      font-size: 12px;
       font-weight: 600;
       cursor: pointer;
-      white-space: nowrap;
     }
-    .btn-toggle-key:hover {
-      background: #334155;
-      color: #ffffff;
-    }
+
     .model-count {
-      font-size: 11.5px;
-      color: #60a5fa;
-      font-weight: 600;
+      font-size: 11px;
+      color: var(--gold-main);
+      font-weight: 700;
     }
+
     .model-badge {
       display: inline-block;
-      margin-top: 6px;
-      font-size: 11.5px;
-      background: rgba(16, 185, 129, 0.14);
+      margin-top: 5px;
+      font-size: 11px;
+      background: rgba(16, 185, 129, 0.15);
       color: #34d399;
       border: 1px solid rgba(16, 185, 129, 0.35);
-      padding: 3px 9px;
+      padding: 2.5px 8px;
       border-radius: 6px;
       font-weight: 600;
     }
+
+    .feature-card {
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid var(--border-subtle);
+      border-radius: 9px;
+      padding: 8px 10px;
+      margin-top: 8px;
+    }
+
     .checkbox-row {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 8px;
-      margin: 10px 0 14px;
-      font-size: 12.5px;
-      color: #cbd5e1;
+      font-size: 12px;
+      color: #e2e8f0;
       cursor: pointer;
-      user-select: none;
+      line-height: 1.4;
+      margin-bottom: 6px;
     }
+
+    .checkbox-row:last-child {
+      margin-bottom: 0;
+    }
+
     .checkbox-row input {
-      accent-color: #2563eb;
+      accent-color: var(--gold-main);
       width: 15px;
       height: 15px;
+      margin-top: 1px;
       cursor: pointer;
     }
+
+    /* LIVE SUBTITLE PREVIEW */
+    .preview-stage {
+      position: relative;
+      height: 92px;
+      border-radius: 10px;
+      background: linear-gradient(160deg, #1e293b 0%, #0f172a 55%, #1e1b4b 100%);
+      border: 1px solid var(--border-subtle);
+      margin-bottom: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      padding: 8px;
+    }
+
+    .preview-stage-label {
+      position: absolute;
+      top: 5px;
+      left: 8px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .preview-sub-box {
+      max-width: 94%;
+      padding: 6px 13px;
+      border-radius: 9px;
+      text-align: center;
+      transition: all 0.15s ease;
+    }
+
+    .preview-orig {
+      font-size: 11.5px;
+      margin-bottom: 2px;
+      line-height: 1.3;
+    }
+
+    .preview-vi {
+      font-size: 14.5px;
+      font-weight: 650;
+      line-height: 1.35;
+    }
+
+    /* COLOR SWATCHES & RANGE */
+    .color-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .swatch {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: transform 0.12s;
+    }
+
+    .swatch:hover,
+    .swatch.active {
+      transform: scale(1.15);
+      border-color: #ffffff;
+    }
+
+    input[type="color"] {
+      width: 28px;
+      height: 24px;
+      padding: 0;
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--gold-main);
+      cursor: pointer;
+    }
+
+    /* FOOTER BUTTONS & STATUS */
     .btn-group {
       display: flex;
       gap: 8px;
-      margin-top: 12px;
+      margin-top: 11px;
     }
+
     .btn-save {
-      flex: 1;
-      background: #2563eb;
+      flex: 1.4;
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
       color: #ffffff;
       border: none;
-      padding: 10px 14px;
-      font-size: 13.5px;
-      font-weight: 600;
-      border-radius: 7px;
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-    .btn-save:hover {
-      background: #1d4ed8;
-    }
-    .btn-test {
-      background: #1e293b;
-      color: #f3f4f6;
-      border: 1px solid #334155;
-      padding: 10px 14px;
+      padding: 9px 14px;
       font-size: 13px;
-      font-weight: 600;
-      border-radius: 7px;
+      font-weight: 700;
+      border-radius: 8px;
       cursor: pointer;
-      white-space: nowrap;
+      transition: filter 0.15s;
     }
+
+    .btn-save:hover {
+      filter: brightness(1.1);
+    }
+
+    .btn-test {
+      flex: 1;
+      background: var(--bg-card);
+      color: #fde68a;
+      border: 1px solid rgba(251, 191, 36, 0.4);
+      padding: 9px 12px;
+      font-size: 12.5px;
+      font-weight: 700;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
     .btn-test:hover {
-      background: #334155;
+      background: var(--bg-elevated);
     }
+
     .btn-test:disabled {
       opacity: 0.6;
       cursor: wait;
     }
+
     #status {
       display: none;
-      margin-top: 12px;
-      padding: 10px 12px;
-      border-radius: 7px;
-      font-size: 12.5px;
+      margin-top: 10px;
+      padding: 9px 11px;
+      border-radius: 8px;
+      font-size: 12px;
       line-height: 1.45;
       word-break: break-word;
       white-space: pre-line;
     }
+
     #status.status-ok {
       display: block;
-      background: rgba(16, 185, 129, 0.12);
+      background: rgba(16, 185, 129, 0.14);
       border: 1px solid rgba(16, 185, 129, 0.4);
       color: #6ee7b7;
     }
+
     #status.status-err {
       display: block;
       background: rgba(239, 68, 68, 0.14);
       border: 1px solid rgba(239, 68, 68, 0.45);
       color: #fca5a5;
     }
+
     #status.status-wait {
       display: block;
-      background: rgba(59, 130, 246, 0.12);
-      border: 1px solid rgba(59, 130, 246, 0.4);
-      color: #93c5fd;
-    }
-    .slider-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 12.5px; color: #d1d5db; }
-    .slider-row span { width: 62px; }
-    .slider-row input[type="range"] { flex: 1; accent-color: #10b981; }
-    .slider-row b { width: 42px; text-align: right; color: #fef08a; font-weight: 600; }
-    .tip-box {
-      margin-top: 12px;
-      font-size: 11.5px;
-      color: #9ca3af;
-      line-height: 1.45;
-    }
-    .tip-box b {
-      color: #d1d5db;
+      background: rgba(251, 191, 36, 0.12);
+      border: 1px solid rgba(251, 191, 36, 0.4);
+      color: #fde68a;
     }
   </style>
 </head>
 <body>
-  <div class="header">
-    <div class="brand">
-      <span>VIE-Translate</span>
-      <span class="version">v0.5</span>
+  <!-- TRANSLATE TOAD HERO HEADER -->
+  <div class="toad-hero">
+    <div class="toad-avatar-wrap">
+      <img src="assets/translate-toad.png" alt="Translate Toad" class="toad-avatar">
     </div>
-    <div class="toggles">
-      <label class="toggle-label" title="Hiển thị cả phụ đề gốc và tiếng Việt">
-        <input type="checkbox" id="dualSub" checked>
-        <span>Song ngữ</span>
+    <div class="toad-info">
+      <div class="toad-title-row">
+        <span class="toad-brand">Translate Toad AI</span>
+        <span class="toad-badge">v0.6 Real-Time</span>
+      </div>
+      <div id="toadSpeech" class="toad-speech">
+        Ộp ộp! Đeo tai nghe lên, Cóc dịch mọi video cho bạn nhé! 🐸✨
+      </div>
+      <div class="master-toggles">
+        <label class="pill-toggle">
+          <input type="checkbox" id="enabled" checked>
+          <span>Đang bật dịch</span>
+        </label>
+        <label class="pill-toggle">
+          <input type="checkbox" id="dualSub" checked>
+          <span>Song ngữ 2 dòng</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3-TAB BAR -->
+  <div class="nav-tabs">
+    <button type="button" class="tab-btn active" data-tab="tab-api">🔑 AI & Kết Nối</button>
+    <button type="button" class="tab-btn" data-tab="tab-lang">🌍 Ngôn Ngữ</button>
+    <button type="button" class="tab-btn" data-tab="tab-style">🎨 Giao Diện Sub</button>
+  </div>
+
+  <!-- TAB 1: AI & API KEY -->
+  <div id="tab-api" class="tab-pane active">
+    <div class="field">
+      <label for="provider">Bộ máy dịch (Free AI):</label>
+      <select id="provider">
+        <option value="gemini">Google Gemini AI (Free - Chuẩn ngữ cảnh & Cảm xúc)</option>
+        <option value="groq">Groq Cloud (Free - Tốc độ phản hồi siêu thanh)</option>
+        <option value="gtx">Google Translate (Free - Tức thì, không cần Key)</option>
+      </select>
+    </div>
+
+    <div id="apiSection">
+      <div class="auto-import-box">
+        <div class="auto-import-actions">
+          <button type="button" id="autoImportBtn" class="btn-auto-import">
+            ⚡ Tự động lấy Key từ Google AI Studio
+          </button>
+          <button type="button" id="pasteKeyBtn" class="btn-paste-key" title="Tự nhận Key trong Clipboard">
+            📋 Dán nhanh
+          </button>
+        </div>
+        <div class="auto-import-hint">
+          Bấm 1 chạm để Cóc tự mở AI Studio, trích xuất API Key và chọn model miễn phí khỏe nhất!
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="label-row">
+          <label id="apiKeyLabel" for="apiKey">Gemini API Key (AQ. / AIza...):</label>
+          <a id="getKeyLink" class="get-key-link" href="https://aistudio.google.com/apikey?vie_auto_import=1" target="_blank" rel="noopener noreferrer">
+            Lấy key Free ↗
+          </a>
+        </div>
+        <div class="key-input-group">
+          <input type="password" id="apiKey" placeholder="Dán AIza... / AQ... hoặc gsk_..." autocomplete="off">
+          <button type="button" id="toggleKeyBtn" class="btn-toggle-key">Hiện</button>
+        </div>
+      </div>
+
+      <div id="modelField" class="field" style="display: none;">
+        <div class="label-row">
+          <label for="model">Model khả dụng của Key:</label>
+          <span id="modelCount" class="model-count"></span>
+        </div>
+        <select id="model">
+          <option value="auto">✨ Tự động chọn Model tốt nhất</option>
+        </select>
+        <div id="detectedModelBadge" class="model-badge" style="display: none;"></div>
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <label class="checkbox-row">
+        <input type="checkbox" id="fallbackToFree" checked>
+        <span><b>Tự động dự phòng Google Translate</b> khi chưa có Key hoặc hết hạn mức</span>
       </label>
-      <label class="toggle-label">
-        <input type="checkbox" id="enabled" checked>
-        <span>Đang bật</span>
+      <label class="checkbox-row" title="Dùng Gemini Audio hoặc Groq Whisper để tự nghe tiếng trong video và tạo phụ đề khi trang web không có nút CC">
+        <input type="checkbox" id="autoAudioNoCC">
+        <span><b>🎙️ Tự động bật AI Nghe & Dịch cho video không có nút CC</b> (Hoặc bấm nút 🐸 ở góc phải trên video bất kỳ)</span>
       </label>
     </div>
   </div>
 
-  <div class="field">
-    <div class="label-row">
-      <label for="provider">Nhà cung cấp API (Free):</label>
-    </div>
-    <select id="provider">
-      <option value="gemini">Google Gemini AI (Free - Theo ngữ cảnh)</option>
-      <option value="groq">Groq Cloud (Free - Siêu tốc độ)</option>
-      <option value="gtx">Google Translate (Free - Không cần Key)</option>
-    </select>
-  </div>
-
-  <div id="apiSection">
-    <div id="autoImportBox" class="auto-import-box">
-      <div class="auto-import-actions">
-        <button type="button" id="autoImportBtn" class="btn-auto-import">
-          ⚡ Tự động nhập Key từ Google AI Studio
-        </button>
-        <button type="button" id="pasteKeyBtn" class="btn-paste-key" title="Tự nhận Key đã copy trong Clipboard">
-          📋 Dán nhanh
-        </button>
-      </div>
-      <div class="auto-import-hint">
-        Tự động mở Google AI Studio, trích xuất mã API Key và kích hoạt model tốt nhất cho bạn chỉ với 1 cú nhấp.
-      </div>
+  <!-- TAB 2: NGÔN NGỮ & PHONG CÁCH DỊCH -->
+  <div id="tab-lang" class="tab-pane">
+    <div class="field">
+      <label for="targetLang">🎯 Ngôn ngữ dịch chính (Dòng chính bên dưới):</label>
+      <select id="targetLang">
+        <option value="vi">🇻🇳 Tiếng Việt (Vietnamese)</option>
+        <option value="en">🇬🇧 Tiếng Anh (English)</option>
+        <option value="fr">🇫🇷 Tiếng Pháp (Français)</option>
+        <option value="ja">🇯🇵 Tiếng Nhật (日本語)</option>
+        <option value="ko">🇰🇷 Tiếng Hàn (한국어)</option>
+        <option value="zh-CN">🇨🇳 Tiếng Trung Giản thể (简体中文)</option>
+        <option value="zh-TW">🇹🇼 Tiếng Trung Phồn thể (繁體中文)</option>
+        <option value="de">🇩🇪 Tiếng Đức (Deutsch)</option>
+        <option value="es">🇪🇸 Tiếng Tây Ban Nha (Español)</option>
+        <option value="ru">🇷🇺 Tiếng Nga (Русский)</option>
+        <option value="th">🇹🇭 Tiếng Thái (ไทย)</option>
+      </select>
     </div>
 
     <div class="field">
-      <div class="label-row">
-        <label id="apiKeyLabel" for="apiKey">Gemini API Key (AQ. / AIza...):</label>
-        <a id="getKeyLink" class="get-key-link" href="https://aistudio.google.com/apikey?vie_auto_import=1" target="_blank" rel="noopener noreferrer">
-          Lấy key Gemini Free ↗
-        </a>
-      </div>
-      <div class="key-input-group">
-        <input type="password" id="apiKey" placeholder="Dán AIza... / AQ.Ab8... hoặc gsk_..." autocomplete="off">
-        <button type="button" id="toggleKeyBtn" class="btn-toggle-key">Hiện</button>
-      </div>
-    </div>
-
-    <div id="modelField" class="field" style="display: none;">
-      <div class="label-row">
-        <label for="model">Model khả dụng của Key:</label>
-        <span id="modelCount" class="model-count"></span>
-      </div>
-      <select id="model">
-        <option value="auto">✨ Tự động dò Model đang hoạt động (Khuyên dùng)</option>
+      <label for="secondaryLang">🥂 Ngôn ngữ dòng phụ ở trên (Tùy chọn cặp Song Ngữ):</label>
+      <select id="secondaryLang">
+        <option value="orig">🎬 Giữ nguyên ngôn ngữ gốc của video (Mặc định)</option>
+        <option value="fr">🇫🇷 Song ngữ với Tiếng Pháp (Ví dụ: Việt – Pháp)</option>
+        <option value="en">🇬🇧 Song ngữ với Tiếng Anh (Ví dụ: Việt – Anh)</option>
+        <option value="ja">🇯🇵 Song ngữ với Tiếng Nhật (Ví dụ: Việt – Nhật)</option>
+        <option value="ko">🇰🇷 Song ngữ với Tiếng Hàn (Ví dụ: Việt – Hàn)</option>
+        <option value="zh-CN">🇨🇳 Song ngữ với Tiếng Trung (Ví dụ: Việt – Trung)</option>
+        <option value="de">🇩🇪 Song ngữ với Tiếng Đức (Ví dụ: Việt – Đức)</option>
+        <option value="es">🇪🇸 Song ngữ với Tiếng Tây Ban Nha (Ví dụ: Việt – TBN)</option>
+        <option value="ru">🇷🇺 Song ngữ với Tiếng Nga (Ví dụ: Việt – Nga)</option>
+        <option value="vi">🇻🇳 Song ngữ với Tiếng Việt</option>
+        <option value="none">🚫 Tắt dòng phụ (Chỉ hiện 1 dòng ngôn ngữ chính)</option>
       </select>
-      <div id="detectedModelBadge" class="model-badge" style="display: none;"></div>
     </div>
 
-    <label class="checkbox-row">
-      <input type="checkbox" id="fallbackToFree" checked>
-      <span>Tự động dùng Google Translate nếu chưa có Key / hết hạn mức</span>
-    </label>
-  </div>
-
-  <div class="field" id="overlayControls">
-    <div class="label-row">
-      <label>Giao diện khung phụ đề:</label>
-      <a id="resetOverlay" class="get-key-link" href="#">Mặc định</a>
+    <div class="field">
+      <label for="translationStyle">🎭 Phong cách biên dịch của Cóc AI:</label>
+      <select id="translationStyle">
+        <option value="natural">🌿 Tự nhiên & Đời thường (Chuẩn xưng hô anh/em, thầy/trò...)</option>
+        <option value="cinema">🍿 Điện ảnh / Netflix (Cô đọng, giàu cảm xúc & thần thái)</option>
+        <option value="academic">🎓 Học thuật & Chuyên ngành (Chuẩn thuật ngữ Coursera, Udemy, IT)</option>
+        <option value="genz">🔥 Hài hước / GenZ (Trẻ trung, bắt trend cho Vlog & Gaming)</option>
+        <option value="literal">📖 Dịch sát nghĩa cấu trúc câu (Hỗ trợ học ngoại ngữ)</option>
+      </select>
     </div>
-    <div class="slider-row"><span>Độ rộng</span><input type="range" id="overlayWidth" min="30" max="100" step="5"><b id="overlayWidthVal"></b></div>
-    <div class="slider-row"><span>Cỡ chữ</span><input type="range" id="overlayScale" min="60" max="200" step="10"><b id="overlayScaleVal"></b></div>
-    <div class="slider-row"><span>Cách đáy</span><input type="range" id="overlayBottom" min="2" max="40" step="1"><b id="overlayBottomVal"></b></div>
   </div>
 
+  <!-- TAB 3: TÙY CHỈNH GIAO DIỆN PHỤ ĐỀ -->
+  <div id="tab-style" class="tab-pane">
+    <div class="preview-stage">
+      <span class="preview-stage-label">🐸 Xem trước trực tiếp</span>
+      <div id="previewBox" class="preview-sub-box">
+        <div id="previewOrig" class="preview-orig">Bonjour tout le monde, bienvenue !</div>
+        <div id="previewVi" class="preview-vi">Xin chào mọi người, chào mừng quay trở lại!</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div>
+        <label for="subBgStyle">Kiểu khung nền:</label>
+        <select id="subBgStyle">
+          <option value="toad">🐸 Translate Toad (Viền Vàng)</option>
+          <option value="glass">✨ Kính mờ (Frosted Glass)</option>
+          <option value="dark">🎬 Hộp đen đậm (Cinema)</option>
+          <option value="outline">🌟 Không nền (Viền chữ đậm)</option>
+        </select>
+      </div>
+      <div>
+        <label for="subFont">Phông chữ:</label>
+        <select id="subFont">
+          <option value="default">Hiện đại (Segoe UI / Sans)</option>
+          <option value="serif">Cổ điển (Merriweather / Serif)</option>
+          <option value="mono">Công nghệ (JetBrains Mono)</option>
+          <option value="rounded">Mềm mại (Rounded / Anime)</option>
+          <option value="impact">Đậm nét (Impact / Bold)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field" style="margin-bottom: 10px;">
+      <div class="label-row">
+        <label for="overlayWidth">Độ rộng khung phụ đề: <span id="overlayWidthVal">72%</span></label>
+        <span style="font-size: 11.5px; color: #94a3b8;">Cỡ chữ: <b id="subSizeVal" style="color:#fef08a;">100%</b> • Cách đáy: <b id="subBottomVal" style="color:#fef08a;">12%</b></span>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+        <input type="range" id="overlayWidth" min="35" max="98" step="3" value="72" title="Độ rộng khung phụ đề">
+        <input type="range" id="subSize" min="70" max="170" step="5" value="100" title="Cỡ chữ">
+        <input type="range" id="subBottomPos" min="3" max="45" step="1" value="12" title="Khoảng cách từ đáy video">
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom: 0;">
+      <div>
+        <label>Màu chữ dòng chính:</label>
+        <div class="color-row">
+          <button type="button" class="swatch" data-color="#fef08a" style="background:#fef08a;" title="Vàng Toad"></button>
+          <button type="button" class="swatch" data-color="#ffffff" style="background:#ffffff;" title="Trắng"></button>
+          <button type="button" class="swatch" data-color="#67e8f9" style="background:#67e8f9;" title="Xanh Ngọc"></button>
+          <button type="button" class="swatch" data-color="#86efac" style="background:#86efac;" title="Xanh Lá"></button>
+          <button type="button" class="swatch" data-color="#f9a8d4" style="background:#f9a8d4;" title="Hồng"></button>
+          <input type="color" id="subColor" value="#fef08a">
+        </div>
+      </div>
+      <div>
+        <label>Màu dòng phụ & Đặt lại:</label>
+        <div class="color-row" style="justify-content: space-between;">
+          <input type="color" id="subSecondColor" value="#e2e8f0" style="width: 48px;">
+          <button type="button" id="resetStyleBtn" class="btn-toggle-key" style="padding: 4px 10px; font-size: 11.5px;">
+            ↺ Mặc định
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTION BUTTONS -->
   <div class="btn-group">
-    <button id="saveBtn" class="btn-save" type="button">Lưu cài đặt</button>
-    <button id="testBtn" class="btn-test" type="button">Test API</button>
+    <button id="saveBtn" class="btn-save" type="button">💾 Lưu cài đặt</button>
+    <button id="testBtn" class="btn-test" type="button">🐸 Test API</button>
   </div>
 
   <div id="status"></div>
-
-  <div class="tip-box">
-    💡 <b>Tự động thông minh:</b> Bấm <b>⚡ Tự động nhập Key từ Google AI Studio</b> hoặc dán API Key (<code>AIza...</code> / <code>AQ.</code> của Gemini hoặc <code>gsk_...</code> của Groq), hệ thống sẽ tự nhận diện nhà cung cấp, kiểm tra key và liệt kê danh sách các model thực tế dùng được của key đó.
-  </div>
 
   <script src="options.js"></script>
 </body>

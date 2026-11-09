@@ -1,6 +1,30 @@
 const CLIPBOARD_KEY_REGEX = /\b(AIza[0-9A-Za-z_-]{35}|AQ\.[0-9A-Za-z._-]{24,}|gsk_[0-9A-Za-z]{20,})\b/;
 
+const FONT_FAMILY_MAP = {
+  default: '"Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  serif: 'Georgia, "Times New Roman", Times, serif',
+  mono: '"JetBrains Mono", Consolas, "Courier New", monospace',
+  rounded: '"Trebuchet MS", "Segoe UI", Verdana, sans-serif',
+  impact: '"Arial Black", Impact, "Segoe UI", sans-serif'
+};
+
+const SAMPLE_SENTENCES = {
+  orig: "Welcome back! Today we'll explore something amazing.",
+  vi: "Chào mừng quay trở lại! Hôm nay chúng ta sẽ khám phá điều tuyệt vời.",
+  en: "Welcome back! Today we will explore something amazing.",
+  fr: "Bon retour ! Aujourd'hui, nous allons explorer quelque chose d'incroyable.",
+  ja: "おかえりなさい！今日は素晴らしいものを探求しましょう。",
+  ko: "돌아오신 것을 환영합니다! 오늘 우리는 놀라운 것을 탐험할 것입니다.",
+  "zh-CN": "欢迎回来！今天我们将探索一些令人惊叹的事物。",
+  "zh-TW": "歡迎回來！今天我們將探索一些令人驚嘆的事物。",
+  de: "Willkommen zurück! Heute werden wir etwas Erstaunliches entdecken.",
+  es: "¡Bienvenidos de nuevo! Hoy exploraremos algo increíble.",
+  ru: "С возвращением! Сегодня мы исследуем кое-что удивительное.",
+  th: "ยินดีต้อนรับกลับมา! วันนี้เราจะมาสำรวจสิ่งที่น่าทึ่งกัน"
+};
+
 document.addEventListener("DOMContentLoaded", async () => {
+  const toadSpeech = document.getElementById("toadSpeech");
   const enabledInput = document.getElementById("enabled");
   const dualSubInput = document.getElementById("dualSub");
   const providerSelect = document.getElementById("provider");
@@ -16,6 +40,30 @@ document.addEventListener("DOMContentLoaded", async () => {
   const modelCount = document.getElementById("modelCount");
   const detectedModelBadge = document.getElementById("detectedModelBadge");
   const fallbackInput = document.getElementById("fallbackToFree");
+  const autoAudioNoCCInput = document.getElementById("autoAudioNoCC");
+
+  // Ngôn ngữ & Phong cách
+  const targetLangSelect = document.getElementById("targetLang");
+  const secondaryLangSelect = document.getElementById("secondaryLang");
+  const translationStyleSelect = document.getElementById("translationStyle");
+
+  // Tùy chỉnh giao diện phụ đề
+  const previewBox = document.getElementById("previewBox");
+  const previewOrig = document.getElementById("previewOrig");
+  const previewVi = document.getElementById("previewVi");
+  const subBgStyleSelect = document.getElementById("subBgStyle");
+  const subFontSelect = document.getElementById("subFont");
+  const overlayWidthInput = document.getElementById("overlayWidth");
+  const overlayWidthVal = document.getElementById("overlayWidthVal");
+  const subSizeInput = document.getElementById("subSize");
+  const subSizeVal = document.getElementById("subSizeVal");
+  const subBottomPosInput = document.getElementById("subBottomPos");
+  const subBottomVal = document.getElementById("subBottomVal");
+  const subColorInput = document.getElementById("subColor");
+  const subSecondColorInput = document.getElementById("subSecondColor");
+  const resetStyleBtn = document.getElementById("resetStyleBtn");
+  const swatches = document.querySelectorAll(".swatch");
+
   const saveBtn = document.getElementById("saveBtn");
   const testBtn = document.getElementById("testBtn");
   const status = document.getElementById("status");
@@ -23,6 +71,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   let keysByProvider = { groq: "", gemini: "" };
   let verifiedKey = "";
   let verifyToken = 0;
+
+  // Chuyển Tab
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll(".tab-pane").forEach((p) => p.classList.remove("active"));
+      btn.classList.add("active");
+      const pane = document.getElementById(btn.dataset.tab);
+      if (pane) pane.classList.add("active");
+      updateLivePreview();
+    });
+  });
+
+  function setToadSay(msg) {
+    if (toadSpeech && msg) toadSpeech.textContent = msg;
+  }
 
   function showStatus(msg, type = "ok") {
     if (!msg) {
@@ -35,6 +99,64 @@ document.addEventListener("DOMContentLoaded", async () => {
     status.className =
       type === "err" ? "status-err" : type === "wait" ? "status-wait" : "status-ok";
     status.style.display = "block";
+  }
+
+  function updateLivePreview() {
+    if (!previewBox) return;
+    const tLang = targetLangSelect.value || "vi";
+    const sLang = secondaryLangSelect.value || "orig";
+    const showDual = dualSubInput.checked && sLang !== "none";
+
+    previewOrig.style.display = showDual ? "block" : "none";
+    previewOrig.textContent = SAMPLE_SENTENCES[sLang] || SAMPLE_SENTENCES.orig;
+    previewVi.textContent = SAMPLE_SENTENCES[tLang] || SAMPLE_SENTENCES.vi;
+
+    const fontStack = FONT_FAMILY_MAP[subFontSelect.value] || FONT_FAMILY_MAP.default;
+    const scale = (parseFloat(subSizeInput.value) || 100) / 100;
+    const primaryColor = subColorInput.value || "#fef08a";
+    const secondColor = subSecondColorInput.value || "#e2e8f0";
+    const bgStyle = subBgStyleSelect.value || "toad";
+
+    if (overlayWidthVal) overlayWidthVal.textContent = `${overlayWidthInput.value}%`;
+    subSizeVal.textContent = `${subSizeInput.value}%`;
+    subBottomVal.textContent = `${subBottomPosInput.value}%`;
+
+    previewBox.style.fontFamily = fontStack;
+    previewOrig.style.color = secondColor;
+    previewOrig.style.fontSize = `${Math.round(11 * scale)}px`;
+    previewVi.style.color = primaryColor;
+    previewVi.style.fontSize = `${Math.round(14 * scale)}px`;
+
+    // Áp dụng kiểu khung nền cho Preview
+    previewBox.style.backdropFilter = "none";
+    previewOrig.style.textShadow = "0 1px 2px rgba(0,0,0,0.9)";
+    previewVi.style.textShadow = "0 1px 3px rgba(0,0,0,0.95)";
+
+    if (bgStyle === "toad") {
+      previewBox.style.background =
+        "linear-gradient(135deg, rgba(12, 18, 34, 0.9) 0%, rgba(23, 37, 68, 0.9) 100%)";
+      previewBox.style.border = "1.5px solid rgba(251, 191, 36, 0.55)";
+    } else if (bgStyle === "glass") {
+      previewBox.style.background = "rgba(15, 23, 42, 0.68)";
+      previewBox.style.border = "1px solid rgba(255, 255, 255, 0.16)";
+    } else if (bgStyle === "dark") {
+      previewBox.style.background = "rgba(4, 6, 10, 0.95)";
+      previewBox.style.border = "1px solid rgba(255, 255, 255, 0.08)";
+    } else if (bgStyle === "outline") {
+      previewBox.style.background = "transparent";
+      previewBox.style.border = "none";
+      previewOrig.style.textShadow =
+        "-1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000";
+      previewVi.style.textShadow =
+        "-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000";
+    }
+
+    swatches.forEach((sw) => {
+      sw.classList.toggle(
+        "active",
+        sw.dataset.color.toLowerCase() === primaryColor.toLowerCase()
+      );
+    });
   }
 
   function hideModelList() {
@@ -119,9 +241,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     availableModels: [],
     verifiedKey: "",
     fallbackToFree: true,
-    overlayWidth: 70,
-    overlayScale: 100,
-    overlayBottom: 12
+    autoAudioNoCC: false,
+    targetLang: "vi",
+    secondaryLang: "orig",
+    translationStyle: "natural",
+    subFont: "default",
+    overlayWidth: 72,
+    subSize: "100",
+    subColor: "#fef08a",
+    subSecondColor: "#e2e8f0",
+    subBgStyle: "toad",
+    subBottomPos: "12"
   });
 
   keysByProvider.groq =
@@ -137,34 +267,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   dualSubInput.checked = Boolean(stored.dualSub);
   providerSelect.value = stored.provider || "gemini";
   fallbackInput.checked = Boolean(stored.fallbackToFree);
+  autoAudioNoCCInput.checked = Boolean(stored.autoAudioNoCC);
+
+  targetLangSelect.value = stored.targetLang || "vi";
+  secondaryLangSelect.value = stored.secondaryLang || "orig";
+  translationStyleSelect.value = stored.translationStyle || "natural";
+
+  subBgStyleSelect.value = stored.subBgStyle || "toad";
+  subFontSelect.value = stored.subFont || "default";
+  if (overlayWidthInput) overlayWidthInput.value = stored.overlayWidth || 72;
+  subSizeInput.value = stored.subSize || "100";
+  subBottomPosInput.value = stored.subBottomPos || "12";
+  subColorInput.value = stored.subColor || "#fef08a";
+  subSecondColorInput.value = stored.subSecondColor || "#e2e8f0";
 
   updateProviderUI(providerSelect.value);
-
-  // Tuỳ chỉnh khung phụ đề: áp dụng ngay khi kéo
-  const overlayDefs = [
-    { key: "overlayWidth", unit: "%" },
-    { key: "overlayScale", unit: "%" },
-    { key: "overlayBottom", unit: "%" }
-  ];
-  for (const { key, unit } of overlayDefs) {
-    const input = document.getElementById(key);
-    const label = document.getElementById(`${key}Val`);
-    input.value = stored[key];
-    label.textContent = `${stored[key]}${unit}`;
-    input.addEventListener("input", () => {
-      label.textContent = `${input.value}${unit}`;
-      chrome.storage.local.set({ [key]: Number(input.value) });
-    });
-  }
-  document.getElementById("resetOverlay").addEventListener("click", (e) => {
-    e.preventDefault();
-    const defaults = { overlayWidth: 70, overlayScale: 100, overlayBottom: 12 };
-    for (const { key, unit } of overlayDefs) {
-      document.getElementById(key).value = defaults[key];
-      document.getElementById(`${key}Val`).textContent = `${defaults[key]}${unit}`;
-    }
-    chrome.storage.local.set(defaults);
-  });
+  updateLivePreview();
 
   verifiedKey = stored.verifiedKey || "";
   const currentKey = apiKeyInput.value.trim();
@@ -179,11 +297,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         ? stored.model
         : stored.detectedModel || stored.availableModels[0];
     showModelList(stored.availableModels, stored.detectedModel || sel);
+    setToadSay(`Ộp! Đang kết nối mượt mà với [${stored.detectedModel || sel}] 🐸🎧`);
   } else {
     hideModelList();
   }
 
-  // Nếu chưa có API Key nào, tự động kiểm tra Clipboard khi mở Popup
   if (!currentKey) {
     tryAutoReadClipboard(true);
   }
@@ -210,6 +328,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           apiKeyInput.value = s.apiKey;
           verifiedKey = s.verifiedKey;
           showModelList(s.availableModels, s.detectedModel);
+          setToadSay(`Ộp ộp! Đã tự động lấy Key thành công: [${s.detectedModel}] 🐸✨`);
           showStatus(
             `✓ Đã tự động nhận & kích hoạt API Key từ Google AI Studio! Đang dùng [${s.detectedModel}].`,
             "ok"
@@ -219,14 +338,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Nút Hiện / Ẩn API Key
   toggleKeyBtn.addEventListener("click", () => {
     const isHidden = apiKeyInput.type === "password";
     apiKeyInput.type = isHidden ? "text" : "password";
     toggleKeyBtn.textContent = isHidden ? "Ẩn" : "Hiện";
   });
 
-  // Đổi nhà cung cấp trong dropdown
   providerSelect.addEventListener("change", () => {
     const p = providerSelect.value;
     updateProviderUI(p);
@@ -244,11 +361,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Tự động nhận diện nhà cung cấp & xác thực key khi dán/nhập
   let autoDetectTimer = null;
   apiKeyInput.addEventListener("input", () => {
     const val = apiKeyInput.value.trim();
-
     const detected = detectProviderFromKey(val);
     if (detected && providerSelect.value !== detected) {
       providerSelect.value = detected;
@@ -269,22 +384,80 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  enabledInput.addEventListener("change", () => {
-    chrome.storage.local.set({ enabled: enabledInput.checked });
+  // Tự động áp dụng ngay mọi thay đổi về ngôn ngữ, phong cách, phông chữ, màu sắc
+  function syncInstantPreferences() {
+    updateLivePreview();
+    chrome.storage.local.set({
+      enabled: enabledInput.checked,
+      dualSub: dualSubInput.checked,
+      fallbackToFree: fallbackInput.checked,
+      autoAudioNoCC: autoAudioNoCCInput.checked,
+      targetLang: targetLangSelect.value,
+      secondaryLang: secondaryLangSelect.value,
+      translationStyle: translationStyleSelect.value,
+      subBgStyle: subBgStyleSelect.value,
+      subFont: subFontSelect.value,
+      overlayWidth: overlayWidthInput ? Number(overlayWidthInput.value) || 72 : 72,
+      subSize: subSizeInput.value,
+      overlayScale: Number(subSizeInput.value) || 100,
+      subBottomPos: subBottomPosInput.value,
+      overlayBottom: Number(subBottomPosInput.value) || 12,
+      subColor: subColorInput.value,
+      subSecondColor: subSecondColorInput.value
+    });
+  }
+
+  [
+    enabledInput,
+    dualSubInput,
+    fallbackInput,
+    autoAudioNoCCInput,
+    targetLangSelect,
+    secondaryLangSelect,
+    translationStyleSelect,
+    subBgStyleSelect,
+    subFontSelect,
+    overlayWidthInput,
+    subSizeInput,
+    subBottomPosInput,
+    subColorInput,
+    subSecondColorInput
+  ]
+    .filter(Boolean)
+    .forEach((el) => {
+      el.addEventListener("input", syncInstantPreferences);
+      el.addEventListener("change", syncInstantPreferences);
+    });
+
+  swatches.forEach((sw) => {
+    sw.addEventListener("click", () => {
+      subColorInput.value = sw.dataset.color;
+      syncInstantPreferences();
+    });
   });
 
-  dualSubInput.addEventListener("change", () => {
-    chrome.storage.local.set({ dualSub: dualSubInput.checked });
+  resetStyleBtn.addEventListener("click", () => {
+    subBgStyleSelect.value = "toad";
+    subFontSelect.value = "default";
+    if (overlayWidthInput) overlayWidthInput.value = "72";
+    subSizeInput.value = "100";
+    subBottomPosInput.value = "12";
+    subColorInput.value = "#fef08a";
+    subSecondColorInput.value = "#e2e8f0";
+    syncInstantPreferences();
+    showStatus("✓ Đã khôi phục giao diện phụ đề Translate Toad mặc định!", "ok");
   });
 
-  // Người dùng chọn model khác trong danh sách khả dụng
   modelSelect.addEventListener("change", async () => {
     const m = modelSelect.value;
-    await chrome.storage.local.set({ model: m, detectedModel: m === "auto" ? stored.detectedModel : m });
+    await chrome.storage.local.set({
+      model: m,
+      detectedModel: m === "auto" ? stored.detectedModel : m
+    });
     chrome.runtime.sendMessage({ type: "CLEAR_CACHE" }, () => void chrome.runtime.lastError);
     detectedModelBadge.textContent = `✓ Đang dùng model: ${m}`;
     detectedModelBadge.style.display = "inline-block";
-    showStatus(`✓ Đã chọn model [${m}]. Nếu model lỗi, hệ thống tự chuyển sang model khác.`, "ok");
+    showStatus(`✓ Đã chọn model [${m}]. Nếu model lỗi, Cóc tự chuyển sang model khác!`, "ok");
   });
 
   async function tryAutoReadClipboard(silent = false) {
@@ -304,14 +477,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         return true;
       } else if (!silent) {
         showStatus(
-          "⚠ Chưa thấy API Key (AIza... / AQ... / gsk_...) trong Clipboard. Hãy bấm '⚡ Tự động nhập Key từ Google AI Studio'!",
+          "⚠ Chưa thấy API Key (AIza... / AQ... / gsk_...) trong Clipboard. Hãy bấm '⚡ Tự động lấy Key từ Google AI Studio'!",
           "err"
         );
       }
     } catch {
       if (!silent) {
         showStatus(
-          "⚠ Không thể đọc Clipboard. Hãy bấm '⚡ Tự động nhập Key từ Google AI Studio' hoặc dán trực tiếp.",
+          "⚠ Không thể đọc Clipboard. Hãy bấm '⚡ Tự động lấy Key từ Google AI Studio' hoặc dán trực tiếp.",
           "err"
         );
       }
@@ -323,11 +496,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     tryAutoReadClipboard(false);
   });
 
-  // Nút 1-Click Tự động lấy API Key từ Google AI Studio
   autoImportBtn.addEventListener("click", async () => {
     const fromClip = await tryAutoReadClipboard(true);
     if (fromClip) return;
 
+    setToadSay("Ộp! Đang mở Google AI Studio để lấy Key cho bạn... 🐸🚀");
     showStatus("⏳ Đang kết nối tới Google AI Studio để tự động lấy API Key...", "wait");
 
     if (chrome.tabs && typeof chrome.tabs.query === "function") {
@@ -371,31 +544,33 @@ document.addEventListener("DOMContentLoaded", async () => {
         ? modelSelect.value
         : "auto";
 
+    syncInstantPreferences();
     await chrome.storage.local.set({
-      enabled: enabledInput.checked,
-      dualSub: dualSubInput.checked,
       provider: p,
       apiKey: key,
       groqApiKey: keysByProvider.groq,
       geminiApiKey: keysByProvider.gemini,
-      model: modelValue,
-      fallbackToFree: fallbackInput.checked
+      model: modelValue
     });
 
-    if (!silent) showStatus("✓ Đã lưu cài đặt thành công!", "ok");
+    if (!silent) {
+      setToadSay("Ộp ộp! Đã lưu mọi tùy chỉnh phụ đề của bạn! 🐸💛");
+      showStatus("✓ Đã lưu toàn bộ cài đặt thành công!", "ok");
+    }
   }
 
   function verifyKey(keyToTest, keepSelectedModel = false) {
     const key = (keyToTest || apiKeyInput.value || "").trim();
     if (!key) {
       showStatus(
-        "⚠ Vui lòng nhập API Key hoặc bấm '⚡ Tự động nhập Key từ Google AI Studio' ở trên.",
+        "⚠ Vui lòng nhập API Key hoặc bấm '⚡ Tự động lấy Key từ Google AI Studio' ở trên.",
         "err"
       );
       return;
     }
 
     const token = ++verifyToken;
+    setToadSay("Đợi Cóc vài giây để kiểm tra Key và dò model nhé... 🐸🔍");
     showStatus("⏳ Đang xác thực API Key và lấy danh sách model khả dụng...", "wait");
     testBtn.disabled = true;
 
@@ -422,6 +597,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!res?.ok) {
           verifiedKey = "";
           hideModelList();
+          setToadSay("Ối! Key này chưa hợp lệ rồi, thử lấy lại Key nhé! 🐸💦");
           showStatus(`✗ API Key không dùng được: ${res?.error || "Không xác định"}`, "err");
           return;
         }
@@ -444,6 +620,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           model: res.modelUsed
         });
 
+        setToadSay(`Tuyệt vời! Cóc đang dịch bằng [${res.modelUsed}] 🐸🎧`);
         showStatus(
           `✓ API Key hợp lệ! Tìm thấy ${(res.availableModels || []).length} model. Đang dùng [${res.modelUsed}].\nDịch thử: "${res.sample}"`,
           "ok"

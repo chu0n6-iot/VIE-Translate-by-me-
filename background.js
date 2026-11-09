@@ -1,5 +1,5 @@
 const MAX_CACHE_SIZE = 800;
-const MAX_CONTEXT_ITEMS = 6;
+const MAX_CONTEXT_ITEMS = 8;
 
 const cache = new Map();
 const inFlight = new Map();
@@ -9,6 +9,66 @@ const contextByTab = new Map();
 const discoveredModelsByKey = new Map();
 const activeRouteByKey = new Map(); // apiKey -> { model, endpointType }
 const cooldownModels = new Map(); // `${apiKey}:${model}` -> timestamp
+
+const LANGUAGE_NAMES = {
+  vi: "Tiếng Việt",
+  en: "Tiếng Anh (English)",
+  fr: "Tiếng Pháp (Français)",
+  ja: "Tiếng Nhật (日本語)",
+  ko: "Tiếng Hàn (한국어)",
+  "zh-CN": "Tiếng Trung Giản thể (简体中文)",
+  "zh-TW": "Tiếng Trung Phồn thể (繁體中文)",
+  de: "Tiếng Đức (Deutsch)",
+  es: "Tiếng Tây Ban Nha (Español)",
+  ru: "Tiếng Nga (Русский)",
+  th: "Tiếng Thái (ไทย)"
+};
+
+const STYLE_INSTRUCTIONS = {
+  natural:
+    "Phong cách tự nhiên, đời thường, trôi chảy, đúng ngữ cảnh hội thoại và ngôi xưng hô (anh/em, tôi/bạn, mình/cậu, chú/bác, thầy/trò, mày/tao...).",
+  cinema:
+    "Phong cách phụ đề điện ảnh / Netflix chuyên nghiệp: câu từ cô đọng, súc tích, giàu cảm xúc, giàu nhịp điệu, truyền tải trọn vẹn thần thái nhân vật.",
+  academic:
+    "Phong cách học thuật & chuyên ngành: dịch chuẩn xác các thuật ngữ khoa học, kỹ thuật, lập trình, y sinh, kinh tế; văn phong rõ ràng, mạch lạc.",
+  genz:
+    "Phong cách trẻ trung, hài hước, năng động (GenZ / Vlog / Gaming): dùng từ ngữ tự nhiên, bắt trend hợp ngữ cảnh nhưng vẫn giữ chuẩn ý nghĩa câu gốc.",
+  literal:
+    "Phong cách dịch sát nghĩa và cấu trúc câu gốc (hỗ trợ người học ngoại ngữ đối chiếu từ vựng và ngữ pháp dễ dàng)."
+};
+
+// Quy tắc dịch nguyên văn kể cả tiếng lóng, chửi thề trong phim/video
+const TRANSLATION_STYLE_RULE =
+  " Đây là công việc biên dịch phụ đề nguyên văn: nếu câu gốc có tiếng lóng, từ cảm thán hoặc từ chửi thề (fuck, shit, damn, bitch, ass, hell...), BẮT BUỘC dịch thẳng sang từ tương đương tự nhiên (đệch, mẹ kiếp, chết tiệt, khốn kiếp, vãi, đéo, má...), TUYỆT ĐỐI KHÔNG kiểm duyệt, không làm nhẹ, không dùng dấu *** và không bao giờ từ chối dịch.";
+
+function looksLikeRefusal(text) {
+  const s = (text || "").trim();
+  if (!s) return true;
+  return /^(tôi không thể|tôi xin lỗi|xin lỗi,? tôi|sorry,? i can'?t|i cannot (translate|fulfill|assist)|i apologize|as an ai)/i.test(
+    s
+  );
+}
+
+// Các câu ảo giác (hallucination) phổ biến của Whisper khi đoạn âm thanh chỉ có tiếng nhạc hoặc im lặng
+function isAudioHallucination(text) {
+  const s = (text || "").trim().toLowerCase();
+  if (!s || s.length < 2) return true;
+  const hallucinations = [
+    "silence",
+    "thank you.",
+    "thank you for watching.",
+    "thanks for watching.",
+    "subtitles by",
+    "amara.org",
+    "hãy subscribe",
+    "ghiền mì gõ",
+    "la la la",
+    "you",
+    ".",
+    "..."
+  ];
+  return hallucinations.includes(s) || /^[\s.,!?;:\-♪♫*]+$/.test(s);
+}
 
 const FALLBACK_GEMINI_MODELS = [
   "gemini-2.5-flash-lite",
@@ -69,6 +129,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg.type === "TRANSCRIBE_AUDIO") {
+    const tabId = sender.tab?.id ?? "global";
+    handleTranscribeAudio(msg.audioBase64, msg.mimeType, msg.videoTitle || "", tabId)
+      .then(sendResponse)
+      .catch((err) => sendResponse({ error: err.message || "Lỗi nhận diện âm thanh AI" }));
+    return true;
+  }
+
   if (msg.type === "TEST_API") {
     testAndDetectActiveModel(msg.apiKey, msg.provider, msg.model)
       .then(sendResponse)
@@ -95,7 +163,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 });
 
-// Tự nhận diện nhà cung cấp dựa trên tiền tố API Key
 function resolveProvider(apiKey, selectedProvider) {
   const key = (apiKey || "").trim();
   if (key.startsWith("gsk_")) return "groq";
@@ -215,6 +282,27 @@ function parseNumberedBatchOutput(rawOut, expectedCount) {
   return resultArr;
 }
 
+function buildSystemPrompt({ targetLang = "vi", translationStyle = "natural", isBatch = false }) {
+  const langLabel = LANGUAGE_NAMES[targetLang] || targetLang;
+  const styleDesc = STYLE_INSTRUCTIONS[translationStyle] || STYLE_INSTRUCTIONS.natural;
+
+  if (isBatch) {
+    return (
+      `Bạn là biên dịch viên phụ đề video chuyên nghiệp sang ${langLabel}. ` +
+      `Hãy dịch từng câu được đánh số [1], [2]... sang ${langLabel}. ${styleDesc} ` +
+      `BẮT BUỘC giữ nguyên định dạng đánh số [1], [2]... trên từng dòng tương ứng, không giải thích thêm.` +
+      TRANSLATION_STYLE_RULE
+    );
+  }
+
+  return (
+    `Bạn là biên dịch viên phụ đề video chuyên nghiệp sang ${langLabel}. ` +
+    `Hãy dịch câu thoại sang ${langLabel} ngắn gọn, dễ đọc trên màn hình. ${styleDesc} ` +
+    `Chỉ trả về duy nhất câu ${langLabel} đã dịch, không giải thích, không suy nghĩ dài dòng, không thêm dấu ngoặc kép.` +
+    TRANSLATION_STYLE_RULE
+  );
+}
+
 // ============================================================================
 // 1. GROQ CLOUD: Dò danh sách model đang hoạt động & dịch tự động
 // ============================================================================
@@ -287,19 +375,16 @@ async function discoverGroqModels(apiKey) {
   }
 }
 
-const TRANSLATION_STYLE_RULE =
-  " Đây là phụ đề của vlog/gaming/giải trí đời thường, người nói có thể chửi thề, nói tục hoặc dùng từ nhạy cảm. " +
-  "Hãy dịch TRUNG THỰC và đầy đủ, tuyệt đối không kiểm duyệt, không bỏ sót, không từ chối, không cảnh báo; " +
-  "dùng từ lóng/chửi thề tiếng Việt tương đương, đúng sắc thái (ví dụ: shit → đệch/mẹ nó, fuck → đm/chết tiệt). " +
-  "Giữ giọng điệu, cảm xúc và ngôi xưng nhất quán với các câu trước. Nếu câu bị cắt dở thì dịch phần có sẵn, không bịa thêm.";
-
-function looksLikeRefusal(out) {
-  return /^(i('m| am)? (sorry|unable)|i (can't|cannot|can not|won't)|sorry,|as an ai|xin lỗi|tôi không thể|mình không thể|rất tiếc)/i.test(
-    (out || "").trim()
-  );
-}
-
-async function callGroqModel({ text, texts, videoTitle, history, apiKey, model }) {
+async function callGroqModel({
+  text,
+  texts,
+  videoTitle,
+  history,
+  apiKey,
+  model,
+  targetLang = "vi",
+  translationStyle = "natural"
+}) {
   let contextPrompt = "";
   if (videoTitle) {
     contextPrompt += `Tiêu đề video: "${videoTitle}".\n`;
@@ -313,15 +398,7 @@ async function callGroqModel({ text, texts, videoTitle, history, apiKey, model }
   }
 
   const isBatch = Array.isArray(texts) && texts.length > 0;
-  const systemText = isBatch
-    ? "Bạn là biên dịch viên phụ đề video chuyên nghiệp sang tiếng Việt. " +
-      "Hãy dịch từng câu được đánh số [1], [2]... sang tiếng Việt tự nhiên, liền mạch ngữ cảnh và thống nhất ngôi xưng hô. " +
-      "BẮT BUỘC giữ nguyên định dạng đánh số [1], [2]... trên từng dòng tương ứng, không giải thích thêm." +
-      TRANSLATION_STYLE_RULE
-    : "Bạn là biên dịch viên phụ đề video chuyên nghiệp sang tiếng Việt. " +
-      "Hãy dịch câu thoại sang tiếng Việt tự nhiên, ngắn gọn, đúng ngữ cảnh và ngôi xưng hô (anh/em, tôi/bạn, mình/cậu, chú/bác, thầy/trò...). " +
-      "Chỉ trả về duy nhất câu tiếng Việt đã dịch, không giải thích, không suy nghĩ dài dòng, không thêm dấu ngoặc kép." +
-      TRANSLATION_STYLE_RULE;
+  const systemText = buildSystemPrompt({ targetLang, translationStyle, isBatch });
 
   const userContent = isBatch
     ? `${contextPrompt}\nDịch các câu phụ đề sau:\n${texts
@@ -359,7 +436,7 @@ async function callGroqModel({ text, texts, videoTitle, history, apiKey, model }
 
   let out = data?.choices?.[0]?.message?.content || "";
   out = out.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-  if (!out || looksLikeRefusal(out)) {
+  if (!out || (!isBatch && looksLikeRefusal(out))) {
     const err = new Error(`[${model}] Model từ chối/bỏ trống do nội dung nhạy cảm`);
     err.status = 200;
     err.refused = true;
@@ -372,7 +449,16 @@ async function callGroqModel({ text, texts, videoTitle, history, apiKey, model }
   return out.replace(/^["“”']+|["“”']+$/g, "").trim();
 }
 
-async function translateWithGroqAuto({ text, texts, videoTitle, history, apiKey, preferredModel }) {
+async function translateWithGroqAuto({
+  text,
+  texts,
+  videoTitle,
+  history,
+  apiKey,
+  preferredModel,
+  targetLang = "vi",
+  translationStyle = "natural"
+}) {
   const candidates = await discoverGroqModels(apiKey);
   const savedRoute = activeRouteByKey.get(apiKey);
   const ordered = buildOrderedCandidates(candidates, apiKey, preferredModel, savedRoute?.model);
@@ -386,7 +472,9 @@ async function translateWithGroqAuto({ text, texts, videoTitle, history, apiKey,
         videoTitle,
         history,
         apiKey,
-        model: candidate
+        model: candidate,
+        targetLang,
+        translationStyle
       });
       activeRouteByKey.set(apiKey, { model: candidate, endpointType: "groq" });
       chrome.storage.local.set({ detectedModel: candidate, availableModels: candidates });
@@ -399,7 +487,6 @@ async function translateWithGroqAuto({ text, texts, videoTitle, history, apiKey,
       const status = err.status || 0;
       const msg = (err.message || "").toLowerCase();
 
-      // Model từ chối câu nhạy cảm: không phạt model, thử model khác
       if (err.refused) continue;
 
       if (status === 401 || msg.includes("invalid api key")) {
@@ -536,6 +623,7 @@ function buildGeminiBody({ systemText, fullUserText, model, maxTokens, useThinki
           parts: [{ text: `${systemText}\n\n${fullUserText}` }]
         }
       ],
+      safetySettings: GEMINI_SAFETY_OFF,
       generationConfig
     };
   }
@@ -563,7 +651,9 @@ async function callGeminiEndpoint({
   history,
   apiKey,
   model,
-  endpointType
+  endpointType,
+  targetLang = "vi",
+  translationStyle = "natural"
 }) {
   const endpoint =
     endpointType === "vertex"
@@ -587,15 +677,7 @@ async function callGeminiEndpoint({
   }
 
   const isBatch = Array.isArray(texts) && texts.length > 0;
-  const systemText = isBatch
-    ? "Bạn là biên dịch viên phụ đề video chuyên nghiệp sang tiếng Việt. " +
-      "Hãy dịch từng câu được đánh số [1], [2]... sang tiếng Việt tự nhiên, liền mạch ngữ cảnh và thống nhất ngôi xưng hô. " +
-      "BẮT BUỘC giữ nguyên định dạng đánh số [1], [2]... trên từng dòng tương ứng, không giải thích thêm." +
-      TRANSLATION_STYLE_RULE
-    : "Bạn là biên dịch viên phụ đề video chuyên nghiệp sang tiếng Việt. " +
-      "Hãy dịch câu thoại sang tiếng Việt tự nhiên, ngắn gọn, đúng ngữ cảnh và ngôi xưng hô (anh/em, tôi/bạn, mình/cậu, chú/bác, thầy/trò...). " +
-      "Chỉ trả về duy nhất câu tiếng Việt đã dịch, không giải thích, không thêm dấu ngoặc kép." +
-      TRANSLATION_STYLE_RULE;
+  const systemText = buildSystemPrompt({ targetLang, translationStyle, isBatch });
 
   const fullUserText = isBatch
     ? `${contextPrompt}\nDịch các câu phụ đề sau:\n${texts
@@ -621,7 +703,6 @@ async function callGeminiEndpoint({
     body: JSON.stringify(requestBody)
   });
 
-  // Nếu endpoint báo 400 do không hỗ trợ thinkingConfig, tự động thử lại không có thinkingConfig
   if (res.status === 400 && requestBody.generationConfig?.thinkingConfig) {
     requestBody = buildGeminiBody({
       systemText,
@@ -683,7 +764,9 @@ async function translateWithGeminiAuto({
   videoTitle,
   history,
   apiKey,
-  preferredModel
+  preferredModel,
+  targetLang = "vi",
+  translationStyle = "natural"
 }) {
   const candidates = await discoverGeminiModels(apiKey);
   const savedRoute = activeRouteByKey.get(apiKey);
@@ -707,7 +790,9 @@ async function translateWithGeminiAuto({
           history,
           apiKey,
           model: candidate,
-          endpointType
+          endpointType,
+          targetLang,
+          translationStyle
         });
         activeRouteByKey.set(apiKey, { model: candidate, endpointType });
         chrome.storage.local.set({ detectedModel: candidate, availableModels: candidates });
@@ -718,7 +803,6 @@ async function translateWithGeminiAuto({
       } catch (err) {
         lastError = err;
         const status = err.status || 0;
-        // Bị bộ lọc chặn: các model Gemini khác cũng chặn tương tự → dừng sớm, để fallback Google Translate xử lý
         if (err.refused) throw err;
         if (status === 404 || status === 400) {
           markModelCooldown(apiKey, candidate, 24 * 60 * 60 * 1000);
@@ -735,7 +819,7 @@ async function translateWithGeminiAuto({
 }
 
 // ============================================================================
-// 3. ĐIỀU PHỐI DỊCH CHÍNH, DỊCH HÀNG LOẠT & TỰ ĐỘNG NHẬP KEY
+// 3. ĐIỀU PHỐI DỊCH CHÍNH, ĐA NGÔN NGỮ SONG NGỮ & DỊCH HÀNG LOẠT
 // ============================================================================
 
 async function getActiveConfig() {
@@ -745,7 +829,10 @@ async function getActiveConfig() {
     groqApiKey: "",
     geminiApiKey: "",
     model: "auto",
-    fallbackToFree: true
+    fallbackToFree: true,
+    targetLang: "vi",
+    secondaryLang: "orig",
+    translationStyle: "natural"
   });
 
   let rawKey = (settings.apiKey || "").trim();
@@ -761,17 +848,39 @@ async function getActiveConfig() {
   return { settings, rawKey, effectiveProvider };
 }
 
+async function resolveSecondaryTranslation(cleanText, secondaryLang, targetLang) {
+  if (!secondaryLang || secondaryLang === "orig" || secondaryLang === "none") {
+    return "";
+  }
+  if (secondaryLang === targetLang) return "";
+  const sub2CacheKey = `gtx:${secondaryLang}:${cleanText}`;
+  const cachedSub2 = getCached(sub2CacheKey);
+  if (cachedSub2) return cachedSub2;
+  try {
+    const sub2 = await translateWithGoogleFree(cleanText, secondaryLang);
+    if (sub2) setCached(sub2CacheKey, sub2);
+    return sub2;
+  } catch {
+    return "";
+  }
+}
+
 async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = false) {
   const cleanText = (rawText || "").replace(/\s+/g, " ").trim();
   if (!cleanText) return { vi: "" };
 
   const { settings, rawKey, effectiveProvider } = await getActiveConfig();
+  const targetLang = settings.targetLang || "vi";
+  const secondaryLang = settings.secondaryLang || "orig";
+  const translationStyle = settings.translationStyle || "natural";
+
   const targetProvider = fastPreviewOnly ? "gtx" : effectiveProvider;
-  const cacheKey = `${targetProvider}:${cleanText}`;
+  const cacheKey = `${targetProvider}:${targetLang}:${translationStyle}:${cleanText}`;
 
   const cached = getCached(cacheKey);
   if (cached) {
-    return { vi: cached, provider: targetProvider, cached: true };
+    const sub2 = await resolveSecondaryTranslation(cleanText, secondaryLang, targetLang);
+    return { vi: cached, sub2, provider: targetProvider, cached: true };
   }
 
   if (inFlight.has(cacheKey)) {
@@ -780,55 +889,72 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
 
   const task = (async () => {
     try {
+      const sub2Promise = resolveSecondaryTranslation(cleanText, secondaryLang, targetLang);
+
       if (targetProvider === "gtx") {
-        const vi = await translateWithGoogleFree(cleanText);
+        const [vi, sub2] = await Promise.all([
+          translateWithGoogleFree(cleanText, targetLang),
+          sub2Promise
+        ]);
         if (vi) setCached(cacheKey, vi);
-        return { vi, provider: "gtx" };
+        return { vi, sub2, provider: "gtx" };
       }
 
       if (!rawKey) {
         if (settings.fallbackToFree) {
-          const vi = await translateWithGoogleFree(cleanText);
-          if (vi) setCached(`gtx:${cleanText}`, vi);
-          return { vi, provider: "gtx" };
+          const [vi, sub2] = await Promise.all([
+            translateWithGoogleFree(cleanText, targetLang),
+            sub2Promise
+          ]);
+          if (vi) setCached(`gtx:${targetLang}:natural:${cleanText}`, vi);
+          return { vi, sub2, provider: "gtx" };
         }
         return {
           error:
-            "Chưa có API Key. Hãy mở tiện ích và bấm '⚡ Tự động lấy Key từ AI Studio'!"
+            "Chưa có API Key. Hãy mở tiện ích và bấm '⚡ Tự động nhập Key từ Google AI Studio'!"
         };
       }
 
       const ctx = getTabContext(tabId, videoTitle);
       try {
-        const result =
+        const [result, sub2] = await Promise.all([
           targetProvider === "groq"
-            ? await translateWithGroqAuto({
+            ? translateWithGroqAuto({
                 text: cleanText,
                 videoTitle,
                 history: ctx.items,
                 apiKey: rawKey,
-                preferredModel: settings.model || "auto"
+                preferredModel: settings.model || "auto",
+                targetLang,
+                translationStyle
               })
-            : await translateWithGeminiAuto({
+            : translateWithGeminiAuto({
                 text: cleanText,
                 videoTitle,
                 history: ctx.items,
                 apiKey: rawKey,
-                preferredModel: settings.model || "auto"
-              });
+                preferredModel: settings.model || "auto",
+                targetLang,
+                translationStyle
+              }),
+          sub2Promise
+        ]);
 
         if (result.vi) {
           setCached(cacheKey, result.vi);
           pushTabContext(tabId, videoTitle, cleanText, result.vi);
         }
-        return { vi: result.vi, provider: targetProvider, modelUsed: result.modelUsed };
+        return { vi: result.vi, sub2, provider: targetProvider, modelUsed: result.modelUsed };
       } catch (apiErr) {
         if (settings.fallbackToFree) {
-          const vi = await translateWithGoogleFree(cleanText);
+          const [vi, sub2] = await Promise.all([
+            translateWithGoogleFree(cleanText, targetLang),
+            sub2Promise
+          ]);
           if (vi) {
-            setCached(`gtx:${cleanText}`, vi);
+            setCached(`gtx:${targetLang}:natural:${cleanText}`, vi);
             pushTabContext(tabId, videoTitle, cleanText, vi);
-            return { vi, provider: "gtx", warning: apiErr.message };
+            return { vi, sub2, provider: "gtx", warning: apiErr.message };
           }
         }
         return { error: apiErr.message || "Lỗi gọi API dịch" };
@@ -858,11 +984,16 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
   if (cleanList.length === 0) return { results: {} };
 
   const { settings, rawKey, effectiveProvider } = await getActiveConfig();
+  const targetLang = settings.targetLang || "vi";
+  const translationStyle = settings.translationStyle || "natural";
+
   const results = {};
   const uncached = [];
 
   for (const text of cleanList) {
-    const cached = getCached(`${effectiveProvider}:${text}`) || getCached(`gtx:${text}`);
+    const cached =
+      getCached(`${effectiveProvider}:${targetLang}:${translationStyle}:${text}`) ||
+      getCached(`gtx:${targetLang}:natural:${text}`);
     if (cached) {
       results[text] = cached;
     } else {
@@ -881,9 +1012,9 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
     await Promise.all(
       uncached.map(async (t) => {
         try {
-          const vi = await translateWithGoogleFree(t);
+          const vi = await translateWithGoogleFree(t, targetLang);
           if (vi) {
-            setCached(`gtx:${t}`, vi);
+            setCached(`gtx:${targetLang}:natural:${t}`, vi);
             results[t] = vi;
           }
         } catch {
@@ -903,14 +1034,18 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
             videoTitle,
             history: ctx.items,
             apiKey: rawKey,
-            preferredModel: settings.model || "auto"
+            preferredModel: settings.model || "auto",
+            targetLang,
+            translationStyle
           })
         : await translateWithGeminiAuto({
             texts: uncached,
             videoTitle,
             history: ctx.items,
             apiKey: rawKey,
-            preferredModel: settings.model || "auto"
+            preferredModel: settings.model || "auto",
+            targetLang,
+            translationStyle
           });
 
     const translations = batchRes.translations || [];
@@ -918,7 +1053,7 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
       const src = uncached[i];
       const vi = (translations[i] || "").trim();
       if (vi) {
-        setCached(`${effectiveProvider}:${src}`, vi);
+        setCached(`${effectiveProvider}:${targetLang}:${translationStyle}:${src}`, vi);
         pushTabContext(tabId, videoTitle, src, vi);
         results[src] = vi;
       }
@@ -929,9 +1064,9 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
       await Promise.all(
         uncached.map(async (t) => {
           try {
-            const vi = await translateWithGoogleFree(t);
+            const vi = await translateWithGoogleFree(t, targetLang);
             if (vi) {
-              setCached(`gtx:${t}`, vi);
+              setCached(`gtx:${targetLang}:natural:${t}`, vi);
               results[t] = vi;
             }
           } catch {
@@ -945,10 +1080,222 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
   }
 }
 
-async function translateWithGoogleFree(text) {
-  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=vi&dt=t&q=${encodeURIComponent(
-    text
-  )}`;
+// ============================================================================
+// 4. DỊCH VIDEO KHÔNG CÓ PHỤ ĐỀ / CC (AI LIVE AUDIO CAPTURE -> WHISPER / GEMINI)
+// ============================================================================
+
+function base64ToUint8Array(base64) {
+  const binary = atob(base64);
+  const len = binary.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+async function transcribeWithGroqWhisper(audioBase64, mimeType, groqKey) {
+  const bytes = base64ToUint8Array(audioBase64);
+  const ext = (mimeType || "").includes("mp4") ? "mp4" : "webm";
+  const blob = new Blob([bytes], { type: mimeType || "audio/webm" });
+
+  const models = ["whisper-large-v3-turbo", "whisper-large-v3"];
+  let lastErr = null;
+
+  for (const whisperModel of models) {
+    try {
+      const form = new FormData();
+      form.append("file", blob, `chunk.${ext}`);
+      form.append("model", whisperModel);
+      form.append("response_format", "json");
+      form.append("temperature", "0");
+
+      const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${groqKey}` },
+        body: form
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        lastErr = new Error(data?.error?.message || `Groq Whisper HTTP ${res.status}`);
+        continue;
+      }
+
+      const text = (data?.text || "").trim();
+      return text;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error("Lỗi gọi Groq Whisper");
+}
+
+async function transcribeAndTranslateWithGeminiAudio({
+  audioBase64,
+  mimeType,
+  geminiKey,
+  targetLang,
+  translationStyle,
+  videoTitle
+}) {
+  const candidates = await discoverGeminiModels(geminiKey);
+  const audioModels = candidates.filter((m) => !m.includes("gemma")).slice(0, 3);
+  if (audioModels.length === 0) audioModels.push("gemini-2.5-flash", "gemini-2.0-flash");
+
+  const langLabel = LANGUAGE_NAMES[targetLang] || targetLang;
+  const styleDesc = STYLE_INSTRUCTIONS[translationStyle] || STYLE_INSTRUCTIONS.natural;
+
+  const prompt =
+    `Nghe đoạn âm thanh ngắn từ video${videoTitle ? ` "${videoTitle}"` : ""}. ` +
+    `Nếu chỉ có tiếng nhạc, tiếng ồn hoặc im lặng không có lời người nói, hãy trả về đúng 1 từ: SILENCE. ` +
+    `Nếu có lời nói, hãy chép lại câu gốc và dịch sang ${langLabel} (${styleDesc}). ` +
+    `BẮT BUỘC trả về đúng 2 dòng theo định dạng:\n` +
+    `ORIG: <câu gốc nghe được>\n` +
+    `TRANS: <bản dịch sang ${langLabel}>`;
+
+  let lastErr = null;
+  for (const model of audioModels) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+        model
+      )}:generateContent?key=${encodeURIComponent(geminiKey)}`;
+
+      const generationConfig = { temperature: 0.1, maxOutputTokens: 220 };
+      if (model.includes("gemini-2.5")) {
+        generationConfig.thinkingConfig = { thinkingBudget: 0 };
+      }
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: (mimeType || "audio/webm").split(";")[0],
+                    data: audioBase64
+                  }
+                },
+                { text: prompt }
+              ]
+            }
+          ],
+          safetySettings: GEMINI_SAFETY_OFF,
+          generationConfig
+        })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        lastErr = new Error(data?.error?.message || `Gemini Audio HTTP ${res.status}`);
+        continue;
+      }
+
+      const out = (data?.candidates?.[0]?.content?.parts || [])
+        .filter((p) => !p.thought)
+        .map((p) => p.text || "")
+        .join("")
+        .trim();
+
+      if (!out || /^silence$/i.test(out)) {
+        return { orig: "", vi: "" };
+      }
+
+      const origMatch = out.match(/ORIG:\s*(.+)/i);
+      const transMatch = out.match(/TRANS:\s*(.+)/i);
+
+      const orig = (origMatch ? origMatch[1] : "").trim();
+      const vi = (transMatch ? transMatch[1] : out).trim();
+      if (isAudioHallucination(orig)) return { orig: "", vi: "" };
+      return { orig, vi };
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error("Không thể xử lý âm thanh bằng Gemini Audio");
+}
+
+async function handleTranscribeAudio(audioBase64, mimeType, videoTitle, tabId) {
+  if (!audioBase64) return { orig: "", vi: "" };
+
+  const stored = await chrome.storage.local.get({
+    provider: "gemini",
+    apiKey: "",
+    groqApiKey: "",
+    geminiApiKey: "",
+    targetLang: "vi",
+    secondaryLang: "orig",
+    translationStyle: "natural"
+  });
+
+  const groqKey =
+    (stored.groqApiKey || "").trim() ||
+    ((stored.apiKey || "").trim().startsWith("gsk_") ? stored.apiKey.trim() : "");
+  const geminiKey =
+    (stored.geminiApiKey || "").trim() ||
+    ((stored.apiKey || "").trim().startsWith("AIza") ||
+    (stored.apiKey || "").trim().startsWith("AQ.")
+      ? stored.apiKey.trim()
+      : "");
+
+  // Ưu tiên Groq Whisper nếu có Groq Key vì tốc độ nhận diện âm thanh siêu nhanh (~150ms)
+  if (groqKey) {
+    try {
+      const origText = await transcribeWithGroqWhisper(audioBase64, mimeType, groqKey);
+      if (isAudioHallucination(origText)) {
+        return { orig: "", vi: "" };
+      }
+      const transRes = await handleTranslate(origText, videoTitle, tabId, false);
+      return {
+        orig: origText,
+        vi: transRes?.vi || "",
+        sub2: transRes?.sub2 || "",
+        provider: "groq-whisper"
+      };
+    } catch (groqErr) {
+      if (!geminiKey) {
+        return { error: groqErr.message };
+      }
+    }
+  }
+
+  if (geminiKey) {
+    const { orig, vi } = await transcribeAndTranslateWithGeminiAudio({
+      audioBase64,
+      mimeType,
+      geminiKey,
+      targetLang: stored.targetLang || "vi",
+      translationStyle: stored.translationStyle || "natural",
+      videoTitle
+    });
+    if (!orig || !vi) return { orig: "", vi: "" };
+    const sub2 = await resolveSecondaryTranslation(
+      orig,
+      stored.secondaryLang || "orig",
+      stored.targetLang || "vi"
+    );
+    pushTabContext(tabId, videoTitle, orig, vi);
+    return { orig, vi, sub2, provider: "gemini-audio" };
+  }
+
+  return {
+    error:
+      "Cần có Gemini API Key hoặc Groq API Key để bật tính năng AI Nghe & Dịch cho video không có CC!"
+  };
+}
+
+// ============================================================================
+// 5. GOOGLE TRANSLATE FREE & KIỂM TRA / TỰ ĐỘNG NHẬP API KEY
+// ============================================================================
+
+async function translateWithGoogleFree(text, targetLang = "vi") {
+  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(
+    targetLang
+  )}&dt=t&q=${encodeURIComponent(text)}`;
   const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`Google Translate HTTP ${res.status}`);
@@ -968,6 +1315,10 @@ async function testAndDetectActiveModel(apiKey, selectedProvider, preferredModel
   }
 
   const provider = resolveProvider(trimmedKey, selectedProvider);
+  const { targetLang = "vi", translationStyle = "natural" } = await chrome.storage.local.get({
+    targetLang: "vi",
+    translationStyle: "natural"
+  });
 
   discoveredModelsByKey.delete(`groq:${trimmedKey}`);
   discoveredModelsByKey.delete(`gemini:${trimmedKey}`);
@@ -986,14 +1337,18 @@ async function testAndDetectActiveModel(apiKey, selectedProvider, preferredModel
           videoTitle: "Tech Channel",
           history: [],
           apiKey: trimmedKey,
-          preferredModel: preferredModel || "auto"
+          preferredModel: preferredModel || "auto",
+          targetLang,
+          translationStyle
         })
       : await translateWithGeminiAuto({
           text: "Hello everyone, welcome back to the video!",
           videoTitle: "Tech Channel",
           history: [],
           apiKey: trimmedKey,
-          preferredModel: preferredModel || "auto"
+          preferredModel: preferredModel || "auto",
+          targetLang,
+          translationStyle
         });
 
   return {
