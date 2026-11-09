@@ -287,6 +287,18 @@ async function discoverGroqModels(apiKey) {
   }
 }
 
+const TRANSLATION_STYLE_RULE =
+  " Đây là phụ đề của vlog/gaming/giải trí đời thường, người nói có thể chửi thề, nói tục hoặc dùng từ nhạy cảm. " +
+  "Hãy dịch TRUNG THỰC và đầy đủ, tuyệt đối không kiểm duyệt, không bỏ sót, không từ chối, không cảnh báo; " +
+  "dùng từ lóng/chửi thề tiếng Việt tương đương, đúng sắc thái (ví dụ: shit → đệch/mẹ nó, fuck → đm/chết tiệt). " +
+  "Giữ giọng điệu, cảm xúc và ngôi xưng nhất quán với các câu trước. Nếu câu bị cắt dở thì dịch phần có sẵn, không bịa thêm.";
+
+function looksLikeRefusal(out) {
+  return /^(i('m| am)? (sorry|unable)|i (can't|cannot|can not|won't)|sorry,|as an ai|xin lỗi|tôi không thể|mình không thể|rất tiếc)/i.test(
+    (out || "").trim()
+  );
+}
+
 async function callGroqModel({ text, texts, videoTitle, history, apiKey, model }) {
   let contextPrompt = "";
   if (videoTitle) {
@@ -294,7 +306,7 @@ async function callGroqModel({ text, texts, videoTitle, history, apiKey, model }
   }
   if (history && history.length > 0) {
     const recentLines = history
-      .slice(-4)
+      .slice(-6)
       .map((item) => `- "${item.src}" -> "${item.vi}"`)
       .join("\n");
     contextPrompt += `Các câu thoại trước đó để giữ mạch xưng hô:\n${recentLines}\n`;
@@ -304,10 +316,12 @@ async function callGroqModel({ text, texts, videoTitle, history, apiKey, model }
   const systemText = isBatch
     ? "Bạn là biên dịch viên phụ đề video chuyên nghiệp sang tiếng Việt. " +
       "Hãy dịch từng câu được đánh số [1], [2]... sang tiếng Việt tự nhiên, liền mạch ngữ cảnh và thống nhất ngôi xưng hô. " +
-      "BẮT BUỘC giữ nguyên định dạng đánh số [1], [2]... trên từng dòng tương ứng, không giải thích thêm."
+      "BẮT BUỘC giữ nguyên định dạng đánh số [1], [2]... trên từng dòng tương ứng, không giải thích thêm." +
+      TRANSLATION_STYLE_RULE
     : "Bạn là biên dịch viên phụ đề video chuyên nghiệp sang tiếng Việt. " +
       "Hãy dịch câu thoại sang tiếng Việt tự nhiên, ngắn gọn, đúng ngữ cảnh và ngôi xưng hô (anh/em, tôi/bạn, mình/cậu, chú/bác, thầy/trò...). " +
-      "Chỉ trả về duy nhất câu tiếng Việt đã dịch, không giải thích, không suy nghĩ dài dòng, không thêm dấu ngoặc kép.";
+      "Chỉ trả về duy nhất câu tiếng Việt đã dịch, không giải thích, không suy nghĩ dài dòng, không thêm dấu ngoặc kép." +
+      TRANSLATION_STYLE_RULE;
 
   const userContent = isBatch
     ? `${contextPrompt}\nDịch các câu phụ đề sau:\n${texts
@@ -345,6 +359,12 @@ async function callGroqModel({ text, texts, videoTitle, history, apiKey, model }
 
   let out = data?.choices?.[0]?.message?.content || "";
   out = out.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  if (!out || looksLikeRefusal(out)) {
+    const err = new Error(`[${model}] Model từ chối/bỏ trống do nội dung nhạy cảm`);
+    err.status = 200;
+    err.refused = true;
+    throw err;
+  }
 
   if (isBatch) {
     return parseNumberedBatchOutput(out, texts.length);
@@ -378,6 +398,9 @@ async function translateWithGroqAuto({ text, texts, videoTitle, history, apiKey,
       lastError = err;
       const status = err.status || 0;
       const msg = (err.message || "").toLowerCase();
+
+      // Model từ chối câu nhạy cảm: không phạt model, thử model khác
+      if (err.refused) continue;
 
       if (status === 401 || msg.includes("invalid api key")) {
         throw err;
@@ -486,6 +509,14 @@ async function discoverGeminiModels(apiKey) {
   }
 }
 
+const GEMINI_SAFETY_OFF = [
+  "HARM_CATEGORY_HARASSMENT",
+  "HARM_CATEGORY_HATE_SPEECH",
+  "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+  "HARM_CATEGORY_DANGEROUS_CONTENT",
+  "HARM_CATEGORY_CIVIC_INTEGRITY"
+].map((category) => ({ category, threshold: "BLOCK_NONE" }));
+
 function buildGeminiBody({ systemText, fullUserText, model, maxTokens, useThinkingZero }) {
   const isGemma = model.toLowerCase().includes("gemma");
   const generationConfig = {
@@ -520,6 +551,7 @@ function buildGeminiBody({ systemText, fullUserText, model, maxTokens, useThinki
         parts: [{ text: fullUserText }]
       }
     ],
+    safetySettings: GEMINI_SAFETY_OFF,
     generationConfig
   };
 }
@@ -548,7 +580,7 @@ async function callGeminiEndpoint({
   }
   if (history && history.length > 0) {
     const recentLines = history
-      .slice(-4)
+      .slice(-6)
       .map((item) => `- "${item.src}" -> "${item.vi}"`)
       .join("\n");
     contextPrompt += `Các câu thoại trước đó để giữ mạch xưng hô:\n${recentLines}\n`;
@@ -558,10 +590,12 @@ async function callGeminiEndpoint({
   const systemText = isBatch
     ? "Bạn là biên dịch viên phụ đề video chuyên nghiệp sang tiếng Việt. " +
       "Hãy dịch từng câu được đánh số [1], [2]... sang tiếng Việt tự nhiên, liền mạch ngữ cảnh và thống nhất ngôi xưng hô. " +
-      "BẮT BUỘC giữ nguyên định dạng đánh số [1], [2]... trên từng dòng tương ứng, không giải thích thêm."
+      "BẮT BUỘC giữ nguyên định dạng đánh số [1], [2]... trên từng dòng tương ứng, không giải thích thêm." +
+      TRANSLATION_STYLE_RULE
     : "Bạn là biên dịch viên phụ đề video chuyên nghiệp sang tiếng Việt. " +
       "Hãy dịch câu thoại sang tiếng Việt tự nhiên, ngắn gọn, đúng ngữ cảnh và ngôi xưng hô (anh/em, tôi/bạn, mình/cậu, chú/bác, thầy/trò...). " +
-      "Chỉ trả về duy nhất câu tiếng Việt đã dịch, không giải thích, không thêm dấu ngoặc kép.";
+      "Chỉ trả về duy nhất câu tiếng Việt đã dịch, không giải thích, không thêm dấu ngoặc kép." +
+      TRANSLATION_STYLE_RULE;
 
   const fullUserText = isBatch
     ? `${contextPrompt}\nDịch các câu phụ đề sau:\n${texts
@@ -620,9 +654,20 @@ async function callGeminiEndpoint({
         .trim()
     : "";
 
-  if (!out) {
-    const err = new Error(`[${model}] Phản hồi rỗng từ Gemini API`);
+  if (!out || (!isBatch && looksLikeRefusal(out))) {
+    const blocked =
+      data?.promptFeedback?.blockReason ||
+      ["SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "RECITATION"].includes(
+        data?.candidates?.[0]?.finishReason
+      ) ||
+      Boolean(out);
+    const err = new Error(
+      blocked
+        ? `[${model}] Gemini chặn câu này do nội dung nhạy cảm`
+        : `[${model}] Phản hồi rỗng từ Gemini API`
+    );
     err.status = 500;
+    err.refused = Boolean(blocked);
     throw err;
   }
 
@@ -673,6 +718,8 @@ async function translateWithGeminiAuto({
       } catch (err) {
         lastError = err;
         const status = err.status || 0;
+        // Bị bộ lọc chặn: các model Gemini khác cũng chặn tương tự → dừng sớm, để fallback Google Translate xử lý
+        if (err.refused) throw err;
         if (status === 404 || status === 400) {
           markModelCooldown(apiKey, candidate, 24 * 60 * 60 * 1000);
         } else if (status === 429 || status === 503) {
