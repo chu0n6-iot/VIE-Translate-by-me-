@@ -703,7 +703,8 @@ async function callGeminiEndpoint({
   model,
   endpointType,
   targetLang = "vi",
-  translationStyle = "natural"
+  translationStyle = "natural",
+  softenProfanity = true
 }) {
   const endpoint =
     endpointType === "vertex"
@@ -825,7 +826,8 @@ async function translateWithGeminiAuto({
   apiKey,
   preferredModel,
   targetLang = "vi",
-  translationStyle = "natural"
+  translationStyle = "natural",
+  softenProfanity = true
 }) {
   const candidates = await discoverGeminiModels(apiKey);
   const savedRoute = activeRouteByKey.get(apiKey);
@@ -903,7 +905,8 @@ async function getActiveConfig() {
     fallbackToFree: true,
     targetLang: "vi",
     secondaryLang: "orig",
-    translationStyle: "natural"
+    translationStyle: "natural",
+    softenProfanity: true
   });
 
   const groqKey =
@@ -954,8 +957,9 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
   const targetLang = settings.targetLang || "vi";
   const secondaryLang = settings.secondaryLang || "orig";
   const translationStyle = settings.translationStyle || "natural";
+  const softenProfanity = settings.softenProfanity !== false;
 
-  const modeKey = settings.softenProfanity !== false ? "soft" : "raw";
+  const modeKey = softenProfanity ? "soft" : "raw";
   const targetProvider = fastPreviewOnly ? "gtx" : effectiveProvider;
   const cacheKey = `${targetProvider}:${targetLang}:${translationStyle}:${modeKey}:${cleanText}`;
 
@@ -994,7 +998,7 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
                 preferredModel: settings.model || "auto",
                 targetLang,
                 translationStyle,
-                softenProfanity: settings.softenProfanity !== false
+                softenProfanity
               })
             : translateWithGeminiAuto({
                 text: cleanText,
@@ -1003,7 +1007,8 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
                 apiKey: rawKey,
                 preferredModel: settings.model || "auto",
                 targetLang,
-                translationStyle
+                translationStyle,
+                softenProfanity
               }),
           sub2Promise
         ]);
@@ -1028,7 +1033,8 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
                     apiKey: backupKey,
                     preferredModel: "auto",
                     targetLang,
-                    translationStyle
+                    translationStyle,
+                    softenProfanity
                   })
                 : translateWithGeminiAuto({
                     text: cleanText,
@@ -1037,7 +1043,8 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
                     apiKey: backupKey,
                     preferredModel: "auto",
                     targetLang,
-                    translationStyle
+                    translationStyle,
+                    softenProfanity
                   }),
               sub2Promise
             ]);
@@ -1099,8 +1106,9 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
   const { settings, rawKey, groqKey, geminiKey, effectiveProvider } = await getActiveConfig();
   const targetLang = settings.targetLang || "vi";
   const translationStyle = settings.translationStyle || "natural";
+  const softenProfanity = settings.softenProfanity !== false;
 
-  const modeKey = settings.softenProfanity !== false ? "soft" : "raw";
+  const modeKey = softenProfanity ? "soft" : "raw";
   const results = {};
   const uncached = [];
 
@@ -1151,7 +1159,7 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
             preferredModel: settings.model || "auto",
             targetLang,
             translationStyle,
-            softenProfanity: settings.softenProfanity !== false
+            softenProfanity
           })
         : await translateWithGeminiAuto({
             texts: uncached,
@@ -1161,8 +1169,8 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
             preferredModel: settings.model || "auto",
             targetLang,
             translationStyle,
-            softenProfanity: settings.softenProfanity !== false
-              });
+            softenProfanity
+          });
 
     const translations = batchRes.translations || [];
     for (let i = 0; i < uncached.length; i++) {
@@ -1190,7 +1198,8 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
                 apiKey: backupKey,
                 preferredModel: "auto",
                 targetLang,
-                translationStyle
+                translationStyle,
+                softenProfanity
               })
             : await translateWithGeminiAuto({
                 texts: uncached,
@@ -1199,14 +1208,15 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
                 apiKey: backupKey,
                 preferredModel: "auto",
                 targetLang,
-                translationStyle
+                translationStyle,
+                softenProfanity
               });
         const translations = backupBatch.translations || [];
         for (let i = 0; i < uncached.length; i++) {
           const src = uncached[i];
           const vi = (translations[i] || "").trim();
           if (vi) {
-            setCached(`${effectiveProvider}:${targetLang}:${translationStyle}:${src}`, vi);
+            setCached(`${effectiveProvider}:${targetLang}:${translationStyle}:${modeKey}:${src}`, vi);
             pushTabContext(tabId, videoTitle, src, vi);
             results[src] = vi;
           }
