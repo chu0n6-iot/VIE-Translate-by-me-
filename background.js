@@ -73,11 +73,12 @@ function isAudioHallucination(text) {
 const FALLBACK_GEMINI_MODELS = [
   "gemini-2.5-flash-lite",
   "gemini-2.5-flash",
-  "gemini-2.0-flash-lite",
   "gemini-2.0-flash",
+  "gemini-2.0-flash-lite",
   "gemini-flash-lite-latest",
   "gemini-flash-latest",
-  "gemini-1.5-flash"
+  "gemma-3-27b-it",
+  "gemma-3-12b-it"
 ];
 
 const FALLBACK_GROQ_MODELS = [
@@ -251,8 +252,9 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 3600) {
 
 function buildOrderedCandidates(candidates, apiKey, preferredModel, savedModel) {
   const ordered = [];
+  const isRetired = (m) => !m || m.includes("gemini-1.5") || m.includes("gemini-1.0");
   const add = (m) => {
-    if (m && !ordered.includes(m) && !isModelInCooldown(apiKey, m)) {
+    if (m && !isRetired(m) && !ordered.includes(m) && !isModelInCooldown(apiKey, m)) {
       ordered.push(m);
     }
   };
@@ -262,7 +264,7 @@ function buildOrderedCandidates(candidates, apiKey, preferredModel, savedModel) 
     add(savedModel);
   }
 
-  if (preferredModel && preferredModel !== "auto") {
+  if (preferredModel && preferredModel !== "auto" && !isRetired(preferredModel)) {
     if (candidates.includes(preferredModel)) {
       add(preferredModel);
     } else {
@@ -277,7 +279,7 @@ function buildOrderedCandidates(candidates, apiKey, preferredModel, savedModel) 
 
   // Nếu tất cả đều đang trong thời gian hồi (cooldown), giải phóng cooldown để thử lại
   if (ordered.length === 0) {
-    ordered.push(...candidates.slice(0, 6));
+    ordered.push(...candidates.filter((c) => !isRetired(c)).slice(0, 6));
   }
   return ordered;
 }
@@ -566,6 +568,8 @@ async function translateWithGroqAuto({
 function scoreGeminiModel(modelId) {
   const id = modelId.toLowerCase();
   const blocked = [
+    "gemini-1.5",
+    "gemini-1.0",
     "tts",
     "image",
     "imagen",
@@ -588,10 +592,12 @@ function scoreGeminiModel(modelId) {
 
   if (id === "gemini-2.5-flash-lite") return 1100;
   if (id === "gemini-2.5-flash") return 1080;
-  if (id === "gemini-2.0-flash-lite") return 1050;
-  if (id === "gemini-2.0-flash") return 1040;
+  if (id === "gemini-2.0-flash") return 1050;
+  if (id === "gemini-2.0-flash-lite") return 1040;
   if (id === "gemini-flash-lite-latest") return 1020;
   if (id === "gemini-flash-latest") return 1000;
+  if (id === "gemma-3-27b-it") return 950;
+  if (id === "gemma-3-12b-it") return 920;
 
   let score = 100;
   const verMatch = id.match(/gemini-(\d+(?:\.\d+)?)/);
@@ -616,7 +622,7 @@ async function discoverGeminiModels(apiKey) {
     const res = await fetchWithTimeout(
       `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`,
       {},
-      3000
+      5000
     );
     if (!res.ok) {
       return FALLBACK_GEMINI_MODELS;
@@ -650,22 +656,33 @@ const GEMINI_SAFETY_OFF = [
   "HARM_CATEGORY_HARASSMENT",
   "HARM_CATEGORY_HATE_SPEECH",
   "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-  "HARM_CATEGORY_DANGEROUS_CONTENT",
-  "HARM_CATEGORY_CIVIC_INTEGRITY"
+  "HARM_CATEGORY_DANGEROUS_CONTENT"
 ].map((category) => ({ category, threshold: "BLOCK_NONE" }));
 
-function buildGeminiBody({ systemText, fullUserText, model, maxTokens, useThinkingZero }) {
-  const isGemma = model.toLowerCase().includes("gemma");
+function buildGeminiBody({
+  systemText,
+  fullUserText,
+  model,
+  maxTokens,
+  useThinkingZero,
+  minimalMode = false
+}) {
+  const lowerModel = model.toLowerCase();
+  const isGemma = lowerModel.includes("gemma");
   const generationConfig = {
     temperature: 0.2,
-    maxOutputTokens: maxTokens
+    maxOutputTokens: Math.max(maxTokens, 512)
   };
 
-  if (useThinkingZero && model.toLowerCase().includes("gemini-2.5")) {
+  if (
+    !minimalMode &&
+    useThinkingZero &&
+    (lowerModel.includes("gemini-2.5") || lowerModel.includes("gemini-flash"))
+  ) {
     generationConfig.thinkingConfig = { thinkingBudget: 0 };
   }
 
-  if (isGemma) {
+  if (isGemma || minimalMode) {
     return {
       contents: [
         {
@@ -673,14 +690,12 @@ function buildGeminiBody({ systemText, fullUserText, model, maxTokens, useThinki
           parts: [{ text: `${systemText}\n\n${fullUserText}` }]
         }
       ],
-      safetySettings: GEMINI_SAFETY_OFF,
       generationConfig
     };
   }
 
   return {
     systemInstruction: {
-      role: "system",
       parts: [{ text: systemText }]
     },
     contents: [
@@ -738,15 +753,16 @@ async function callGeminiEndpoint({
     ? `${contextPrompt}\nDịch câu tiếp theo:\n${text}`
     : text;
 
-  const maxTokens = isBatch ? Math.min(1200, texts.length * 140) : 200;
-  const timeoutMs = isBatch ? 7000 : 3400;
+  const maxTokens = isBatch ? Math.min(1400, texts.length * 160) : 512;
+  const timeoutMs = isBatch ? 8000 : 5000;
 
   let requestBody = buildGeminiBody({
     systemText,
     fullUserText,
     model,
     maxTokens,
-    useThinkingZero: true
+    useThinkingZero: true,
+    minimalMode: false
   });
 
   let res = await fetchWithTimeout(
@@ -759,23 +775,29 @@ async function callGeminiEndpoint({
     timeoutMs
   );
 
-  if (res.status === 400 && requestBody.generationConfig?.thinkingConfig) {
-    requestBody = buildGeminiBody({
-      systemText,
-      fullUserText,
-      model,
-      maxTokens,
-      useThinkingZero: false
-    });
-    res = await fetchWithTimeout(
-      endpoint,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody)
-      },
-      timeoutMs
-    );
+  // Nếu bị 400 do bất kỳ khác biệt tham số nào (thinkingConfig, safetySettings, systemInstruction), thử lại ngay với cấu trúc tối giản tương thích 100%
+  if (res.status === 400) {
+    const errCheck = await res.clone().json().catch(() => ({}));
+    const errMsgLower = (errCheck?.error?.message || "").toLowerCase();
+    if (!errMsgLower.includes("api key not valid")) {
+      requestBody = buildGeminiBody({
+        systemText,
+        fullUserText,
+        model,
+        maxTokens,
+        useThinkingZero: false,
+        minimalMode: true
+      });
+      res = await fetchWithTimeout(
+        endpoint,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody)
+        },
+        timeoutMs
+      );
+    }
   }
 
   const data = await res.json().catch(() => ({}));
@@ -841,6 +863,7 @@ async function translateWithGeminiAuto({
 
   const ordered = buildOrderedCandidates(candidates, apiKey, preferredModel, savedRoute?.model);
 
+  let primaryError = null;
   let lastError = null;
   for (const endpointType of endpointTypes) {
     for (const candidate of ordered.slice(0, 7)) {
@@ -866,10 +889,15 @@ async function translateWithGeminiAuto({
       } catch (err) {
         const status = err.status || 0;
         const msg = (err.message || "").toLowerCase();
+        const isNotFound = status === 404 || msg.includes("not found");
+        const isInvalidKeyOnSecondary =
+          isVertexKey && endpointType === "aistudio" && msg.includes("api key not valid");
 
-        // Không ghi đè lỗi chi tiết của endpoint chính bằng lỗi "API key not valid" của endpoint phụ
-        if (!lastError || !msg.includes("api key not valid")) {
+        if (!isInvalidKeyOnSecondary) {
           lastError = err;
+          if (!primaryError && !isNotFound) {
+            primaryError = err;
+          }
         }
 
         if (err.refused) continue;
@@ -886,7 +914,7 @@ async function translateWithGeminiAuto({
           break;
         }
 
-        if (status === 404 || status === 400 || msg.includes("not found")) {
+        if (isNotFound || status === 400) {
           markModelCooldown(apiKey, candidate, 24 * 60 * 60 * 1000);
         } else if (
           status === 429 ||
@@ -903,8 +931,9 @@ async function translateWithGeminiAuto({
     }
   }
 
-  if (lastError) {
-    const rawMsg = lastError.message || "";
+  const finalError = primaryError || lastError;
+  if (finalError) {
+    const rawMsg = finalError.message || "";
     const urlMatch = rawMsg.match(/https:\/\/console\.developers\.google\.com\/[^\s]+/);
     if (rawMsg.includes("has not been used in project") || rawMsg.includes("is disabled")) {
       const enableUrl =
@@ -913,7 +942,7 @@ async function translateWithGeminiAuto({
         `Project Google Cloud chứa Key này chưa bật API. Hãy mở link sau và bấm "ENABLE" (Bật), đợi 1 phút rồi thử lại: ${enableUrl} — HOẶC lấy Key chuẩn (AIza...) tại https://aistudio.google.com/apikey`
       );
     }
-    throw lastError;
+    throw finalError;
   }
 
   throw new Error("Không tìm thấy model Gemini khả dụng cho API Key này.");
