@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "VIE-Translate — Translate Toad AI",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "description": "Modular, high-performance bilingual subtitle translator, contextual dictionary, lyrics & AI audio captioner powered by Google Gemini",
   "icons": {
     "16": "assets/icon16.png",

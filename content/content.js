@@ -58,6 +58,56 @@
     overlay.classList.remove("vie-hidden");
   }
 
+  let reloadHintVid = "";
+  let noSubPlayedMs = 0;
+  function showReloadHint(video, text) {
+    const host = video?.parentElement || document.body;
+    if (host.querySelector(".vie-quota-toast")) return;
+    const el = document.createElement("div");
+    el.className = "vie-quota-toast";
+    const span = document.createElement("span");
+    span.textContent = text;
+    const btn = document.createElement("button");
+    btn.textContent = "Tải lại (F5)";
+    btn.onclick = () => location.reload();
+    const close = document.createElement("button");
+    close.className = "vie-quota-close";
+    close.textContent = "✕";
+    close.onclick = () => el.remove();
+    el.append(span, btn, close);
+    host.appendChild(el);
+    setTimeout(() => el.remove(), 25000);
+  }
+
+  // Nếu video đã chạy một lúc mà vẫn chưa có phụ đề, gợi ý người dùng tải lại trang
+  function startNoSubWatchdog() {
+    setInterval(() => {
+      const video = document.querySelector("video.html5-main-video") || document.querySelector("video");
+      if (!video) return;
+      const key = location.href;
+      if (reloadHintVid === key) return;
+      let stale = false;
+      try { stale = !chrome.runtime?.id; } catch { stale = true; }
+      if (stale) {
+        reloadHintVid = key;
+        showReloadHint(video, "Tiện ích vừa được cập nhật. Tải lại trang để phụ đề chạy lại.");
+        return;
+      }
+      const st = root.VieCaptions?.getVideoState?.(video);
+      if (!st || video.paused || video.ended || (video.currentTime || 0) < 1) return;
+      const cs = root.VieCaptions?.ytCueState;
+      const hasSub = st.hasReceivedAnySubtitle || st.audioCaptureActive || (cs && cs.cues.length > 0);
+      const overlayText = document.querySelector(".vie-overlay:not(.vie-hidden)");
+      if (hasSub || overlayText) { noSubPlayedMs = 0; return; }
+      noSubPlayedMs += 2000;
+      if (noSubPlayedMs >= 16000) {
+        reloadHintVid = key;
+        noSubPlayedMs = 0;
+        showReloadHint(video, "Chưa thấy phụ đề hiện ra. Thử tải lại trang (F5) nhé.");
+      }
+    }, 2000);
+  }
+
   let lastQuotaToastAt = 0;
   function showQuotaToast(video) {
     const now = Date.now();
@@ -265,6 +315,8 @@
     };
     const onYouTubeNavStart = () => {
       if (!location.hostname.includes("youtube.com")) return;
+      reloadHintVid = "";
+      noSubPlayedMs = 0;
       root.VieCaptions?.resetForNewVideo?.(document.querySelector("video"));
       const cs = root.VieCaptions?.ytCueState;
       if (cs) cs.vid = "";
@@ -277,6 +329,7 @@
 
     // Interval to ensure dynamic SPA video players (YouTube SPA nav, etc.) are always watched and have styles applied
     setInterval(scanAndWatchVideos, 1200);
+    startNoSubWatchdog();
   }
 
   root.VieContent = {
