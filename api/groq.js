@@ -107,6 +107,7 @@
   async function translateWithGroqAuto({
     text,
     texts,
+    nextText = "",
     videoTitle,
     history = [],
     apiKey,
@@ -129,6 +130,12 @@
 
     const sys = [
       `You are an expert bilingual subtitle translator. Target language: ${targetLang}.`,
+      "PROFESSIONAL COHESION & FLOW (LIÊN KẾT MẠCH LẠC CÂU TRƯỚC - CÂU SAU):",
+      "- TUYỆT ĐỐI KHÔNG dịch ngang từ-nối-từ 1:1 theo cấu trúc tiếng Tây máy móc.",
+      "- Đọc hiểu mạch ngữ cảnh từ các câu thoại trước đó (history) và câu sau (nếu có). Kết nối ý tứ liền mạch, tự nhiên, giàu nhạc điệu và cảm xúc như dịch giả phim/show chuyên nghiệp (Netflix/HBO).",
+      "- Sử dụng liên từ tiếng Việt tự nhiên ('Nhưng rồi', 'Thế là', 'Hóa ra', 'Chẳng ngờ', 'Dẫu vậy...') khi câu là vế nối tiếp hoặc câu rút gọn.",
+      "- Xử lý các đại từ quy chiếu (it, that, they...) sát theo đối tượng ở câu trước thay vì dịch cứng nhắc.",
+      "- Với video ca nhạc/lyrics: dịch giàu vần điệu, hình ảnh thơ ca, giữ trọn hồn bài hát.",
       root.VieStorage?.STYLE_INSTRUCTIONS[translationStyle] || "",
       root.VieStorage?.PRONOUN_INSTRUCTIONS[pronounStyle] || "",
       lockedPronounPair ? `LOCKED PRONOUN: ${lockedPronounPair}.` : "",
@@ -142,13 +149,15 @@
     if (isBatch) {
       userPrompt = `Translate each numbered line below. Return numbered lines format '1. ...' \\n '2. ...':\n` +
         texts.map((t, i) => `${i + 1}. ${t}`).join("\n");
+    } else if (nextText && nextText.trim()) {
+      userPrompt = `[Upcoming next line: "${nextText.trim()}"]\nTranslate this current line smoothly connecting with the preceding lines and leading into the next line: "${text}"`;
     } else {
       userPrompt = text;
     }
 
     const messages = [
       { role: "system", content: sys },
-      ...history.slice(-4).map((h) => [{ role: "user", content: h.src }, { role: "assistant", content: h.vi }]).flat(),
+      ...history.slice(-6).map((h) => [{ role: "user", content: h.src }, { role: "assistant", content: h.vi }]).flat(),
       { role: "user", content: userPrompt }
     ];
 

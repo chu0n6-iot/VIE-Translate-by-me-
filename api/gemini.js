@@ -153,6 +153,7 @@
   async function translateWithGeminiAuto({
     text,
     texts,
+    nextText = "",
     videoTitle,
     history = [],
     apiKey,
@@ -175,6 +176,12 @@
 
     const sysInstruction = [
       `You are an elite bilingual video subtitle translator. Target language: ${targetLang}.`,
+      "PROFESSIONAL COHESION & FLOW (LIÊN KẾT MẠCH LẠC CÂU TRƯỚC - CÂU SAU):",
+      "- TUYỆT ĐỐI KHÔNG dịch ngang từ-nối-từ 1:1 theo cấu trúc tiếng Tây máy móc.",
+      "- Phải đọc hiểu mạch ngữ cảnh từ các câu thoại trước đó (history) và câu sau (nếu có). Kết nối ý tứ liền mạch, trôi chảy, giàu nhạc điệu và cảm xúc như dịch giả Netflix/HBO.",
+      "- Sử dụng liên từ tiếng Việt tự nhiên ('Nhưng rồi', 'Thế là', 'Hóa ra', 'Chẳng ngờ', 'Dẫu vậy...') khi câu là vế nối tiếp hoặc câu rút gọn.",
+      "- Xử lý các đại từ quy chiếu (it, that, they...) sát theo đối tượng ở câu trước thay vì dịch cứng nhắc.",
+      "- Với video ca nhạc/lyrics: dịch giàu vần điệu, hình ảnh thơ ca, giữ trọn hồn bài hát.",
       root.VieStorage?.STYLE_INSTRUCTIONS[translationStyle] || "",
       root.VieStorage?.PRONOUN_INSTRUCTIONS[pronounStyle] || "",
       lockedPronounPair ? `LOCKED PRONOUN: ${lockedPronounPair}.` : "",
@@ -188,12 +195,14 @@
     if (isBatch) {
       promptContent = `Translate each numbered line below. Return numbered lines format '1. ...' \\n '2. ...':\n` +
         texts.map((t, i) => `${i + 1}. ${t}`).join("\n");
+    } else if (nextText && nextText.trim()) {
+      promptContent = `[Upcoming next line: "${nextText.trim()}"]\nTranslate this current line smoothly connecting with the preceding lines and leading into the next line: "${text}"`;
     } else {
       promptContent = text;
     }
 
     const contents = [
-      ...history.slice(-4).map((h) => [
+      ...history.slice(-6).map((h) => [
         { role: "user", parts: [{ text: h.src }] },
         { role: "model", parts: [{ text: h.vi }] }
       ]).flat(),
@@ -280,9 +289,10 @@
         if (parsed) {
           let orig = sanitizeAudioText(parsed.orig || "");
           let vi = sanitizeAudioText(parsed.vi || "");
-          if (orig && !vi && self.VieGtx?.translateWithGoogleFree) {
+          const gtxFn = self.VieGTX?.translate || self.VieGtx?.translateWithGoogleFree;
+          if (orig && !vi && gtxFn) {
             try {
-              vi = await self.VieGtx.translateWithGoogleFree(orig, targetLang);
+              vi = await gtxFn(orig, targetLang);
             } catch {
               vi = orig;
             }

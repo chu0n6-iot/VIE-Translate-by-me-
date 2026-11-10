@@ -21,6 +21,8 @@
   }
 
   root.VieGTX = {
-    translate: translateWithGoogleFree
+    translate: translateWithGoogleFree,
+    translateWithGoogleFree
   };
+  root.VieGtx = root.VieGTX;
 })(typeof self !== "undefined" ? self : this);
