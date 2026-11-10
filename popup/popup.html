@@ -69,6 +69,26 @@
       </div>
     </div>
 
+    <details id="whisperSection" class="ollama-hint">
+      <summary>🎧 AI Nghe local (Whisper) — không cần API Key, chạy GPU + CPU</summary>
+      <label><input type="checkbox" id="whisperEnabled" /> Bật Whisper local cho nút "AI Nghe &amp; Dịch"</label>
+      <label for="whisperMode">Chế độ phần cứng:</label>
+      <select id="whisperMode">
+        <option value="auto">Tự động (GPU trước, CPU dự phòng)</option>
+        <option value="both">Song song GPU + CPU (luân phiên đoạn)</option>
+        <option value="gpu">Chỉ GPU</option>
+        <option value="cpu">Chỉ CPU</option>
+      </select>
+      <label for="whisperGpuUrl">Server GPU:</label>
+      <input type="text" id="whisperGpuUrl" value="http://localhost:8000" spellcheck="false" />
+      <label for="whisperCpuUrl">Server CPU:</label>
+      <input type="text" id="whisperCpuUrl" value="http://localhost:8001" spellcheck="false" />
+      <button type="button" id="whisperTestBtn" class="btn-change-key">🔄 Kiểm tra kết nối</button>
+      <div id="whisperStatus"></div>
+      Chạy server: <code>python tools/whisper_server.py --device cuda --port 8000 --model large-v3</code><br />
+      và/hoặc <code>python tools/whisper_server.py --device cpu --port 8001 --model small</code>
+    </details>
+
     <div id="apiSection">
       <div id="connectedKeyBar" class="connected-bar">
         <div class="connected-bar-info">
@@ -344,5 +364,6 @@
   <script src="../utils/storage.js"></script>
   <script src="popup.js"></script>
   <script src="ollama.js"></script>
+  <script src="whisper.js"></script>
 </body>
 </html>

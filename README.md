@@ -247,3 +247,12 @@ Không bắt buộc. Nếu không cài, extension tự dùng Google Translate mi
 3. Popup ➔ Kết Nối ➔ chọn **Local AI – Ollama** ➔ bấm *Kiểm tra & tải danh sách model*.
 
 Ollama tắt/lỗi ➔ tự động fallback về Google Translate, không gián đoạn phụ đề.
+
+## 🎧 AI Nghe local (Whisper) — GPU + CPU song song
+
+Tùy chọn, không cần API Key. `pip install faster-whisper fastapi uvicorn python-multipart`, rồi chạy:
+
+- GPU: `python tools/whisper_server.py --device cuda --port 8000 --model large-v3`
+- CPU: `python tools/whisper_server.py --device cpu --port 8001 --model small`
+
+Popup ➔ Kết Nối ➔ "AI Nghe local": bật và chọn chế độ Tự động / Song song GPU+CPU / Chỉ GPU / Chỉ CPU. Lỗi server ➔ tự dùng key cloud (nếu có).

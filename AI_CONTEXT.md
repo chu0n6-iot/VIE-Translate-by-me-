@@ -8,6 +8,7 @@
 - [api/gemini.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/api/gemini.js): Gọi Google Gemini API, prompt dịch thuật theo Persona, tách thoại Multi-Speaker, ép Glossary & tra từ điển.
 - [api/groq.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/api/groq.js): Gọi Groq Cloud API siêu thanh, prompt Persona, Multi-Speaker & ép Glossary.
 - [api/ollama.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/api/ollama.js): Local AI tùy chọn qua Ollama (localhost:11434), lỗi/không cài ➔ tự fallback GTX. UI: `popup/ollama.js`.
+- [api/whisper.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/api/whisper.js): Whisper local (CPU/GPU, luân phiên/dự phòng) cho AI Nghe; server mẫu `tools/whisper_server.py`; UI `popup/whisper.js`.
 - [api/gtx.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/api/gtx.js): Bộ máy dự phòng Google Translate miễn phí tức thì (0ms latency, không cần Key).
 - [api/lyrics.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/api/lyrics.js): Tìm kiếm và parse lời bài hát đồng bộ thời gian (LRC) từ LRCLIB.
 - [background/background.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/background/background.js): Service worker: điều phối, nhận diện Persona, định dạng Multi-Speaker, ép Glossary & khóa xưng hô.
