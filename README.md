@@ -143,12 +143,15 @@
 2. **Nếu sub chạy trước hoặc sau tiếng hát**: Rê chuột vào phụ đề và bấm `+1s ⏩` (để sub trễ lại) hoặc `⏪ -1s` (để sub chạy sớm hơn) trên cụm `⏱️ Lệch sub`.
 3. **Khi muốn học từ vựng**: Bấm vào bất kỳ từ nào để nghe phát âm chuẩn giọng bản xứ (`🔊`) hoặc bấm **`🎓 Xem thêm`** để xem phân tích sắc thái ngữ cảnh trong cảnh phim!
 
+> ⚠️ **Lưu ý quan trọng:** Ollama chỉ **dịch chữ**, KHÔNG nghe được âm thanh. Nếu bạn dùng Local AI mà muốn bật **AI Nghe & Dịch** (video không có phụ đề), bạn **bắt buộc phải cài thêm Whisper local** (Bước F bên dưới), hoặc dùng key Groq/Gemini miễn phí để nghe.
+
 ### Bước E (Tùy chọn): Dùng Local AI — dịch bằng Ollama
 1. Cài [Ollama](https://ollama.com/download), rồi chạy: `ollama pull qwen2.5:7b` (máy yếu: `qwen2.5:3b`).
 2. Đặt biến môi trường **`OLLAMA_ORIGINS=chrome-extension://*`** rồi khởi động lại Ollama (thiếu bước này sẽ bị lỗi 403).
    - Windows: `setx OLLAMA_ORIGINS "chrome-extension://*"` rồi mở lại Ollama. Linux/macOS: `OLLAMA_ORIGINS="chrome-extension://*" ollama serve`.
 3. Popup ➔ **🔑 Kết Nối** ➔ Bộ máy dịch: **🏠 Local AI – Ollama** ➔ bấm **Kiểm tra & tải danh sách model** ➔ chọn model ➔ xong.
 4. Không cài Ollama cũng được: extension tự dùng Google Translate miễn phí.
+5. 🎧 Muốn dùng **AI Nghe & Dịch** cùng Local AI? Cài thêm Whisper ở Bước F.
 
 ### Bước F (Tùy chọn): AI Nghe & Dịch cho video KHÔNG có phụ đề — Whisper local
 1. Cài thư viện: `pip install faster-whisper fastapi uvicorn python-multipart`.
@@ -280,6 +283,8 @@ git pull origin main
 ### Step C: Calibrate Timing & Learn Languages While Watching
 - **If sub runs ahead of music**: Hover over the subtitle box and click `+1s ⏩` on `⏱️ Lệch sub` to delay it and match the music.
 - **To listen to pronunciation**: Click any foreign word or the `🔊 Nghe câu` button to hear it spoken with an authentic native accent!
+
+> ⚠️ **Important:** Ollama only **translates text**; it cannot listen to audio. If you use Local AI and want **AI Listen & Translate** (videos without subtitles), you **must also install local Whisper** (Step E below), or use a free Groq/Gemini key for listening.
 
 ### Step D (Optional): Local AI translation with Ollama
 1. Install [Ollama](https://ollama.com/download), then run `ollama pull qwen2.5:7b` (weak machine: `qwen2.5:3b`).
