@@ -115,7 +115,7 @@
   font-size: calc(clamp(13px, 1.4vw, 17px) * var(--vie-scale, 1));
 }
 
-/* Nút nổi Translate Toad AI Audio trên góc video (cho video không có CC) */
+/* Nút nổi Translate Toad AI Audio trên góc video (hỗ trợ Facebook, TikTok, Twitter, YouTube & mọi web HTML5) */
 .vie-toad-audio-btn {
   position: absolute;
   top: 14px;
@@ -124,18 +124,20 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 11px;
+  padding: 6px 12px;
   border-radius: 999px;
   background: rgba(12, 18, 34, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(251, 191, 36, 0.55);
   color: #fef08a;
   font-family: "Segoe UI", Roboto, Arial, sans-serif;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  opacity: 0;
-  transform: translateY(-4px);
-  transition: opacity 0.2s ease, transform 0.2s ease, background 0.15s ease;
+  opacity: 0.78;
+  transform: translateY(0);
+  transition: opacity 0.2s ease, transform 0.2s ease, background 0.15s ease, box-shadow 0.2s ease;
   pointer-events: auto;
   user-select: none;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
@@ -144,20 +146,22 @@
 *:hover > .vie-toad-audio-btn,
 .vie-toad-audio-btn:hover,
 .vie-toad-audio-btn.vie-audio-active {
-  opacity: 0.95;
-  transform: translateY(0);
+  opacity: 1;
+  transform: translateY(0) scale(1.02);
 }
 
 .vie-toad-audio-btn:hover {
   background: rgba(23, 37, 68, 0.95);
   border-color: #fbbf24;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55), 0 0 10px rgba(245, 158, 11, 0.35);
 }
 
 .vie-toad-audio-btn.vie-audio-active {
   background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
   color: #ffffff;
   border-color: #fde68a;
-  box-shadow: 0 0 14px rgba(245, 158, 11, 0.55);
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.65);
+  opacity: 1;
 }
 
 .vie-toad-audio-btn img {
@@ -187,7 +191,9 @@
 .vie-player-active .bpx-player-subtitle-panel-wrap,
 .vie-player-active .art-subtitle,
 .vie-player-active .dplayer-subtitle,
-.vie-player-active .mejs__captions-layer {
+.vie-player-active .mejs__captions-layer,
+.vie-player-active div[class*="closed-captions"],
+.vie-player-active div[data-testid="captionText"] {
   opacity: 0 !important;
   pointer-events: none !important;
 }

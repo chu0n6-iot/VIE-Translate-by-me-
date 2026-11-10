@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="#-tiếng-việt-bản-hướng-dẫn-đầy-đủ-từ-a-z">🇻🇳 Bản Tiếng Việt (A–Z)</a> •
-  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.6.7`)</a> •
+  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.6.8`)</a> •
   <a href="#-english-complete-a-to-z-guide">🇬🇧 English Version (A–Z)</a> •
   <a href="#-version-history--new-mechanisms-changelog">📋 English Changelog</a>
 </p>
@@ -19,14 +19,14 @@
 ---
 
 > ⚡ **LƯU Ý DÀNH CHO CỘNG TÁC VIÊN / COLLABORATORS (TỐI ƯU HÓA AI INDEXING)**:
-> Codebase của dự án đã được đại tu và module hóa toàn diện (`v0.6.7`), loại bỏ hoàn toàn các God file cồng kềnh nhằm giúp các công cụ lập trình AI (Antigravity IDE, Cursor, GitHub Copilot...) đọc hiểu cực nhanh và tiết kiệm tối đa token.
+> Codebase của dự án đã được đại tu và module hóa toàn diện (`v0.6.8`), loại bỏ hoàn toàn các God file cồng kềnh nhằm giúp các công cụ lập trình AI (Antigravity IDE, Cursor, GitHub Copilot...) đọc hiểu cực nhanh và tiết kiệm tối đa token.
 > **Mẹo quan trọng:** Trước khi yêu cầu AI sửa lỗi hoặc phát triển tính năng mới, bạn **chỉ cần gõ kèm `@AI_CONTEXT.md` ở đầu câu lệnh**. AI sẽ lập tức nắm toàn bộ bản đồ kiến trúc mà **không cần quét lại toàn bộ codebase**, giúp tốc độ phản hồi tăng vọt!
 
 # 🇻🇳 TIẾNG VIỆT (Bản Hướng Dẫn Đầy Đủ Từ A–Z)
 
-**VIE-Translate (Translate Toad AI `v0.6.7`)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)**, kết hợp **Trợ Lý Học Ngoại Ngữ Chuyên Sâu (`Từ Loại POS • Ví Dụ Thực Tế • Fact Thú Vị & Mẹo Nhớ • Cụm Đi Kèm • Sổ Từ Vựng`)**, **Cân Chỉnh Độ Lệch Sub/Nhạc Tức Thì (`Sub Sync Calibration`)** và **Đọc Phát Âm Chuẩn Giọng Bản Xứ** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles**.
+**VIE-Translate (Translate Toad AI `v0.6.8`)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)**, kết hợp **Trợ Lý Học Ngoại Ngữ Chuyên Sâu (`Từ Loại POS • Ví Dụ Thực Tế • Fact Thú Vị & Mẹo Nhớ • Cụm Đi Kèm • Sổ Từ Vựng`)**, **Cân Chỉnh Độ Lệch Sub/Nhạc Tức Thì (`Sub Sync Calibration`)** và **Đọc Phát Âm Chuẩn Giọng Bản Xứ** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles (hỗ trợ Facebook, TikTok, Twitter/X & web HTML5 bất kỳ)**.
 
-## ✨ Tính Năng Nổi Bật (`v0.6.7`)
+## ✨ Tính Năng Nổi Bật (`v0.6.8`)
 
 1. **📚 Phần Học Từ Vựng Đa Chiều Đặc Sắc (Rich Vocabulary Engine)**:
    - **Huy hiệu từ loại song ngữ trực quan (POS Badges)**: Tự động phân loại Động từ (Verb), Danh từ (Noun), Tính từ (Adjective), Trạng từ (Adverb), Cụm động từ (Phrasal Verb), Thành ngữ (Idiom), Tiếng lóng (Slang) với màu sắc bắt mắt.
@@ -56,7 +56,23 @@
 
 ## 🚀 Lịch Sử Cập Nhật & Các Cơ Chế Mới (Changelog)
 
-### 🌟 Phiên bản `v0.6.7` (Mới nhất) — *Dịch Thuật Chuyên Nghiệp Liên Kết Câu Trước-Sau & Khắc Phục Lỗi Giao Diện*
+### 🌟 Phiên bản `v0.6.8` (Mới nhất) — *Khắc Phục Lỗi Nút Dịch Tự Tắt & Mở Rộng Facebook, TikTok, Twitter/X, HTML5 Toàn Diện*
+- **🛠️ Khắc phục triệt để lỗi nút "AI Nghe & Dịch" tự bật rồi tắt ngay lập tức (`Fix Toad Button Auto-Revert Glitch`)**:
+  - **Tách biệt ý muốn thu âm với việc tải lyrics**: Trước đây, khi bấm nút "AI Nghe & Dịch", nếu video đã có lời bài hát (hoặc tải thành công từ LRCLIB), hàm thu âm tự động gọi `userWantsAudioCapture = false` và chuyển nút về `idle` sau 100ms khiến người dùng thấy nút tự động nảy ngược trở lại. Nay hệ thống tách biệt hoàn toàn: việc tìm kiếm lyrics chạy nền không bao giờ huỷ trạng thái lắng nghe của người dùng; nút luôn duy trì ở trạng thái `🎙️ Đang nghe & dịch...` ổn định cho đến khi người dùng bấm tắt.
+  - **Chống nhấp đúp (Click Debouncing)**: Thêm cơ chế chặn nhấp chuột dồn dập (400ms debounce), tránh hiện tượng nhấp đúp làm nút bật và tắt ngay trong nháy mắt.
+  - **Hệ thống thu âm 3 tầng dự phòng (`3-Tier Audio Extraction`)**:
+    - *Tầng 1*: Native `captureStream()` / `mozCaptureStream()`.
+    - *Tầng 2 (Đột phá)*: Web Audio API `AudioContext.createMediaElementSource(video)` kết hợp `createMediaStreamDestination()` — vượt qua rào cản CORS và thẻ video không cấp stream trực tiếp, vừa trích xuất âm thanh cho AI vừa giữ nguyên đường ra loa (`ctx.destination`) cho người dùng nghe bình thường.
+    - *Tầng 3*: `video.srcObject` cho các luồng WebRTC / LiveStream trực tiếp.
+  - **Giữ vòng lặp thu âm khi video tạm dừng**: Nếu video tạm dừng, bộ đệm ghi âm tự động đợi tiếp mà không tắt nút hay thoát chế độ thu âm.
+- **🌐 Mở rộng dịch thuật sang Facebook Video & các trang không dùng `.html5-video-player` (`Universal Non-HTML5 & Facebook Video Engine`)**:
+  - **Hỗ trợ toàn diện Facebook Video**: Tương thích hoàn hảo với Facebook Watch, Facebook Reels, Facebook Feed và khung Theatre/Dialog (`div[data-video-id]`, `div[data-pagelet*='Video']`, `div[role='dialog']`, `div.x1y1aw1k`).
+  - **Hỗ trợ TikTok & Twitter / X**: Tương thích các vùng chứa video đặc thù (`div[data-e2e='feed-video']`, `div[data-testid='videoPlayer']`).
+  - **Thuật toán định vị khung hình thông minh `findBestVideoContainer(video)`**: Tự động leo ngược DOM phân tích kích thước để gắn khung phụ đề `.vie-overlay` và nút `.vie-toad-audio-btn` chuẩn xác, không bị lệch ra ngoài hay bị che khuất.
+  - **Bắt video tức thì qua Capture Phase**: Lắng nghe sự kiện `play` và `playing` ở cấp độ `window` với cờ `capture: true`, bắt trọn mọi video vừa bắt đầu phát trên Facebook Feed / Reels mà không cần đợi DOM Mutation Observer.
+  - **Nâng cấp nút Toad Audio luôn nổi bật & dễ bấm**: Đặt độ mờ mặc định `opacity: 0.78` (thay vì ẩn hoàn toàn `opacity: 0`), kết hợp kính mờ `backdrop-filter: blur(8px)` và viền vàng sang trọng, giúp người dùng dễ dàng nhìn thấy và bấm nghe dịch ngay cả trên các trang không có hiệu ứng hover player.
+
+### 🌟 Phiên bản `v0.6.7` — *Dịch Thuật Chuyên Nghiệp Liên Kết Câu Trước-Sau & Khắc Phục Lỗi Giao Diện*
 - **🧠 Cơ chế mới — Dịch Thuật Chuyên Nghiệp Liên Kết Mạch Lạc Câu Trước - Câu Sau (`Cohesive Discourse Translation Engine`)**:
   - **Truyền ngữ cảnh hai chiều (Bidirectional Context)**: Hệ thống truyền song song cả các câu thoại liền trước (`history` mở rộng 6 lượt) và câu thoại sắp xuất hiện tiếp theo (`nextText`), giúp AI hiểu trọn vẹn ngữ cảnh và chủ đề đang nói.
   - **Chấm dứt lối dịch ngang 1:1 máy móc ("tiếng Tây sang tiếng Ta")**: Áp dụng bộ chỉ thị dịch thuật cao cấp, diễn đạt thuần Việt uyển chuyển, giàu nhạc điệu và cảm xúc như dịch giả phụ đề chuyên nghiệp của Netflix/HBO.
@@ -135,9 +151,9 @@
 
 # 🇬🇧 ENGLISH (Complete A-to-Z Guide)
 
-**VIE-Translate (Translate Toad AI `v0.6.6`)** is a real-time browser extension that translates video subtitles into **Vietnamese or any custom bilingual pair**, acts as a **Multi-Dimensional Vocabulary & Scene Nuance Coach**, and provides **Instant Subtitle/Lyrics Timing Calibration & Native Voice Speech Synthesis** using **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)**, and **Google Translate**.
+**VIE-Translate (Translate Toad AI `v0.6.8`)** is a real-time browser extension that translates video subtitles into **Vietnamese or any custom bilingual pair**, acts as a **Multi-Dimensional Vocabulary & Scene Nuance Coach**, and provides **Instant Subtitle/Lyrics Timing Calibration, Native Voice Speech Synthesis & Live AI Audio Captioning** using **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)**, and **Google Translate** — across YouTube, Facebook, TikTok, Twitter/X and any HTML5 video player.
 
-## ✨ Key Features (`v0.6.6`)
+## ✨ Key Features (`v0.6.8`)
 
 1. **📚 Multi-Dimensional Vocabulary Engine (POS, Real-World Examples, Fun Facts & Collocations)**:
    - **Bilingual Part-of-Speech Badges (POS)**: Clearly displays visual color-coded badges for Nouns (Blue), Verbs (Emerald), Adjectives (Purple), Adverbs (Rose), Phrasal Verbs (Orange), Idioms (Amber), and Slang.
@@ -159,14 +175,30 @@
    - 0ms Fast Preview + 95ms AI Clause Refinement pipeline with Lookahead Batch Prefetching.
 7. **🔒 Consistent Pronoun Lock Engine**:
    - Locks dominant Vietnamese addressing styles (*Mình – Bạn*, *Tôi – Bạn*, *Anh/Chị – Em*) throughout the entire video.
-8. **🎙️ Translate Videos on Websites WITHOUT CC / Subtitles**:
-   - Captures direct video audio via Groq Whisper or Gemini Multimodal Audio.
+8. **🎙️ Translate Videos on Websites WITHOUT CC / Subtitles (Facebook, TikTok, Twitter/X & Custom HTML5 Players)**:
+   - Captures direct video audio via 3-Tier Audio Extraction (Native `captureStream`, Web Audio API `createMediaElementSource`, and `srcObject`) with live transcription via Groq Whisper or Gemini Multimodal Audio.
 
 ---
 
 ## 📋 Version History & New Mechanisms (Changelog)
 
-### 🌟 `v0.6.7` (Latest) — *Cohesive Discourse Translation, Instant Subtitles & Critical Audio Fixes*
+### 🌟 `v0.6.8` (Latest) — *Fix Button Auto-Revert Glitch & Universal Facebook, TikTok, Twitter/X HTML5 Support*
+- **🛠️ Fix Instant Revert of "AI Nghe & Dịch" Button (`Fix Toad Button Auto-Revert Glitch`)**:
+  - **Decoupled User Intent from Lyrics Presence**: Previously, clicking "AI Nghe & Dịch" checked for song lyrics; if lyrics were already cached or found on LRCLIB, the function explicitly called `userWantsAudioCapture = false` and reverted the button back to `idle` within 100ms. In `v0.6.8`, lyrics detection runs quietly in the background without canceling the user's audio capture. The button stays active in `🎙️ Đang nghe & dịch...` until the user deliberately toggles it off.
+  - **Click Debouncing**: Added a 400ms debounce guard to prevent rapid double-clicks from toggling audio capture on and off instantly.
+  - **3-Tier Audio Stream Extraction**:
+    - *Tier 1*: Native `video.captureStream()` or `mozCaptureStream()`.
+    - *Tier 2 (Breakthrough)*: Web Audio API `createMediaElementSource(video)` routed to `createMediaStreamDestination()` — eliminates CORS / cross-origin media blocks while routing audio simultaneously to `ctx.destination` so users continue hearing video audio seamlessly through speakers.
+    - *Tier 3*: `video.srcObject` for live WebRTC / MediaStream video feeds.
+  - **Continuous Loop on Pause**: If the video is paused or buffering, the audio loop gracefully pauses and polls without resetting the button state or user intent.
+- **🌐 Universal Video Container Detection & Facebook Video Support**:
+  - **Dedicated Facebook Video Support**: Full compatibility with Facebook Watch, Facebook Reels, Newsfeed auto-play videos, and Theatre/Dialog modals (`div[data-video-id]`, `div[data-pagelet*='Video']`, `div[role='dialog']`, `div.x1y1aw1k`).
+  - **TikTok & Twitter/X Support**: Custom player support for TikTok (`div[data-e2e='feed-video']`, `div[class*='DivVideoContainer']`) and Twitter/X (`div[data-testid='videoPlayer']`).
+  - **Smart Wrapper Traversal `findBestVideoContainer(video)`**: Dynamically inspects parent bounding boxes to ensure subtitles and the Toad button attach tightly to the true video bounding box across all custom player architectures.
+  - **Capture Phase Video Hooking**: Listens to `play` and `playing` events on `window` in the capture phase, instantly latching onto any newly started video in infinite scroll feeds without waiting for DOM mutation ticks.
+  - **Always Visible & Sleek Toad Button**: Updated `.vie-toad-audio-btn` to default translucent visibility (`opacity: 0.78`) with `backdrop-filter: blur(8px)` and golden borders, ensuring it is immediately discoverable and clickable on Facebook and custom HTML5 players without requiring a hover state.
+
+### 🌟 `v0.6.7` — *Cohesive Discourse Translation, Instant Subtitles & Critical Audio Fixes*
 - **🧠 New Mechanism — Cohesive Discourse Translation Engine**:
   - **Bidirectional Context Linking**: Feeds both preceding conversation history (up to 6 turns) and the upcoming next line (`nextText`) into the model so the AI grasps the full conversational narrative.
   - **Zero Word-for-Word Literalism**: Enforces professional cinematic/Netflix-grade Vietnamese subtitle translation, eliminating awkward mechanical 1:1 "tiếng Tây sang tiếng Ta" translations in favor of natural phrasing and poetic lyricism.
