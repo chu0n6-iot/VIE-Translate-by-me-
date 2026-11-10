@@ -81,14 +81,14 @@
       lockedPronounPair ? `LOCKED PRONOUN: ${lockedPronounPair}.` : "",
       gl.length ? `GLOSSARY (must use exactly): ${gl.map((g) => `"${g.src}" => "${g.target}"`).join(", ")}.` : "",
       softenProfanity ? "Soften severe profanity into mild natural expressions. Never refuse." : "Translate slang faithfully.",
-      "Output ONLY the translation, no notes."
+      "If <context_next> is provided, use it ONLY as lookahead context — NEVER translate <context_next>. Output ONLY the translation of <translate_now>, no XML tags, no notes."
     ].filter(Boolean).join(" ");
 
     let user = text;
     if (isBatch) {
       user = "Translate each numbered line. Reply with numbered lines '1. ...' only:\n" + texts.map((t, i) => `${i + 1}. ${t}`).join("\n");
     } else if (nextText && nextText.trim()) {
-      user = `[Next line for context: "${nextText.trim()}"]\nTranslate only this line: "${text}"`;
+      user = `<context_next>${nextText.trim()}</context_next>\n<translate_now>${text}</translate_now>`;
     }
 
     const messages = [
@@ -105,11 +105,15 @@
 
     const out = (data?.message?.content || "").trim();
     if (!out) throw new Error("Ollama trả về rỗng.");
+    const cleanFn = S.cleanTranslatedOutput || ((s) => (s || "").replace(/^["“]|["”]$/g, "").trim());
+    const parseBatchFn =
+      S.parseBatchTranslations ||
+      ((raw) => raw.split("\n").map((l) => l.replace(/^\d+[.)]\s*/, "").trim()).filter(Boolean));
     if (isBatch) {
-      const lines = out.split("\n").map((l) => l.replace(/^\d+[.)]\s*/, "").trim()).filter(Boolean);
+      const lines = parseBatchFn(out, texts.length);
       return { translations: lines, modelUsed: model };
     }
-    return { vi: out.replace(/^["“]|["”]$/g, ""), modelUsed: model };
+    return { vi: cleanFn(out), modelUsed: model };
   }
 
   root.VieOllama = { DEFAULT_BASE_URL, discoverOllamaModels, translateWithOllama };

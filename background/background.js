@@ -77,18 +77,27 @@ function detectVideoPersona(videoTitle) {
   return "general";
 }
 
+function buildUnicodeTermRegex(term) {
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  try {
+    return new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, "giu");
+  } catch {
+    return new RegExp(`\\b${escaped}\\b`, "gi");
+  }
+}
+
 function applyGlossaryOverrides(viText, glossary, srcText) {
   if (!viText || !Array.isArray(glossary) || !glossary.length || !srcText) return viText;
   let result = viText;
   const lowerSrc = srcText.toLowerCase();
 
   for (const item of glossary) {
-    if (!item.src || !item.target || item.enabled === false) continue;
-    const cleanSrc = item.src.trim().toLowerCase();
-    if (lowerSrc.includes(cleanSrc)) {
-      const target = item.target.trim();
-      const escapedSrc = item.src.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const regex = new RegExp(`\\b${escapedSrc}\\b`, "gi");
+    if (!item || !item.src || !item.target || item.enabled === false) continue;
+    const cleanSrc = item.src.trim();
+    const target = item.target.trim();
+    if (!cleanSrc || !target) continue;
+    if (lowerSrc.includes(cleanSrc.toLowerCase())) {
+      const regex = buildUnicodeTermRegex(cleanSrc);
       result = result.replace(regex, target);
     }
   }
@@ -119,15 +128,15 @@ function getTabContext(tabId, videoTitle) {
 function updateContextPronounLock(ctx, viText) {
   if (ctx.lockedPronounPair) return;
   const s = (viText || "").toLowerCase();
-  if (/\b(mình|tụi mình|chúng mình)\b/.test(s)) {
+  if (/\b(mình|tụi mình|chúng mình)\b/.test(s) && !/\b(một mình|tự mình|giật mình|rùng mình|thân mình|bên mình)\b/.test(s)) {
     ctx.lockedPronounPair = "mình – các bạn";
     ctx.lockedFirstPerson = "mình";
-  } else if (/\b(tôi|chúng tôi)\b/.test(s)) {
+  } else if (/\b(tôi|chúng tôi)\b/.test(s) && !/\b(tôi luyện|vôi tôi|bề tôi)\b/.test(s)) {
     ctx.lockedPronounPair = "tôi – các bạn";
     ctx.lockedFirstPerson = "tôi";
   } else if (/\b(anh|em|chị|cậu|tớ)\b/.test(s)) {
     ctx.lockedPronounPair = "anh/chị – em (hoặc cậu – tớ)";
-    ctx.lockedFirstPerson = "anh";
+    ctx.lockedFirstPerson = "";
   }
 }
 
@@ -138,26 +147,56 @@ function pushTabContext(tabId, videoTitle, src, vi) {
   if (ctx.items.length > 10) ctx.items.shift();
 }
 
-function harmonizeVietnamesePronouns(viText, pronounStyle = "auto", lockedFirstPerson = "") {
+// Danh sách từ đứng trước/sau tạo thành từ ghép tiếng Việt với "mình" hoặc "tôi" (không được đổi nhầm)
+const MINH_PREFIX_COMPOUNDS = /^(?:một|tự|giật|rùng|vươn|chuyển|ẩn|nép|dấn|thân|bên|riêng|chính|bản\s+thân)$/i;
+const MINH_SUFFIX_COMPOUNDS = /^(?:mẩy|ên)$/i;
+const TOI_PREFIX_COMPOUNDS = /^(?:vôi|bề|phận)$/i;
+const TOI_SUFFIX_COMPOUNDS = /^(?:luyện|đòi|tớ)$/i;
+
+function harmonizeVietnamesePronouns(viText, pronounStyle = "auto", lockedFirstPerson = "", persona = "") {
   if (!viText || typeof viText !== "string") return viText;
   if (viText.includes("\n")) {
     return viText
       .split("\n")
-      .map((line) => harmonizeVietnamesePronouns(line, pronounStyle, lockedFirstPerson))
+      .map((line) => harmonizeVietnamesePronouns(line, pronounStyle, lockedFirstPerson, persona))
       .join("\n");
   }
-  let targetFirst = lockedFirstPerson || "";
-  if (!targetFirst) {
-    if (pronounStyle === "minh_ban") targetFirst = "mình";
-    else if (pronounStyle === "toi_ban") targetFirst = "tôi";
-    else return viText;
+
+  // Trong phim kịch tính (drama_movie) hoặc chế độ anh_em có nhiều tuyến nhân vật khác nhau, không ép 1 đại từ bằng regex
+  if (pronounStyle === "anh_em" || (pronounStyle === "auto" && persona === "drama_movie")) {
+    return viText;
   }
+
+  let targetFirst = "";
+  if (pronounStyle === "minh_ban") targetFirst = "mình";
+  else if (pronounStyle === "toi_ban") targetFirst = "tôi";
+  else if (lockedFirstPerson === "mình" || lockedFirstPerson === "tôi") targetFirst = lockedFirstPerson;
+  else return viText;
+
   const otherFirst = targetFirst === "mình" ? "tôi" : "mình";
-  const regex = new RegExp(`(^|\\s)${otherFirst}([.,!?;:\\s]|$)`, "gi");
-  return viText.replace(regex, (match, prefix, suffix) => {
-    const isCap = /^[A-ZÀ-Ỹ]/.test(match.trim());
+  const regex = new RegExp(`(^|\\s)(${otherFirst})(?=([.,!?;:\\s]|$))`, "gi");
+
+  return viText.replace(regex, (match, prefix, word, _lookahead, offset, fullStr) => {
+    const beforeSlice = fullStr.slice(0, offset + prefix.length).trim();
+    const prevWords = beforeSlice.split(/\s+/);
+    const prevWord = prevWords[prevWords.length - 1]?.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "") || "";
+
+    const afterSlice = fullStr.slice(offset + match.length).trim();
+    const nextWord = (afterSlice.split(/\s+/)[0] || "").replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
+
+    if (otherFirst === "mình") {
+      if (MINH_PREFIX_COMPOUNDS.test(prevWord) || MINH_SUFFIX_COMPOUNDS.test(nextWord)) {
+        return match;
+      }
+    } else if (otherFirst === "tôi") {
+      if (TOI_PREFIX_COMPOUNDS.test(prevWord) || TOI_SUFFIX_COMPOUNDS.test(nextWord)) {
+        return match;
+      }
+    }
+
+    const isCap = /^[A-ZÀ-Ỹ]/.test(word);
     const replacement = isCap ? targetFirst.charAt(0).toUpperCase() + targetFirst.slice(1) : targetFirst;
-    return `${prefix}${replacement}${suffix}`;
+    return `${prefix}${replacement}`;
   });
 }
 
@@ -214,9 +253,26 @@ async function withKeyPool(settings, rawKey, fn) {
   throw e;
 }
 
-function limitTranslationLength(vi, src) {
-  const max = Math.max(60, Math.round((src || "").length * 2.3));
-  return (vi || "").length > max ? "" : vi;
+function limitTranslationLength(vi, src, style = "natural") {
+  const cleanVi = (vi || "").trim();
+  if (!cleanVi) return "";
+  const srcStr = (src || "").trim();
+  // Chữ tượng hình (Nhật/Trung/Hàn) ngắn nhưng dịch ra chữ Latin tiếng Việt sẽ dài hơn ~3-4 lần
+  const hasCjk = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]/.test(srcStr);
+  const mult = hasCjk ? 4.5 : style === "unhinged" ? 3.2 : 2.3;
+  const minFloor = style === "unhinged" || cleanVi.includes("\n-") ? 110 : 60;
+  const max = Math.max(minFloor, Math.round(srcStr.length * mult));
+  return cleanVi.length > max ? "" : cleanVi;
+}
+
+async function translateGtxMultiline(cleanText, targetLang, glossaryList = []) {
+  const preText = applyGlossaryOverrides(cleanText, glossaryList, cleanText);
+  if (preText.includes("\n")) {
+    const parts = preText.split("\n");
+    const transParts = await Promise.all(parts.map((p) => self.VieGTX.translate(p, targetLang)));
+    return transParts.join("\n");
+  }
+  return self.VieGTX.translate(preText, targetLang);
 }
 
 async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = false, nextText = "") {
@@ -252,16 +308,11 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
       const persona = settings.autoPersona !== false ? ctx.persona : "";
 
       if (targetProvider === "gtx" || !rawKey) {
-        let rawVi = "";
-        if (cleanText.includes("\n")) {
-          const parts = cleanText.split("\n");
-          const transParts = await Promise.all(parts.map((p) => self.VieGTX.translate(p, targetLang)));
-          rawVi = transParts.join("\n");
-        } else {
-          rawVi = await self.VieGTX.translate(cleanText, targetLang);
-        }
-        const [, sub2] = await Promise.all([Promise.resolve(rawVi), sub2Promise]);
-        let vi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson) : rawVi;
+        const [rawVi, sub2] = await Promise.all([
+          translateGtxMultiline(cleanText, targetLang, glossaryList),
+          sub2Promise
+        ]);
+        let vi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson, persona) : rawVi;
         if (self.VieStorage?.formatMultiSpeakerDialogue) vi = self.VieStorage.formatMultiSpeakerDialogue(vi);
         vi = applyGlossaryOverrides(vi, glossaryList, cleanText);
         if (vi) setCached(cacheKey, vi);
@@ -285,9 +336,9 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
         const aiTask = targetProvider === "ollama" ? callAI("local", "ollama") : withKeyPool(settings, rawKey, callAI);
         const [result, sub2] = await Promise.all([aiTask, sub2Promise]);
 
-        const rawVi = limitTranslationLength(result.vi || "", cleanText);
+        const rawVi = limitTranslationLength(result.vi || "", cleanText, settings.translationStyle);
         if (!rawVi) throw new Error("translation too long or empty");
-        let finalVi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson) : rawVi;
+        let finalVi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson, persona) : rawVi;
         if (self.VieStorage?.formatMultiSpeakerDialogue) finalVi = self.VieStorage.formatMultiSpeakerDialogue(finalVi);
         finalVi = applyGlossaryOverrides(finalVi, glossaryList, cleanText);
         if (finalVi) {
@@ -297,16 +348,11 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
         return { vi: finalVi, sub2, provider: targetProvider, modelUsed: result.modelUsed };
       } catch (err) {
         // Fallback to GTX on API error
-        let rawVi = "";
-        if (cleanText.includes("\n")) {
-          const parts = cleanText.split("\n");
-          const transParts = await Promise.all(parts.map((p) => self.VieGTX.translate(p, targetLang)));
-          rawVi = transParts.join("\n");
-        } else {
-          rawVi = await self.VieGTX.translate(cleanText, targetLang);
-        }
-        const [, sub2] = await Promise.all([Promise.resolve(rawVi), sub2Promise]);
-        let vi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson) : rawVi;
+        const [rawVi, sub2] = await Promise.all([
+          translateGtxMultiline(cleanText, targetLang, glossaryList),
+          sub2Promise
+        ]);
+        let vi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson, persona) : rawVi;
         if (self.VieStorage?.formatMultiSpeakerDialogue) vi = self.VieStorage.formatMultiSpeakerDialogue(vi);
         vi = applyGlossaryOverrides(vi, glossaryList, cleanText);
         if (vi) setCached(`gtx:${self.VieStorage.getCacheKey(cleanText, settings)}`, vi);
@@ -330,7 +376,17 @@ function isWhisperNoise(text) {
 
 async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
   if (!Array.isArray(rawTexts) || !rawTexts.length) return { results: {} };
-  const cleanList = Array.from(new Set(rawTexts.map((t) => (t || "").trim()).filter(Boolean))).slice(0, 12);
+  const cleanList = Array.from(
+    new Set(
+      rawTexts
+        .map((t) =>
+          self.VieStorage?.formatMultiSpeakerDialogue
+            ? self.VieStorage.formatMultiSpeakerDialogue(t)
+            : (t || "").trim()
+        )
+        .filter(Boolean)
+    )
+  ).slice(0, 12);
   if (!cleanList.length) return { results: {} };
 
   const settings = await self.VieStorage.getSettings();
@@ -351,12 +407,17 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
   if (!uncached.length) return { results, cached: true };
 
   const ctx = getTabContext(tabId, videoTitle);
+  const batchGlossary = Array.isArray(settings.customGlossary) ? settings.customGlossary : [];
+  const persona = settings.autoPersona !== false ? ctx.persona : "";
+
   if (provider === "gtx" || !rawKey) {
     await Promise.all(
       uncached.map(async (t) => {
         try {
-          const rawVi = await self.VieGTX.translate(t, targetLang);
-          const vi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson) : rawVi;
+          const rawVi = await translateGtxMultiline(t, targetLang, batchGlossary);
+          let vi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson, persona) : rawVi;
+          if (self.VieStorage?.formatMultiSpeakerDialogue) vi = self.VieStorage.formatMultiSpeakerDialogue(vi);
+          vi = applyGlossaryOverrides(vi, batchGlossary, t);
           if (vi) {
             setCached(`gtx:${self.VieStorage.getCacheKey(t, settings)}`, vi);
             results[t] = vi;
@@ -368,13 +429,13 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
   }
 
   try {
-    const batchGlossary = Array.isArray(settings.customGlossary) ? settings.customGlossary : [];
     const batchCall = (key, prov) => {
       if (prov === "ollama") {
-        return self.VieOllama.translateWithOllama({ texts: uncached, history: ctx.items, glossary: batchGlossary, baseUrl: settings.ollamaBaseUrl, preferredModel: settings.ollamaModel, targetLang, translationStyle: settings.translationStyle, pronounStyle: settings.pronounStyle, lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false });
+        return self.VieOllama.translateWithOllama({ texts: uncached, videoPersona: persona, history: ctx.items, glossary: batchGlossary, baseUrl: settings.ollamaBaseUrl, preferredModel: settings.ollamaModel, targetLang, translationStyle: settings.translationStyle, pronounStyle: settings.pronounStyle, lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false });
       }
       const common = {
-        texts: uncached, videoTitle, history: ctx.items, apiKey: key,
+        texts: uncached, videoTitle, videoPersona: persona, glossary: batchGlossary,
+        history: ctx.items, apiKey: key,
         preferredModel: settings.model || "auto", targetLang,
         translationStyle: settings.translationStyle, pronounStyle: settings.pronounStyle,
         lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false
@@ -386,8 +447,10 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
     const translations = batchRes.translations || [];
     for (let i = 0; i < uncached.length; i++) {
       const src = uncached[i];
-      const rawVi = limitTranslationLength((translations[i] || "").trim(), src);
-      const vi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson) : rawVi;
+      const rawVi = limitTranslationLength((translations[i] || "").trim(), src, settings.translationStyle);
+      let vi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson, persona) : rawVi;
+      if (self.VieStorage?.formatMultiSpeakerDialogue) vi = self.VieStorage.formatMultiSpeakerDialogue(vi);
+      vi = applyGlossaryOverrides(vi, batchGlossary, src);
       if (vi) {
         setCached(`${provider}:${self.VieStorage.getCacheKey(src, settings)}`, vi);
         pushTabContext(tabId, videoTitle, src, vi);
@@ -400,8 +463,10 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
     await Promise.all(
       uncached.map(async (t) => {
         try {
-          const rawVi = await self.VieGTX.translate(t, targetLang);
-          const vi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson) : rawVi;
+          const rawVi = await translateGtxMultiline(t, targetLang, batchGlossary);
+          let vi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson, persona) : rawVi;
+          if (self.VieStorage?.formatMultiSpeakerDialogue) vi = self.VieStorage.formatMultiSpeakerDialogue(vi);
+          vi = applyGlossaryOverrides(vi, batchGlossary, t);
           if (vi) {
             setCached(`gtx:${self.VieStorage.getCacheKey(t, settings)}`, vi);
             results[t] = vi;

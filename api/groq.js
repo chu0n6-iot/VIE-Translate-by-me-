@@ -136,6 +136,7 @@
 
     const sys = [
       `You are an expert bilingual subtitle translator. Target language: ${targetLang}.`,
+      videoTitle ? `VIDEO CONTEXT: "${videoTitle}".` : "",
       "PROFESSIONAL COHESION & FLOW (LIÊN KẾT MẠCH LẠC CÂU TRƯỚC - CÂU SAU):",
       "- TUYỆT ĐỐI KHÔNG dịch ngang từ-nối-từ 1:1 theo cấu trúc tiếng Tây máy móc.",
       "- Đọc hiểu mạch ngữ cảnh từ các câu thoại trước đó (history) và câu sau (nếu có). Kết nối ý tứ liền mạch, tự nhiên, giàu nhạc điệu và cảm xúc như dịch giả phim/show chuyên nghiệp (Netflix/HBO).",
@@ -161,15 +162,16 @@
       softenProfanity
         ? "FAMILY-FRIENDLY: Soften severe profanities/vulgar insults into mild natural expressions (e.g. 'chết tiệt', 'khốn kiếp', 'trời đất ơi'). NEVER refuse or stop translating."
         : "UNCENSORED: Faithfully translate any colloquial expressions and slang.",
-      "Output ONLY the translated text without notes or intro."
+      "If <context_next> is provided, use it ONLY as lookahead context for grammar/pronouns — NEVER translate <context_next>. Translate ONLY <translate_now> and output ONLY the translated text without XML tags, notes or intro."
     ].filter(Boolean).join(" ");
 
     let userPrompt = "";
     if (isBatch) {
-      userPrompt = `Translate each numbered line below. Return numbered lines format '1. ...' \\n '2. ...':\n` +
+      userPrompt =
+        `Translate each numbered subtitle line below in continuous context. Keep exact numbering format '1. ...' \\n '2. ...':\n` +
         texts.map((t, i) => `${i + 1}. ${t}`).join("\n");
     } else if (nextText && nextText.trim()) {
-      userPrompt = `[Upcoming next line: "${nextText.trim()}"]\nTranslate this current line smoothly connecting with the preceding lines and leading into the next line: "${text}"`;
+      userPrompt = `<context_next>${nextText.trim()}</context_next>\n<translate_now>${text}</translate_now>`;
     } else {
       userPrompt = text;
     }
@@ -184,16 +186,21 @@
       { role: "user", content: userPrompt }
     ];
 
+    const cleanFn = root.VieStorage?.cleanTranslatedOutput || ((s) => (s || "").trim());
+    const parseBatchFn =
+      root.VieStorage?.parseBatchTranslations ||
+      ((raw) => raw.split("\n").map((l) => l.replace(/^\d+[\.\)]\s*/, "").trim()).filter(Boolean));
+
     let lastErr = null;
     for (const m of ordered) {
       if (isModelInCooldown(apiKey, m)) continue;
       try {
         const out = await callGroqChat({ model: m, apiKey, messages });
         if (isBatch) {
-          const lines = out.split("\n").map((l) => l.replace(/^\d+[\.\)]\s*/, "").trim()).filter(Boolean);
+          const lines = parseBatchFn(out, texts.length);
           return { translations: lines, modelUsed: m };
         }
-        return { vi: out, modelUsed: m };
+        return { vi: cleanFn(out), modelUsed: m };
       } catch (err) {
         lastErr = err;
         markModelCooldown(apiKey, m, 120000);

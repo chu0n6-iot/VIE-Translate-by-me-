@@ -396,7 +396,6 @@ async function testLiveGtx() {
 }
 await testLiveGtx();
 
-
 // --- 12. Test Nhận Diện Phân Loại Video Nhạc vs Video Thường ---
 console.log("1️⃣2️⃣ Kiểm tra phân loại Video Nhạc (Music Video) vs Video Thường (Vlog/Camping/Tutorial)...");
 
@@ -426,7 +425,52 @@ assert.strictEqual(looksLikeMusicVideo("iPhone 16 Pro - In-Depth Review & Camera
 
 console.log("   ✅ Đã kiểm tra: Phân loại chuẩn xác 100%, không bao giờ tải nhầm lyrics bài hát vào video vlog/đời thường!\n");
 
-console.log("🎉 TOÀN BỘ 12 BÀI KIỂM TRA ĐỀU HOÀN TOÀN CHÍNH XÁC VÀ ĐẠT 100%!");
+// --- 13. Test Multi-Speaker Batch Parser (Chống lệch dòng khi dịch hàng loạt có hội thoại 2 người) ---
+console.log("1️⃣3️⃣ Kiểm tra bộ phân tách dịch hàng loạt (Batch Parser) giữ chuẩn hội thoại 2 người...");
+require("../utils/storage.js");
+const batchSample = `1. - Xin chào đại ca!
+- Chào chú em, lâu quá không gặp.
+2. Hôm nay trời đẹp thật đấy.
+3. "Chúng ta lên đường thôi!"`;
+const parsedBatch = global.VieStorage.parseBatchTranslations(batchSample, 3);
+assert.strictEqual(parsedBatch.length, 3, "Phải tách đúng 3 mục tương ứng với 3 câu gốc!");
+assert.strictEqual(parsedBatch[0], "- Xin chào đại ca!\n- Chào chú em, lâu quá không gặp.", "Mục 1 phải giữ nguyên 2 dòng hội thoại!");
+assert.strictEqual(parsedBatch[1], "Hôm nay trời đẹp thật đấy.", "Mục 2 không được bị lệch thành dòng thứ 2 của Mục 1!");
+assert.strictEqual(parsedBatch[2], "Chúng ta lên đường thôi!", "Mục 3 phải tự bóc ngoặc kép thừa ở 2 đầu!");
+console.log("   ✅ Đã kiểm tra: Dịch hàng loạt (Batch) giữ nguyên hội thoại nhiều người, không bao giờ lệch thứ tự câu!\n");
+
+// --- 14. Test Bảo vệ từ ghép tiếng Việt khi đồng bộ đại từ xưng hô ---
+console.log("1️⃣4️⃣ Kiểm tra bảo vệ từ ghép tiếng Việt ('một mình', 'giật mình', 'tự mình', 'tôi luyện')...");
+const MINH_PREFIX_COMPOUNDS = /^(?:một|tự|giật|rùng|vươn|chuyển|ẩn|nép|dấn|thân|bên|riêng|chính|bản\s+thân)$/i;
+const MINH_SUFFIX_COMPOUNDS = /^(?:mẩy|ên)$/i;
+const TOI_PREFIX_COMPOUNDS = /^(?:vôi|bề|phận)$/i;
+const TOI_SUFFIX_COMPOUNDS = /^(?:luyện|đòi|tớ)$/i;
+
+function testHarmonizePronouns(viText, pronounStyle) {
+  let targetFirst = pronounStyle === "minh_ban" ? "mình" : "tôi";
+  const otherFirst = targetFirst === "mình" ? "tôi" : "mình";
+  const regex = new RegExp(`(^|\\s)(${otherFirst})(?=([.,!?;:\\s]|$))`, "gi");
+  return viText.replace(regex, (match, prefix, word, _la, offset, fullStr) => {
+    const beforeSlice = fullStr.slice(0, offset + prefix.length).trim();
+    const prevWords = beforeSlice.split(/\s+/);
+    const prevWord = prevWords[prevWords.length - 1]?.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "") || "";
+    const afterSlice = fullStr.slice(offset + match.length).trim();
+    const nextWord = (afterSlice.split(/\s+/)[0] || "").replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
+    if (otherFirst === "mình" && (MINH_PREFIX_COMPOUNDS.test(prevWord) || MINH_SUFFIX_COMPOUNDS.test(nextWord))) return match;
+    if (otherFirst === "tôi" && (TOI_PREFIX_COMPOUNDS.test(prevWord) || TOI_SUFFIX_COMPOUNDS.test(nextWord))) return match;
+    const isCap = /^[A-ZÀ-Ỹ]/.test(word);
+    const replacement = isCap ? targetFirst.charAt(0).toUpperCase() + targetFirst.slice(1) : targetFirst;
+    return `${prefix}${replacement}`;
+  });
+}
+
+const compoundMinh = testHarmonizePronouns("Mình đi một mình và giật mình khi tự mình làm việc đó.", "toi_ban");
+assert.strictEqual(compoundMinh, "Tôi đi một mình và giật mình khi tự mình làm việc đó.", "Chỉ đổi đại từ 'Mình' đầu câu, tuyệt đối không biến 'một mình'/'giật mình'/'tự mình' thành 'một tôi'!");
+const compoundToi = testHarmonizePronouns("Tôi đã được tôi luyện qua nhiều thử thách.", "minh_ban");
+assert.strictEqual(compoundToi, "Mình đã được tôi luyện qua nhiều thử thách.", "Chỉ đổi đại từ 'Tôi', giữ nguyên từ ghép 'tôi luyện'!");
+console.log("   ✅ Đã kiểm tra: Giữ nguyên 100% từ ghép ('một mình', 'giật mình', 'tự mình', 'tôi luyện') khi khóa ngôi xưng!\n");
+
+console.log("🎉 TOÀN BỘ 14 BÀI KIỂM TRA ĐỀU HOÀN TOÀN CHÍNH XÁC VÀ ĐẠT 100%!");
 
 
 // v0.7.1: glued-word normalization

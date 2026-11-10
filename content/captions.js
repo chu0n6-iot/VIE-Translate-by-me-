@@ -605,15 +605,7 @@
           }
 
           // Tiền dịch trước các câu đầu tiên để người xem có phụ đề ngay khi nhạc chạy
-          const firstTexts = res.cues.slice(0, 8).map((c) => c.text);
-          if (firstTexts.length > 0) {
-            chrome.runtime.sendMessage({
-              type: "TRANSLATE_BATCH",
-              texts: firstTexts,
-              videoTitle: getVideoTitle(),
-              videoContext: getVideoContext()
-            }, () => {});
-          }
+          prefetchUpcomingCues(res.cues, 0, 8);
 
           updateOverlaySyncUI(video);
           renderYouTubeByTime(video);
@@ -623,6 +615,33 @@
         resolve(false);
       });
     });
+  }
+
+  function prefetchUpcomingCues(cues, startIdx = 0, count = 5) {
+    if (!Array.isArray(cues) || !cues.length) return;
+    const slice = cues.slice(Math.max(0, startIdx), Math.max(0, startIdx) + count);
+    const toSend = [];
+    for (const c of slice) {
+      const t = (c?.text || "").trim();
+      if (t && !ytCueState.sent.has(t)) {
+        ytCueState.sent.add(t);
+        toSend.push(t);
+      }
+    }
+    if (!toSend.length) return;
+    chrome.runtime.sendMessage(
+      {
+        type: "TRANSLATE_BATCH",
+        texts: toSend,
+        videoTitle: getVideoTitle(),
+        videoContext: getVideoContext()
+      },
+      (res) => {
+        if (!chrome.runtime.lastError && res?.results) {
+          root.VieContent?.ingestBatchTranslations?.(res.results);
+        }
+      }
+    );
   }
 
   let lastCcAutoClickAt = 0;
@@ -760,6 +779,7 @@
         if (ytCueState.navToken === token && ytCueState.vid === vid && cues.length > 0) {
           ytCueState.cues = cues;
           ytCueState.isLyrics = false;
+          prefetchUpcomingCues(cues, 0, 6);
           if (video) renderYouTubeByTime(video);
         }
       }
@@ -813,6 +833,7 @@
       const nextCue = cues[idx + 1];
       const nextText = nextCue ? nextCue.text : "";
       root.VieContent?.onCaptionReceived(video, cue.text, true, nextText);
+      prefetchUpcomingCues(cues, idx + 1, 5);
     }
     return true;
   }
@@ -1178,7 +1199,25 @@
       if (track.mode === "showing") track.mode = "hidden";
       const cues = track.activeCues ? Array.from(track.activeCues) : [];
       const text = cues.map((c) => normalizeSubtitleText(c.text || "")).filter(Boolean).join(" ");
-      onCaption(video, text, true);
+
+      let nextText = "";
+      if (cues.length > 0 && track.cues && track.cues.length > 1) {
+        const lastActive = cues[cues.length - 1];
+        const allCues = Array.from(track.cues);
+        const curIdx = allCues.indexOf(lastActive);
+        if (curIdx >= 0 && curIdx + 1 < allCues.length) {
+          nextText = normalizeSubtitleText(allCues[curIdx + 1].text || "");
+          const upcoming = allCues
+            .slice(curIdx + 1, curIdx + 5)
+            .map((c) => ({ text: normalizeSubtitleText(c.text || "") }))
+            .filter((c) => c.text);
+          if (upcoming.length > 0) {
+            prefetchUpcomingCues(upcoming, 0, 4);
+          }
+        }
+      }
+
+      onCaption(video, text, true, nextText);
     });
   }
 

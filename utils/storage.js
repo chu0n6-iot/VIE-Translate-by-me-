@@ -167,6 +167,53 @@
     return lines.length >= 2 && lines.some((l) => l.startsWith("-") || l.startsWith("–") || l.startsWith("—"));
   }
 
+  function cleanTranslatedOutput(rawText) {
+    if (!rawText) return "";
+    let s = String(rawText)
+      .replace(/<\/?(?:translate_now|context_next|current_line)>/gi, "")
+      .replace(/\[(?:Upcoming next line|Next line for context|Context Only[^\]]*|Multi-speaker dialogue[^\]]*|Dòng tiếp theo[^\]]*)\]\s*/gi, "")
+      .replace(/^(?:Current line|Translated line|Bản dịch|Dịch)\s*:\s*/i, "")
+      .trim();
+
+    // Bóc dấu ngoặc kép thừa ở 2 đầu nếu câu không phải lời trích dẫn nhiều dòng
+    if (!s.includes("\n") && ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("“") && s.endsWith("”")))) {
+      s = s.slice(1, -1).trim();
+    }
+    return s;
+  }
+
+  function parseBatchTranslations(rawOutput, expectedCount = 0) {
+    const clean = String(rawOutput || "").trim();
+    if (!clean) return [];
+
+    // Ưu tiên bóc theo đánh số đầu dòng (1. / 1) / [1] / #1:) để giữ nguyên hội thoại nhiều dòng (- A \n - B) bên trong mỗi câu
+    const itemRegex = /(?:^|\n)\s*(?:\[?#?(\d+)\]?[\.\)\]:-])\s*/g;
+    const matches = [...clean.matchAll(itemRegex)];
+
+    if (matches.length >= 1) {
+      const indexed = new Array(expectedCount || matches.length).fill("");
+      for (let i = 0; i < matches.length; i++) {
+        const num = parseInt(matches[i][1], 10);
+        const startPos = matches[i].index + matches[i][0].length;
+        const endPos = i + 1 < matches.length ? matches[i + 1].index : clean.length;
+        const body = cleanTranslatedOutput(clean.slice(startPos, endPos));
+        if (num >= 1 && (!expectedCount || num <= expectedCount)) {
+          indexed[num - 1] = body;
+        } else if (i < indexed.length && !indexed[i]) {
+          indexed[i] = body;
+        }
+      }
+      if (indexed.some(Boolean)) {
+        return indexed;
+      }
+    }
+
+    return clean
+      .split("\n")
+      .map((l) => cleanTranslatedOutput(l.replace(/^\d+[\.\)\]:-]\s*/, "")))
+      .filter(Boolean);
+  }
+
   const VieStorage = {
     FONT_FAMILY_MAP,
     LANGUAGE_NAMES,
@@ -176,6 +223,8 @@
     DEFAULT_SETTINGS,
     formatMultiSpeakerDialogue,
     isMultiSpeakerDialogue,
+    cleanTranslatedOutput,
+    parseBatchTranslations,
 
     getSettings() {
       return new Promise((resolve) => {
@@ -229,7 +278,9 @@
         lower.includes("lời nói chính xác bằng ngôn ngữ") ||
         lower.includes("bản dịch sang tiếng việt") ||
         lower.includes("đoạn âm thanh này và phiên âm") ||
-        lower.includes("format json")
+        lower.includes("format json") ||
+        lower.includes("upcoming next line:") ||
+        lower.includes("do not translate this next line")
       ) {
         return true;
       }
@@ -247,4 +298,4 @@
   };
 
   root.VieStorage = VieStorage;
-})(typeof self !== "undefined" ? self : this);
+})(typeof self !== "undefined" ? self : typeof globalThis !== "undefined" ? globalThis : this);
