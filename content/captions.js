@@ -74,6 +74,9 @@
   }
 
   function normalizeSubtitleText(rawText) {
+    if (root.VieStorage?.formatMultiSpeakerDialogue) {
+      return root.VieStorage.formatMultiSpeakerDialogue(rawText);
+    }
     return (rawText || "")
       .replace(/<[^>]+>/g, " ")
       .replace(/\{[^}]+\}/g, " ")
@@ -134,7 +137,21 @@
         const tooLong = cur.text.length >= 85 || ev.end - cur.start > 6.5;
         const endsSentence = /[.?!…”♪]$/.test(cur.text.trim());
         const incomplete = isIncompleteClause(cur.text);
-        if (tooLong || (endsSentence && gap > 0.4) || (!incomplete && gap > 0.8) || gap > 1.4) {
+        const startsNewSpeaker = /^([-–—]|>>)/.test(ev.text.trim());
+        const curHasMultiSpeaker = cur.text.includes("\n-");
+
+        if (startsNewSpeaker) {
+          if (!curHasMultiSpeaker && gap <= 0.6 && cur.text.length + ev.text.length < 90) {
+            const line1 = cur.text.startsWith("-") ? cur.text : `- ${cur.text}`;
+            const line2 = ev.text.startsWith("-") ? ev.text : `- ${ev.text.replace(/^>>\s*/, "")}`;
+            cur.text = `${line1}\n${line2}`;
+            cur.end = Math.max(cur.end, ev.end);
+            flush();
+            continue;
+          } else {
+            flush();
+          }
+        } else if (tooLong || (endsSentence && gap > 0.4) || (!incomplete && gap > 0.8) || gap > 1.4) {
           flush();
         }
       }

@@ -74,7 +74,7 @@
   margin-bottom: 4px;
   line-height: 1.35;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 5px rgba(0, 0, 0, 0.85);
-  white-space: normal;
+  white-space: pre-line;
   word-break: break-word;
 }
 
@@ -93,7 +93,7 @@
   color: var(--vie-primary-color, #fef08a);
   line-height: 1.4;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.75);
-  white-space: normal;
+  white-space: pre-line;
   word-break: break-word;
 }
 
@@ -104,6 +104,42 @@
     -2px  2px 0 #000,
      2px  2px 0 #000,
      0 3px 8px rgba(0, 0, 0, 0.98);
+}
+
+/* MULTI-SPEAKER DIALOGUE TURNS (TÁCH DÒNG HỘI THOẠI 2 GIỌNG NÓI) */
+.vie-overlay .vie-dialogue-turn,
+.vie-overlay .vie-orig-dialogue-turn {
+  display: block;
+  margin-bottom: 4px;
+  line-height: 1.38;
+}
+
+.vie-overlay .vie-dialogue-turn:last-child,
+.vie-overlay .vie-orig-dialogue-turn:last-child {
+  margin-bottom: 0;
+}
+
+.vie-overlay .vie-speaker-bullet {
+  display: inline;
+  font-weight: 700;
+  opacity: 0.9;
+  margin-right: 4px;
+}
+
+.vie-overlay .vie-vi .vie-speaker-1 {
+  color: var(--vie-primary-color, #fef08a);
+}
+
+.vie-overlay .vie-vi .vie-speaker-2 {
+  color: #a5f3fc;
+}
+
+.vie-overlay .vie-orig .vie-speaker-1 {
+  color: var(--vie-second-color, #e2e8f0);
+}
+
+.vie-overlay .vie-orig .vie-speaker-2 {
+  color: #cbd5e1;
 }
 
 .vie-overlay .vie-vi.vie-preview {

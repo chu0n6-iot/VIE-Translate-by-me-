@@ -142,6 +142,11 @@
       "- Sử dụng liên từ tiếng Việt tự nhiên ('Nhưng rồi', 'Thế là', 'Hóa ra', 'Chẳng ngờ', 'Dẫu vậy...') khi câu là vế nối tiếp hoặc câu rút gọn.",
       "- Xử lý các đại từ quy chiếu (it, that, they...) sát theo đối tượng ở câu trước thay vì dịch cứng nhắc.",
       "- Với video ca nhạc/lyrics: dịch giàu vần điệu, hình ảnh thơ ca, giữ trọn hồn bài hát.",
+      "MULTI-SPEAKER DIALOGUE & LINE SEPARATION (HỘI THOẠI NHIỀU NGƯỜI NÓI):",
+      "- Khi câu thoại có từ 2 người nói trở lên (dấu hiệu: có gạch đầu dòng '- ', ký hiệu '>>', tên nhân vật, ngoặc kép, hoặc câu hỏi - đáp qua lại giữa hai người):",
+      "- BẮT BUỘC TÁCH MỖI NGƯỜI NÓI THÀNH MỘT DÒNG RIÊNG BIỆT. Mỗi dòng PHẢI bắt đầu bằng dấu gạch ngang và dấu cách: '- [Lời dịch người A]\\n- [Lời dịch người B]'.",
+      "- TUYỆT ĐỐI KHÔNG gộp lời nói của 2 người khác nhau thành 1 câu dính liền trên cùng một dòng.",
+      "- Giữ nguyên vị thế xưng hô, ngữ khí và thái độ riêng của từng người nói một cách độc lập.",
       videoPersona && root.VieStorage?.PERSONA_INSTRUCTIONS[videoPersona]
         ? root.VieStorage.PERSONA_INSTRUCTIONS[videoPersona]
         : "",
@@ -167,6 +172,10 @@
       userPrompt = `[Upcoming next line: "${nextText.trim()}"]\nTranslate this current line smoothly connecting with the preceding lines and leading into the next line: "${text}"`;
     } else {
       userPrompt = text;
+    }
+
+    if (!isBatch && (root.VieStorage?.isMultiSpeakerDialogue?.(text) || text.includes("\n-"))) {
+      userPrompt = `[Multi-speaker dialogue. Keep each speaker on separate line with '- ']:\n${userPrompt}`;
     }
 
     const messages = [
