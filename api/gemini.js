@@ -187,6 +187,7 @@
 
     const sysInstruction = [
       `You are an elite bilingual video subtitle translator. Target language: ${targetLang}.`,
+      videoTitle ? `VIDEO CONTEXT: "${videoTitle}".` : "",
       "PROFESSIONAL COHESION & FLOW (LIÊN KẾT MẠCH LẠC CÂU TRƯỚC - CÂU SAU):",
       "- TUYỆT ĐỐI KHÔNG dịch ngang từ-nối-từ 1:1 theo cấu trúc tiếng Tây máy móc.",
       "- Phải đọc hiểu mạch ngữ cảnh từ các câu thoại trước đó (history) và câu sau (nếu có). Kết nối ý tứ liền mạch, trôi chảy, giàu nhạc điệu và cảm xúc như dịch giả Netflix/HBO.",
@@ -212,15 +213,16 @@
       softenProfanity
         ? "FAMILY-FRIENDLY: Soften severe profanities/vulgar insults into mild natural expressions (e.g. 'chết tiệt', 'khốn kiếp', 'trời đất ơi'). NEVER refuse or stop translating."
         : "UNCENSORED: Faithfully translate any colloquial expressions and slang.",
-      "Output ONLY the translated subtitle text without notes, quotes or intro."
+      "If <context_next> is provided, use it ONLY as lookahead context for grammar/pronouns — NEVER translate <context_next>. Translate ONLY <translate_now> and output ONLY the translated subtitle text without XML tags, notes, quotes or intro."
     ].filter(Boolean).join(" ");
 
     let promptContent = "";
     if (isBatch) {
-      promptContent = `Translate each numbered line below. Return numbered lines format '1. ...' \\n '2. ...':\n` +
+      promptContent =
+        `Translate each numbered subtitle line below in continuous context. Keep exact numbering format '1. ...' \\n '2. ...':\n` +
         texts.map((t, i) => `${i + 1}. ${t}`).join("\n");
     } else if (nextText && nextText.trim()) {
-      promptContent = `[Upcoming next line: "${nextText.trim()}"]\nTranslate this current line smoothly connecting with the preceding lines and leading into the next line: "${text}"`;
+      promptContent = `<context_next>${nextText.trim()}</context_next>\n<translate_now>${text}</translate_now>`;
     } else {
       promptContent = text;
     }
@@ -246,6 +248,11 @@
       }
     };
 
+    const cleanFn = root.VieStorage?.cleanTranslatedOutput || ((s) => (s || "").trim());
+    const parseBatchFn =
+      root.VieStorage?.parseBatchTranslations ||
+      ((raw) => raw.split("\n").map((l) => l.replace(/^\d+[\.\)]\s*/, "").trim()).filter(Boolean));
+
     let lastErr = null;
     for (const m of ordered) {
       if (isModelInCooldown(apiKey, m)) continue;
@@ -255,10 +262,10 @@
           throw new Error("Gemini refused output.");
         }
         if (isBatch) {
-          const lines = out.split("\n").map((l) => l.replace(/^\d+[\.\)]\s*/, "").trim()).filter(Boolean);
+          const lines = parseBatchFn(out, texts.length);
           return { translations: lines, modelUsed: m };
         }
-        return { vi: out, modelUsed: m };
+        return { vi: cleanFn(out), modelUsed: m };
       } catch (err) {
         lastErr = err;
         const isQuota = err.isQuotaExceeded || err.status === 429 || /quota|resource_exhausted|429/i.test(err.message || "");
@@ -273,31 +280,17 @@
 
   function isAiMetaOrPromptLeak(text) {
     if (!text) return false;
+    if (root.VieStorage?.isAiMetaOrPromptLeak) {
+      return root.VieStorage.isAiMetaOrPromptLeak(text);
+    }
     const s = String(text).trim();
     const lower = s.toLowerCase();
-    if (
+    return (
       lower.includes("listen to this audio") ||
       lower.includes("transcribe the spoken speech") ||
-      lower.includes("format json only") ||
-      lower.includes("exact spoken speech") ||
-      lower.includes("translation in vi") ||
-      lower.includes("lời nói chính xác bằng ngôn ngữ") ||
-      lower.includes("bản dịch sang tiếng việt") ||
-      lower.includes("đoạn âm thanh này và phiên âm") ||
-      lower.includes("format json")
-    ) {
-      return true;
-    }
-    if (
-      /^(?:tôi đang dịch|đang dịch\b|dưới đây là bản dịch|đây là bản dịch|bản dịch là:|bản dịch của tôi)/i.test(s) ||
-      lower.includes("tôi đang dịch") ||
-      lower.includes("tôi là mô hình ai") ||
-      lower.includes("tôi là một ai") ||
-      lower.includes("dưới đây là bản dịch")
-    ) {
-      return true;
-    }
-    return false;
+      lower.includes("format json") ||
+      /^(?:tôi đang dịch|đang dịch\b|dưới đây là bản dịch)/i.test(s)
+    );
   }
 
   function sanitizeAudioText(t) {

@@ -9,6 +9,19 @@
   let settings = root.VieStorage ? { ...root.VieStorage.DEFAULT_SETTINGS } : {};
   const localCache = new Map();
 
+  function ingestBatchTranslations(resultsMap) {
+    if (!resultsMap || typeof resultsMap !== "object") return;
+    for (const [src, vi] of Object.entries(resultsMap)) {
+      if (!src || !vi) continue;
+      const cleanSrc = root.VieCaptions ? root.VieCaptions.normalizeSubtitleText(src) : src.trim();
+      const ck = root.VieStorage.getCacheKey(cleanSrc, settings);
+      localCache.set(ck, { vi, sub2: "" });
+      if (localCache.size > 500) {
+        localCache.delete(localCache.keys().next().value);
+      }
+    }
+  }
+
   function renderSubtitles(video, origText, viText, sub2Text = "", isPreview = false, isError = false) {
     if (!settings.enabled) return;
     const overlay = root.VieDOM?.getOrCreateOverlay(video, settings);
@@ -252,7 +265,7 @@
       for (const [k, c] of Object.entries(changes)) {
         if (k in settings) {
           settings[k] = c.newValue;
-          if (["provider", "targetLang", "secondaryLang", "translationStyle", "pronounStyle", "softenProfanity", "enabled"].includes(k)) {
+          if (["provider", "targetLang", "secondaryLang", "translationStyle", "pronounStyle", "softenProfanity", "customGlossary", "enabled"].includes(k)) {
             clearCache = true;
           }
         }
@@ -375,7 +388,8 @@
 
   root.VieContent = {
     onCaptionReceived,
-    renderSubtitles
+    renderSubtitles,
+    ingestBatchTranslations
   };
 
   if (document.readyState === "loading") {
