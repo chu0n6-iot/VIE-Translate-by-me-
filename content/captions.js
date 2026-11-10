@@ -424,22 +424,13 @@
               updateOverlaySyncUI(video);
               showSyncToast(video, `🎯 Đã tự động căn khớp ${autoOffset > 0 ? "+" : ""}${autoOffset}s theo bài hát!`);
             }
-          } else if (res.duration && duration && Math.abs(duration - res.duration) >= 2.0) {
-            const durDelta = Math.round((duration - res.duration) * 10) / 10;
-            if (durDelta > 0 && durDelta <= 120) {
-              st.subSyncOffset = durDelta;
-              st.autoSynced = true;
-              st.autoSyncSource = "duration";
-              updateOverlaySyncUI(video);
-              showSyncToast(video, `🎯 Đã căn độ lệch mở đầu MV (+${durDelta}s)!`);
-            }
           } else {
             detectAudioOnsetForVideo(video, (onset) => {
               if (onset > 1.5 && (!st.subSyncOffset || Math.abs(st.subSyncOffset) < 0.5)) {
                 const firstCueStart = res.cues[0]?.start || 0;
                 if (onset > firstCueStart) {
                   const onsetDelta = Math.round((onset - firstCueStart) * 10) / 10;
-                  if (onsetDelta > 1.0 && onsetDelta < 60) {
+                  if (onsetDelta > 1.0 && onsetDelta < 40) {
                     st.subSyncOffset = onsetDelta;
                     st.autoSynced = true;
                     st.autoSyncSource = "audioOnset";
@@ -450,6 +441,16 @@
                 }
               }
             });
+          }
+
+          // Tiền dịch trước các câu đầu tiên để người xem có phụ đề ngay khi nhạc chạy
+          const firstTexts = res.cues.slice(0, 8).map((c) => c.text);
+          if (firstTexts.length > 0) {
+            chrome.runtime.sendMessage({
+              type: "TRANSLATE_BATCH",
+              texts: firstTexts,
+              videoTitle: getVideoTitle()
+            }, () => {});
           }
 
           updateOverlaySyncUI(video);
@@ -566,7 +567,7 @@
 
     const cue = idx >= 0 && t <= cues[idx].end ? cues[idx] : null;
     if (!cue) {
-      if (state.lastText) {
+      if (!state.audioCaptureActive && state.lastText) {
         state.lastText = "";
         state.reqSeq++;
         root.VieDOM?.hideOverlay(video);
@@ -577,7 +578,9 @@
     if (cue.text !== state.lastText) {
       state.lastText = cue.text;
       state.hasReceivedAnySubtitle = true;
-      root.VieContent?.onCaptionReceived(video, cue.text, true);
+      const nextCue = cues[idx + 1];
+      const nextText = nextCue ? nextCue.text : "";
+      root.VieContent?.onCaptionReceived(video, cue.text, true, nextText);
     }
     return true;
   }
@@ -634,10 +637,23 @@
     updateToadButtonUI(video, "listening");
 
     const foundSynced = await tryLoadSongLyricsForVideo(video, ytCueState.vid);
-    if (foundSynced) return;
+    if (foundSynced) {
+      userWantsAudioCapture = false;
+      state.audioCaptureActive = false;
+      updateToadButtonUI(video, "idle");
+      showSyncToast(video, "🎵 Đã tải và hiển thị lời bài hát đồng bộ!");
+      renderYouTubeByTime(video);
+      return;
+    }
 
     const captureFn = video.captureStream || video.mozCaptureStream;
-    if (typeof captureFn !== "function") return;
+    if (typeof captureFn !== "function") {
+      userWantsAudioCapture = false;
+      state.audioCaptureActive = false;
+      updateToadButtonUI(video, "idle");
+      showSyncToast(video, "⚠️ Trình duyệt không hỗ trợ captureStream cho thẻ video này.");
+      return;
+    }
 
     let stream = null;
     try {
@@ -646,7 +662,13 @@
       if (audioTracks.length) stream = new MediaStream(audioTracks);
     } catch {}
 
-    if (!stream) return;
+    if (!stream) {
+      userWantsAudioCapture = false;
+      state.audioCaptureActive = false;
+      updateToadButtonUI(video, "idle");
+      showSyncToast(video, "⚠️ Không thể trích xuất âm thanh từ video (CORS). Vui lòng thử bật CC của YouTube.");
+      return;
+    }
 
     state.audioCaptureActive = true;
     const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/webm";
@@ -677,6 +699,11 @@
             mimeType: recorder.mimeType || "audio/webm",
             videoTitle: getVideoTitle()
           }, (res) => {
+            if (res?.error === "NO_KEY") {
+              stopVideoAudioCapture(video, true);
+              showSyncToast(video, "🔑 Cần API Key (Gemini/Groq) để AI nghe & dịch. Bấm icon Toad để lấy Key!");
+              return;
+            }
             if (!chrome.runtime.lastError && (res?.vi || res?.orig)) {
               if (res.orig && ytCueState.cues.length > 0) {
                 correlateLiveAudioWithCues(video, res.orig, Math.max(0, sliceTime - 0.9));

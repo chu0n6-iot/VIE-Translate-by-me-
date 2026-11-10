@@ -29,11 +29,11 @@
   };
 
   const STYLE_INSTRUCTIONS = {
-    natural: "Phong cách tự nhiên, đời thường, trôi chảy, đúng ngữ cảnh hội thoại.",
-    cinema: "Phong cách phụ đề điện ảnh / Netflix chuyên nghiệp: câu từ cô đọng, súc tích, giàu cảm xúc, truyền tải trọn vẹn thần thái nhân vật.",
-    academic: "Phong cách học thuật & chuyên ngành: dịch chuẩn xác các thuật ngữ khoa học, kỹ thuật, lập trình, y sinh, kinh tế; văn phong rõ ràng.",
-    genz: "Phong cách trẻ trung, hài hước, năng động (GenZ / Vlog / Gaming): dùng từ ngữ tự nhiên, bắt trend hợp ngữ cảnh nhưng giữ chuẩn ý câu gốc.",
-    literal: "Phong cách dịch sát nghĩa và cấu trúc câu gốc (hỗ trợ người học ngoại ngữ đối chiếu từ vựng và ngữ pháp dễ dàng)."
+    natural: "Phong cách tự nhiên, đời thường, trôi chảy, đúng ngữ cảnh hội thoại. BẮT BUỘC liên kết mạch lạc câu trước với câu sau, dùng diễn đạt thuần Việt uyển chuyển, tuyệt đối không dịch ngang 1:1 từ-nối-từ máy móc.",
+    cinema: "Phong cách phụ đề điện ảnh / Netflix chuyên nghiệp: câu từ cô đọng, súc tích, giàu cảm xúc và nhịp điệu, chuyển tải trọn vẹn mạch tư duy và thần thái nhân vật. Tuyệt đối không dịch thô ngữ pháp ngoại lai.",
+    academic: "Phong cách học thuật & chuyên ngành: dịch chuẩn xác thuật ngữ khoa học, kỹ thuật, lập trình, y sinh, kinh tế; diễn đạt mạch lạc, liên kết lập luận chặt chẽ giữa các câu.",
+    genz: "Phong cách trẻ trung, hài hước, năng động (GenZ / Vlog / Gaming): dùng từ ngữ tự nhiên, bắt trend hợp ngữ cảnh nhưng diễn đạt thuần Việt liền mạch, giữ chuẩn ý câu gốc.",
+    literal: "Phong cách dịch đối chiếu song ngữ nhưng vẫn giữ câu cú tiếng Việt tự nhiên, không cụt lủn hay tối nghĩa."
   };
 
   const PRONOUN_INSTRUCTIONS = {

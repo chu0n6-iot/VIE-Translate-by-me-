@@ -56,22 +56,25 @@
 
 ## 🚀 Lịch Sử Cập Nhật & Các Cơ Chế Mới (Changelog)
 
-### 🌟 Phiên bản `v0.6.7` (Mới nhất) — *Tự Động Đối Chiếu Âm Thanh Khớp Nhịp Phụ Đề & Khắc Phục Lỗi Giao Diện*
-- **🎯 Cơ chế mới — Tự Động Đối Chiếu Bản Âm Thanh & Phụ Đề Căn Chỉnh Độ Lệch (`Automatic Audio-to-Text Subtitle Sync Engine`)**:
+### 🌟 Phiên bản `v0.6.7` (Mới nhất) — *Dịch Thuật Chuyên Nghiệp Liên Kết Câu Trước-Sau & Khắc Phục Lỗi Giao Diện*
+- **🧠 Cơ chế mới — Dịch Thuật Chuyên Nghiệp Liên Kết Mạch Lạc Câu Trước - Câu Sau (`Cohesive Discourse Translation Engine`)**:
+  - **Truyền ngữ cảnh hai chiều (Bidirectional Context)**: Hệ thống truyền song song cả các câu thoại liền trước (`history` mở rộng 6 lượt) và câu thoại sắp xuất hiện tiếp theo (`nextText`), giúp AI hiểu trọn vẹn ngữ cảnh và chủ đề đang nói.
+  - **Chấm dứt lối dịch ngang 1:1 máy móc ("tiếng Tây sang tiếng Ta")**: Áp dụng bộ chỉ thị dịch thuật cao cấp, diễn đạt thuần Việt uyển chuyển, giàu nhạc điệu và cảm xúc như dịch giả phụ đề chuyên nghiệp của Netflix/HBO.
+  - **Xử lý mượt mà liên từ & câu rút gọn**: Tự động chắp nối các vế câu dang dở bằng liên từ tự nhiên (*"Nhưng rồi", "Thế là", "Hóa ra", "Dẫu vậy..."*) và giải mã chính xác các đại từ quy chiếu (*it, that, they...*).
+- **🛠️ Khắc phục lỗi nút "Đang nghe & dịch..." bị đứng im & Không hiện phụ đề (`Fix Frozen Audio Button & Subtitle Display`)**:
+  - Khắc phục lỗi nút Toad AI bị kẹt vĩnh viễn ở trạng thái `🎙️ Đang nghe & dịch...` khi đã tải xong lyrics hoặc khi bị chặn bởi chính sách CORS của video.
+  - Xóa bỏ cơ chế bù lệch thời lượng giả định (`durDelta` ở đuôi video) từng khiến phụ đề các bài hát như *Less Than Zero* bị lệch 30s và biến mất khỏi màn hình.
+  - **Cơ chế Pre-Translation 0ms**: Tự động tiền dịch trước 8 câu đầu tiên của bài hát ngay khi tìm thấy lyrics, giúp phụ đề xuất hiện tức thì, không bị trễ hay đứng chờ dịch.
+  - Thêm thông báo hướng dẫn khi chưa có API Key cho tính năng thu âm thanh từ loa.
+- **🎯 Tự Động Đối Chiếu Bản Âm Thanh & Phụ Đề Căn Chỉnh Độ Lệch (`Automatic Audio-to-Text Subtitle Sync Engine`)**:
   - **So khớp chéo đa nguồn (Cross-Track Correlation)**: Tự động so sánh độ trùng khớp token từ vựng giữa lời bài hát (LRCLIB) và phụ đề gốc YouTube (ASR/Manual caption tracks), tính toán trung vị độ lệch (median delta) và tự động căn chuẩn nhịp phụ đề tức thì.
   - **Tự động khóa nhịp theo giọng hát thực tế (Live Speech Auto-Lock)**: Khi AI lắng nghe âm thanh từ video, các cụm từ nhận diện được sẽ tự động đối chiếu với mốc thời gian lời bài hát/phụ đề để tự khóa độ lệch (`+X.Xs Tự khớp ✨`) mà người dùng không cần bấm tay thủ công.
-  - **Phát hiện điểm bắt đầu âm thanh (Web Audio Onset Detection)**: Phân tích phổ năng lượng sóng âm qua Web Audio API Analyser để tự nhận biết thời điểm tiếng nhạc/hát cất lên sau đoạn intro mở đầu dài.
   - **Nút 1-chạm `🎯 Căn tự động`**: Tích hợp trên thanh công cụ `vie-sync-group` dưới phụ đề, cho phép kích hoạt đo và căn khớp nhịp tức thì.
-- **🛡️ Khắc phục triệt để lỗi 2 thanh phụ đề song song & nhân bản nút Toad (`Duplicate Overlay & Dual Buttons Bug Fix`)**:
-  - Nâng cấp `video._vieOverlay` và nút Toad `state.toadBtnEl` thành mô hình Strict Singleton; tự động di chuyển đúng container khi bật/tắt toàn màn hình (fullscreen) hoặc rạp chiếu (theater mode).
-  - Tự động dọn dẹp triệt để mọi thẻ `.vie-overlay` và `.vie-toad-audio-btn` dư thừa trên DOM khi chuyển video hoặc bấm thoát thẻ học từ vựng.
-  - Khắc phục lỗi `closeDictAndCoach` bị crash khi đóng thẻ từ điển; bổ sung lắng nghe `pointerdown` toàn cục để đóng từ điển an toàn khi click chuột ra ngoài trình phát.
-- **✨ Loại bỏ hoàn toàn lỗi hiện chữ "ORIG" kỹ thuật trên phụ đề (`Scrub Technical ORIG/GỐC Prefixes`)**:
-  - Bổ sung bộ lọc kỹ thuật làm sạch sâu `sanitizeAudioText` và regex kép ở mọi tầng (`api/gemini.js`, `background/background.js`, `content/dom.js`, `content/content.js`).
-  - Nếu AI trả về định dạng thô hoặc thiếu nhãn dịch, hệ thống tự kích hoạt fallback Google Translate Free để dịch sang tiếng Việt mượt mà, tuyệt đối không để lộ chữ "ORIG" hay nhãn kỹ thuật thô lên màn hình người xem.
+- **🛡️ Khắc phục triệt để lỗi 2 thanh phụ đề song song & loại bỏ chữ "ORIG" kỹ thuật**:
+  - Nâng cấp `video._vieOverlay` và nút Toad `state.toadBtnEl` thành mô hình Strict Singleton; tự động di chuyển đúng container và quét sạch thẻ thừa trên DOM.
+  - Thêm bộ lọc `sanitizeAudioText` và fallback Google Translate Free tự động, loại bỏ hoàn toàn chữ `ORIG` hay các nhãn kỹ thuật thô.
 - **🏗️ Đại tu kiến trúc module hóa toàn diện & Tối ưu hóa AI Indexing**:
-  - Module hóa mã nguồn thành các thư mục độc lập `api/`, `content/`, `background/`, `popup/`, `utils/`.
-  - Bổ sung file bản đồ ngữ cảnh `@AI_CONTEXT.md` cùng `.aiignore` / `.cursorignore` giúp các công cụ lập trình AI đọc hiểu cấu trúc dự án trong 0.1s và tiết kiệm token tối đa.
+  - Module hóa mã nguồn thành các thư mục độc lập `api/`, `content/`, `background/`, `popup/`, `utils/` kèm `@AI_CONTEXT.md` giúp AI index tức thì trong 0.1s.
 
 ### 🌟 Phiên bản `v0.6.6` — *Học Từ Vựng Đa Chiều Đặc Sắc: Từ Loại (POS), Ví Dụ Đời Thường, Fact Thú Vị & Collocations*
 - **Huy hiệu từ loại song ngữ trực quan (`Bilingual POS Badges`)**:
@@ -163,11 +166,19 @@
 
 ## 📋 Version History & New Mechanisms (Changelog)
 
-### 🌟 `v0.6.7` (Latest) — *Automatic Audio-to-Text Subtitle Alignment & Critical UI Fixes*
-- **🎯 New Mechanism — Automatic Audio-to-Text Subtitle Sync Engine**:
-  - **Cross-Track Correlation**: Cross-references token overlap between external lyrics (LRCLIB) and YouTube native caption tracks (ASR/Manual), calculating the median delta to automatically align timing.
-  - **Live Speech Auto-Lock**: Cross-references live transcribed speech from audio capture with loaded subtitle cues, automatically locking the timing offset (`+X.Xs Tự khớp ✨`) with zero manual clicks required.
-  - **Web Audio Energy Onset Detection**: Analyzes audio energy via the Web Audio Analyser API to detect when singing/music begins after lengthy video intros.
+### 🌟 `v0.6.7` (Latest) — *Cohesive Discourse Translation, Instant Subtitles & Critical Audio Fixes*
+- **🧠 New Mechanism — Cohesive Discourse Translation Engine**:
+  - **Bidirectional Context Linking**: Feeds both preceding conversation history (up to 6 turns) and the upcoming next line (`nextText`) into the model so the AI grasps the full conversational narrative.
+  - **Zero Word-for-Word Literalism**: Enforces professional cinematic/Netflix-grade Vietnamese subtitle translation, eliminating awkward mechanical 1:1 "tiếng Tây sang tiếng Ta" translations in favor of natural phrasing and poetic lyricism.
+  - **Seamless Discourse Transitions**: Automatically connects sentence fragments with idiomatic Vietnamese conjunctions (*"Nhưng rồi", "Thế là", "Hóa ra", "Dẫu vậy..."*) and accurately resolves pronouns (*it, that, they...*).
+- **🛠️ Fix Frozen Audio Button & Subtitle Stalling (`Fix Frozen Toad Button`)**:
+  - Resolved bug where the Toad AI button became permanently frozen in `🎙️ Đang nghe & dịch...` after lyrics were loaded or when CORS restricted audio streams.
+  - Eliminated flawed `durDelta` intro guessing that falsely delayed subtitles on songs with lengthy outro cards (such as *Less Than Zero*).
+  - **0ms Pre-Translation**: Automatically pre-translates the first 8 lines of lyrics via batch queries upon load, ensuring subtitles display immediately without lag.
+  - Added user guidance toasts when an API key is required for direct speaker audio transcription.
+- **🎯 Automatic Audio-to-Text Subtitle Sync Engine**:
+  - **Cross-Track Correlation**: Cross-references token overlap between external lyrics (LRCLIB) and YouTube native caption tracks (ASR/Manual) to automatically calibrate timing offsets.
+  - **Live Speech Auto-Lock**: Cross-references live transcribed speech from audio capture with loaded subtitle cues, locking the timing offset (`+X.Xs Tự khớp ✨`) without manual clicks.
   - **1-Click `🎯 Căn tự động` Button**: Added to `.vie-sync-group` under the subtitle bar for instant audio-to-text timing alignment.
 - **🛡️ Fix Duplicate Parallel Subtitle Bars & Dual Toad Buttons**:
   - Re-architected `video._vieOverlay` and Toad button `state.toadBtnEl` into strict singletons; automatically re-attaches to player container upon fullscreen / theater mode changes.
@@ -175,7 +186,7 @@
   - Fixed `closeDictAndCoach` call crashes and added global `pointerdown` listener to close pinned dictionaries safely when clicking outside the player.
 - **✨ Scrub Technical "ORIG" / "GỐC" Labels**:
   - Implemented multi-layered `sanitizeAudioText` filters across `api/gemini.js`, `background/background.js`, `content/dom.js`, and `content/content.js`.
-  - Automatically falls back to Google Translate Free if the model only returns raw original speech, ensuring clean, natural Vietnamese translations without technical prefix leakage.
+  - Automatically falls back to Google Translate Free if the model only returns raw original speech.
 - **🏗️ Modular Architecture Overhaul & AI Indexing Optimization**:
   - Modularized codebase into `api/`, `content/`, `background/`, `popup/`, and `utils/`.
   - Added `@AI_CONTEXT.md` root memory map and ignore files (`.aiignore`, `.cursorignore`) for instant AI model onboarding and zero token waste.

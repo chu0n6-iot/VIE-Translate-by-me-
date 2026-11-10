@@ -46,7 +46,7 @@
     overlay.classList.remove("vie-hidden");
   }
 
-  function onCaptionReceived(video, rawText, immediate = false) {
+  function onCaptionReceived(video, rawText, immediate = false, nextText = "") {
     if (!settings.enabled) {
       root.VieDOM?.hideOverlay(video);
       return;
@@ -89,6 +89,7 @@
         chrome.runtime.sendMessage({
           type: "TRANSLATE",
           text: cleanText,
+          nextText: nextText || "",
           videoTitle: root.VieCaptions.getVideoTitle(),
           fastPreviewOnly: true
         }, (previewRes) => {
@@ -102,6 +103,7 @@
       chrome.runtime.sendMessage({
         type: "TRANSLATE",
         text: cleanText,
+        nextText: nextText || "",
         videoTitle: root.VieCaptions.getVideoTitle(),
         fastPreviewOnly: false
       }, (res) => {

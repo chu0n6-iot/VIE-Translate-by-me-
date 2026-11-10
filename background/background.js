@@ -127,7 +127,7 @@ async function resolveSecondaryTranslation(cleanText, secondaryLang, targetLang)
   }
 }
 
-async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = false) {
+async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = false, nextText = "") {
   const cleanText = (rawText || "").replace(/\s+/g, " ").trim();
   if (!cleanText) return { vi: "" };
 
@@ -165,6 +165,7 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
           targetProvider === "groq"
             ? self.VieGroq.translateWithGroqAuto({
                 text: cleanText,
+                nextText,
                 videoTitle,
                 history: ctx.items,
                 apiKey: rawKey,
@@ -177,6 +178,7 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
               })
             : self.VieGemini.translateWithGeminiAuto({
                 text: cleanText,
+                nextText,
                 videoTitle,
                 history: ctx.items,
                 apiKey: rawKey,
@@ -315,7 +317,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const tabId = sender.tab?.id ?? "global";
 
   if (msg.type === "TRANSLATE") {
-    handleTranslate(msg.text, msg.videoTitle || "", tabId, msg.fastPreviewOnly === true)
+    handleTranslate(msg.text, msg.videoTitle || "", tabId, msg.fastPreviewOnly === true, msg.nextText || "")
       .then(sendResponse)
       .catch((err) => sendResponse({ error: err.message || "Lỗi dịch phụ đề" }));
     return true;
@@ -332,6 +334,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
       const s = await self.VieStorage.getSettings();
       const rawKey = s.apiKey || (s.provider === "groq" ? s.groqApiKey : s.geminiApiKey) || "";
+      if (!rawKey) {
+        return { error: "NO_KEY", orig: "", vi: "" };
+      }
       const p = self.VieStorage.detectProviderFromKey(rawKey) || s.provider;
       let res = { orig: "", vi: "" };
       if (p === "groq") {
