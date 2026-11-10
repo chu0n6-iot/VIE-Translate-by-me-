@@ -363,6 +363,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     dualSub: true,
     provider: "gemini",
     apiKey: "",
+    backupKeys: "",
     groqApiKey: "",
     geminiApiKey: "",
     model: "auto",
@@ -394,6 +395,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     (stored.apiKey.startsWith("AQ.") || stored.apiKey.startsWith("AIza") ? stored.apiKey : "");
   if (stored.apiKey && !keysByProvider.groq && !keysByProvider.gemini) {
     keysByProvider[stored.provider === "gemini" ? "gemini" : "groq"] = stored.apiKey;
+  }
+
+  const backupKeysEl = document.getElementById("backupKeys");
+  if (backupKeysEl) {
+    backupKeysEl.value = stored.backupKeys || "";
+    backupKeysEl.addEventListener("change", () => chrome.storage.local.set({ backupKeys: backupKeysEl.value.trim() }));
   }
 
   enabledInput.checked = Boolean(stored.enabled);
@@ -757,6 +764,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await chrome.storage.local.set({
       provider: p,
       apiKey: key,
+      backupKeys: (document.getElementById("backupKeys")?.value || "").trim(),
       groqApiKey: keysByProvider.groq,
       geminiApiKey: keysByProvider.gemini,
       model: modelValue
@@ -764,13 +772,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (!silent) {
       triggerToadHop();
-      triggerMicroToast("💾 Đã lưu cài đặt!");
-      setToadSay("Ộp ộp! Đã lưu mọi tùy chỉnh phụ đề của bạn! 🐸💛");
+      triggerMicroToast("Đã lưu");
+      setToadSay("Đã lưu rồi nhé!");
       showStatus("✓ Đã lưu toàn bộ cài đặt thành công!", "ok");
       if (saveBtn) {
         const origText = saveBtn.textContent;
         saveBtn.classList.add("btn-saved-anim");
-        saveBtn.textContent = "✨ Đã lưu thành công!";
+        saveBtn.textContent = "Đã lưu";
         setTimeout(() => {
           saveBtn.classList.remove("btn-saved-anim");
           saveBtn.textContent = origText;

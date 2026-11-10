@@ -127,6 +127,49 @@ async function resolveSecondaryTranslation(cleanText, secondaryLang, targetLang)
   }
 }
 
+const keyCooldown = new Map();
+const KEY_COOLDOWN_MS = 15 * 60 * 1000;
+
+function isQuotaError(err) {
+  return !!(err && (err.isQuotaExceeded || err.status === 429 ||
+    /quota|resource_exhausted|rate_limit|exceeded your current quota|429/i.test(err.message || "")));
+}
+
+function buildKeyPool(settings, rawKey) {
+  const list = [rawKey, ...String(settings.backupKeys || "").split(/[\s,;]+/), settings.geminiApiKey, settings.groqApiKey];
+  const seen = new Set();
+  return list
+    .map((k) => (k || "").trim())
+    .filter((k) => k && self.VieStorage.detectProviderFromKey(k) && !seen.has(k) && seen.add(k));
+}
+
+async function withKeyPool(settings, rawKey, fn) {
+  const pool = buildKeyPool(settings, rawKey);
+  const now = Date.now();
+  const avail = pool.filter((k) => (keyCooldown.get(k) || 0) <= now);
+  let lastErr = null;
+  let quotaHits = 0;
+  for (const key of avail) {
+    try {
+      return await fn(key, self.VieStorage.detectProviderFromKey(key));
+    } catch (err) {
+      lastErr = err;
+      if (isQuotaError(err)) {
+        quotaHits++;
+        keyCooldown.set(key, Date.now() + KEY_COOLDOWN_MS);
+      }
+    }
+  }
+  const e = lastErr || new Error("no key available");
+  e.allKeysExhausted = pool.length > 0 && (avail.length === 0 || quotaHits === avail.length);
+  throw e;
+}
+
+function limitTranslationLength(vi, src) {
+  const max = Math.max(60, Math.round((src || "").length * 2.3));
+  return (vi || "").length > max ? "" : vi;
+}
+
 async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = false, nextText = "") {
   const cleanText = (rawText || "").replace(/\s+/g, " ").trim();
   if (!cleanText) return { vi: "" };
@@ -161,38 +204,19 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
       }
 
       try {
-        const [result, sub2] = await Promise.all([
-          targetProvider === "groq"
-            ? self.VieGroq.translateWithGroqAuto({
-                text: cleanText,
-                nextText,
-                videoTitle,
-                history: ctx.items,
-                apiKey: rawKey,
-                preferredModel: settings.model || "auto",
-                targetLang,
-                translationStyle: settings.translationStyle,
-                pronounStyle: settings.pronounStyle,
-                lockedPronounPair: ctx.lockedPronounPair,
-                softenProfanity: settings.softenProfanity !== false
-              })
-            : self.VieGemini.translateWithGeminiAuto({
-                text: cleanText,
-                nextText,
-                videoTitle,
-                history: ctx.items,
-                apiKey: rawKey,
-                preferredModel: settings.model || "auto",
-                targetLang,
-                translationStyle: settings.translationStyle,
-                pronounStyle: settings.pronounStyle,
-                lockedPronounPair: ctx.lockedPronounPair,
-                softenProfanity: settings.softenProfanity !== false
-              }),
-          sub2Promise
-        ]);
+        const callAI = (key, prov) => {
+          const common = {
+            text: cleanText, nextText, videoTitle, history: ctx.items, apiKey: key,
+            preferredModel: settings.model || "auto", targetLang,
+            translationStyle: settings.translationStyle, pronounStyle: settings.pronounStyle,
+            lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false
+          };
+          return prov === "groq" ? self.VieGroq.translateWithGroqAuto(common) : self.VieGemini.translateWithGeminiAuto(common);
+        };
+        const [result, sub2] = await Promise.all([withKeyPool(settings, rawKey, callAI), sub2Promise]);
 
-        const rawVi = result.vi || "";
+        const rawVi = limitTranslationLength(result.vi || "", cleanText);
+        if (!rawVi) throw new Error("translation too long or empty");
         const finalVi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson) : rawVi;
         if (finalVi) {
           setCached(cacheKey, finalVi);
@@ -204,7 +228,7 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
         const [rawVi, sub2] = await Promise.all([self.VieGTX.translate(cleanText, targetLang), sub2Promise]);
         const vi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson) : rawVi;
         if (vi) setCached(`gtx:${self.VieStorage.getCacheKey(cleanText, settings)}`, vi);
-        return { vi, sub2, provider: "gtx" };
+        return { vi, sub2, provider: "gtx", quotaExhausted: !!err.allKeysExhausted };
       }
     } finally {
       inFlight.delete(cacheKey);
@@ -254,37 +278,20 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
   }
 
   try {
-    const batchRes =
-      provider === "groq"
-        ? await self.VieGroq.translateWithGroqAuto({
-            texts: uncached,
-            videoTitle,
-            history: ctx.items,
-            apiKey: rawKey,
-            preferredModel: settings.model || "auto",
-            targetLang,
-            translationStyle: settings.translationStyle,
-            pronounStyle: settings.pronounStyle,
-            lockedPronounPair: ctx.lockedPronounPair,
-            softenProfanity: settings.softenProfanity !== false
-          })
-        : await self.VieGemini.translateWithGeminiAuto({
-            texts: uncached,
-            videoTitle,
-            history: ctx.items,
-            apiKey: rawKey,
-            preferredModel: settings.model || "auto",
-            targetLang,
-            translationStyle: settings.translationStyle,
-            pronounStyle: settings.pronounStyle,
-            lockedPronounPair: ctx.lockedPronounPair,
-            softenProfanity: settings.softenProfanity !== false
-          });
+    const batchRes = await withKeyPool(settings, rawKey, (key, prov) => {
+      const common = {
+        texts: uncached, videoTitle, history: ctx.items, apiKey: key,
+        preferredModel: settings.model || "auto", targetLang,
+        translationStyle: settings.translationStyle, pronounStyle: settings.pronounStyle,
+        lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false
+      };
+      return prov === "groq" ? self.VieGroq.translateWithGroqAuto(common) : self.VieGemini.translateWithGeminiAuto(common);
+    });
 
     const translations = batchRes.translations || [];
     for (let i = 0; i < uncached.length; i++) {
       const src = uncached[i];
-      const rawVi = (translations[i] || "").trim();
+      const rawVi = limitTranslationLength((translations[i] || "").trim(), src);
       const vi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson) : rawVi;
       if (vi) {
         setCached(`${provider}:${self.VieStorage.getCacheKey(src, settings)}`, vi);
@@ -462,10 +469,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg.type === "OPEN_KEY_SETUP") {
+    const url = chrome.runtime.getURL("popup/popup.html");
+    try {
+      chrome.action.openPopup().catch(() => chrome.tabs.create({ url }));
+    } catch {
+      chrome.tabs.create({ url });
+    }
+    sendResponse({ ok: true });
+    return false;
+  }
+
   if (msg.type === "LOOKUP_WORD") {
     (async () => {
       const s = await self.VieStorage.getSettings();
-      const key = s.geminiApiKey || (/^AIza/.test(s.apiKey || "") ? s.apiKey : "") || "";
+      const gk = buildKeyPool(s, s.apiKey || "").filter((k) => self.VieStorage.detectProviderFromKey(k) === "gemini" && (keyCooldown.get(k) || 0) <= Date.now());
+      const key = gk[0] || "";
       const gtxFallback = async () => {
         let vi = "";
         try { vi = await self.VieGTX.translate(msg.word, s.targetLang || "vi"); } catch {}

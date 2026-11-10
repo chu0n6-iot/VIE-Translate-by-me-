@@ -95,6 +95,10 @@
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.75);
   white-space: normal;
   word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .vie-overlay[data-bg-style="outline"] .vie-vi {
@@ -912,4 +916,38 @@
   font-size: 13.5px;
   font-weight: 600;
   color: #fef08a;
+}
+
+/* Thông báo hết lượt AI */
+.vie-quota-toast {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 90%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(20, 20, 24, 0.92);
+  border: 1px solid rgba(250, 204, 21, 0.5);
+  color: #f1f5f9;
+  font: 500 13px/1.35 "Segoe UI", Roboto, Arial, sans-serif;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+.vie-quota-toast button {
+  border: 0;
+  border-radius: 7px;
+  padding: 5px 10px;
+  font: 600 12px "Segoe UI", Roboto, Arial, sans-serif;
+  cursor: pointer;
+  background: #facc15;
+  color: #1a1a1a;
+}
+.vie-quota-toast button.vie-quota-close {
+  background: transparent;
+  color: #94a3b8;
+  padding: 2px 6px;
 }
