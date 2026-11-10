@@ -2106,7 +2106,7 @@ async function handleLookupWord(rawWord, sentence, videoTitle) {
   const targetLang = settings.targetLang || "vi";
   const langLabel = LANGUAGE_NAMES[targetLang] || "Tiếng Việt";
 
-  const cacheKey = `dict_v2:${effectiveProvider}:${targetLang}:${word.toLowerCase()}:${(sentence || "").slice(0, 60)}`;
+  const cacheKey = `dict_v3:${effectiveProvider}:${targetLang}:${word.toLowerCase()}:${(sentence || "").slice(0, 60)}`;
   const cached = getCached(cacheKey);
   if (cached) {
     try {
@@ -2119,11 +2119,12 @@ async function handleLookupWord(rawWord, sentence, videoTitle) {
   const prompt =
     `Bạn là chuyên gia ngôn ngữ học & giáo viên bản xứ. Hãy phân tích chi tiết từ/cụm từ "${word}" trong câu phụ đề: "${sentence}"` +
     (videoTitle ? ` (Video: "${videoTitle}")` : "") +
-    ` sang ${langLabel} để người xem học sâu, nhớ lâu và biết dùng ngoài đời.\n` +
+    ` sang ${langLabel} để người xem học sâu, phân biệt từ loại và biết dùng chuẩn xác ngoài đời.\n` +
     `Trả về ĐÚNG các dòng sau theo định dạng chuẩn (không dùng dấu markdown ** hay giải thích ngoài lề):\n` +
     `PRON: [Phiên âm chuẩn quốc tế IPA]\n` +
-    `POS: [Từ loại song ngữ rõ ràng, ví dụ: Động từ (Verb) / Danh từ (Noun) / Tính từ (Adjective) / Trạng từ (Adverb) / Cụm động từ (Phrasal Verb) / Thành ngữ (Idiom) / Tiếng lóng (Slang)]\n` +
+    `POS: [Từ loại chính xác của từ trong câu này: Động từ (Verb) / Danh từ (Noun) / Tính từ (Adjective) / Trạng từ (Adverb) / Cụm động từ (Phrasal Verb) / Thành ngữ (Idiom) / Tiếng lóng (Slang)]\n` +
     `MEANING: [Nghĩa tự nhiên, chuẩn xác nhất của từ trong ngữ cảnh câu này bằng ${langLabel}]\n` +
+    `MULTI_POS: [Nếu từ "${word}" có thể thuộc NHIỀU từ loại khác nhau (ví dụ vừa là Verb vừa là Noun hay Adj), hãy chỉ rõ sự khác nhau về ngữ nghĩa, phát âm/trọng âm và cách dùng giữa các từ loại đó theo định dạng: [Động từ]: nghĩa & cách dùng & ví dụ ngắn // [Danh từ]: nghĩa & cách dùng & ví dụ ngắn // [Tính từ]: nghĩa & cách dùng & ví dụ ngắn. Nếu từ này chỉ có đúng 1 từ loại duy nhất trong từ điển, ghi: 'Không có']\n` +
     `EXAMPLES: [2 câu ví dụ thực tế khác ngoài đời kèm dịch ${langLabel}, định dạng: Ví dụ 1 | Dịch 1 // Ví dụ 2 | Dịch 2]\n` +
     `FACT: [1 Fact thú vị hoặc Mẹo nhớ: Nguồn gốc từ nguyên độc lạ, văn hóa bản xứ, cách dùng hài hước hoặc mẹo nhớ siêu tốc]\n` +
     `SYNONYMS: [2-4 từ đồng nghĩa hoặc cụm collocation hay đi cùng, cách nhau bởi dấu phẩy]`;
@@ -2174,6 +2175,7 @@ async function handleLookupWord(rawWord, sentence, videoTitle) {
     pron: "",
     pos: "Từ vựng (Word)",
     meaning: wordMeaning || word,
+    posVariants: [],
     examples: sentence ? [{ orig: sentence, trans: sentenceMeaning }] : [],
     fact: "",
     synonyms: [],
@@ -2195,6 +2197,7 @@ function parseLookupOutput(word, rawText) {
   let note = "";
   let fact = "";
   let rawExamples = "";
+  let rawMultiPos = "";
   let synonyms = "";
 
   let currentSection = "";
@@ -2216,6 +2219,12 @@ function parseLookupOutput(word, rawText) {
     if (mMean) {
       meaning = mMean[1].trim();
       currentSection = "meaning";
+      continue;
+    }
+    const mMulti = line.match(/^(?:MULTI_POS|POS_VARIANTS|Đa từ loại|Các từ loại khác|So sánh từ loại)\s*:\s*(.+)$/i);
+    if (mMulti) {
+      rawMultiPos = mMulti[1].trim();
+      currentSection = "multipos";
       continue;
     }
     const mEx = line.match(/^(?:EXAMPLES?|Ví dụ|Ví dụ khác)\s*:\s*(.+)$/i);
@@ -2243,12 +2252,34 @@ function parseLookupOutput(word, rawText) {
       continue;
     }
 
-    if (currentSection === "examples") {
+    if (currentSection === "multipos") {
+      rawMultiPos = (rawMultiPos ? rawMultiPos + " // " : "") + line;
+    } else if (currentSection === "examples") {
       rawExamples = (rawExamples ? rawExamples + " // " : "") + line;
     } else if (currentSection === "fact") {
       fact = (fact ? fact + " " : "") + line;
     } else if (currentSection === "meaning" && !meaning) {
       meaning = line;
+    }
+  }
+
+  // Parse multi-pos variants into structured array: [{ pos: "...", desc: "..." }]
+  const posVariants = [];
+  if (rawMultiPos && !/^(?:không có|không|none|k có|ko có|na|n\/a)$/i.test(rawMultiPos.trim())) {
+    const items = rawMultiPos.split(/\s*(?:\/{2,}|\n)\s*/).filter(Boolean);
+    for (const item of items) {
+      const match = item.match(/^\s*\[?([^\]:–—]+)\]?\s*[:–—]\s*(.+)$/);
+      if (match) {
+        posVariants.push({
+          pos: match[1].replace(/^[\[\(]+|[\]\)]+$/g, "").trim(),
+          desc: match[2].trim()
+        });
+      } else if (item.trim()) {
+        posVariants.push({
+          pos: "Khác",
+          desc: item.trim()
+        });
+      }
     }
   }
 
@@ -2290,6 +2321,7 @@ function parseLookupOutput(word, rawText) {
     pron,
     pos: pos || "Từ vựng (Word)",
     meaning,
+    posVariants,
     examples,
     fact,
     synonyms: synonymList,
