@@ -100,11 +100,31 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, 1350);
   }
 
+  const SUBTLE_EASTER_EGGS = [
+    "🎬 Vietsub mượt đến mức cứ ngỡ đang cày bộ phim mới lúc nửa đêm...",
+    "🍿 Chất lượng phụ đề nét căng chuẩn rạp, hội mê rổ phim nhìn là ưng bụng liền!",
+    "🐸 Đổi bao nhiêu tên miền đi nữa thì Cóc vẫn ở đây dịch phim mới cho bạn!",
+    "✨ Góc nhỏ cho dân sành phim: Nhặt trọn từng câu thoại vào chiếc rổ kỷ niệm!"
+  ];
+  let easterEggIdx = 0;
+
   function triggerToadHop() {
     if (!toadAvatarWrap) return;
     toadAvatarWrap.classList.remove("toad-hop");
     void toadAvatarWrap.offsetWidth;
     toadAvatarWrap.classList.add("toad-hop");
+  }
+
+  if (toadAvatarWrap) {
+    toadAvatarWrap.style.cursor = "pointer";
+    toadAvatarWrap.title = "Bấm vào Cóc để nghe tâm sự điện ảnh 🐸🍿";
+    toadAvatarWrap.addEventListener("click", () => {
+      triggerToadHop();
+      const quote = SUBTLE_EASTER_EGGS[easterEggIdx % SUBTLE_EASTER_EGGS.length];
+      easterEggIdx++;
+      setToadSay(quote);
+      triggerMicroToast("🍿 Easter Egg Điện Ảnh!");
+    });
   }
 
   function flashPreviewStage() {
@@ -168,7 +188,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     previewOrig.style.display = showDual ? "block" : "none";
     previewOrig.textContent = SAMPLE_SENTENCES[sLang] || SAMPLE_SENTENCES.orig;
 
-    if (tLang === "vi") {
+    const tStyle = translationStyleSelect ? translationStyleSelect.value : "natural";
+    if (tStyle === "unhinged") {
+      previewVi.textContent = "💀 Quả rizz này skibidi vãi chưởng, múa quạt như Khá Bảnh ở Ohio luôn lil bro! 🐶🔥";
+    } else if (tLang === "vi") {
       if (pStyle === "toi_ban") previewVi.textContent = SAMPLE_SENTENCES.vi_toi;
       else if (pStyle === "anh_em") previewVi.textContent = SAMPLE_SENTENCES.vi_anh;
       else previewVi.textContent = SAMPLE_SENTENCES.vi_minh;

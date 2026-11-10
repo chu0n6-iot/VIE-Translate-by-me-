@@ -201,6 +201,9 @@
     "div[data-e2e='feed-video']",
     "div[class*='DivVideoContainer']",
     "div[class*='video-player-container']",
+    // Classic Cinema & Streaming Wrappers (Easter Egg Support: rổ phim & phim mới)
+    "#box-player",
+    ".watch-player",
     "article"
   ].join(", ");
 
@@ -337,7 +340,7 @@
             <button type="button" class="vie-sync-btn vie-sync-auto" title="Tự động đối chiếu âm thanh thực tế và lời bài hát để căn chuẩn nhịp">🎯 Căn tự động</button>
             <button type="button" class="vie-sync-btn vie-sync-reset" title="Đặt lại độ lệch về 0s" style="display:none;">↺</button>
           </div>
-          <span class="vie-learn-tip">💡 Bấm từ bất kỳ để tra từ điển</span>
+          <span class="vie-learn-tip" title="Vietsub mượt như hồi còn cày phim mới đêm khuya, nhặt trọn vào rổ phim của bạn 🍿">💡 Bấm từ bất kỳ để tra từ điển</span>
         `;
 
         overlay.appendChild(origLine);

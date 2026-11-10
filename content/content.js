@@ -13,6 +13,10 @@
     if (!settings.enabled) return;
     const overlay = root.VieDOM?.getOrCreateOverlay(video, settings);
     if (!overlay) return;
+    if (overlay._subMuted) {
+      overlay.classList.add("vie-hidden");
+      return;
+    }
 
     const cleanOrigRaw = (origText || "")
       .replace(/^(?:\*{1,2})?(?:ORIG(?:INAL)?|GỐC)\s*:\s*(?:\*{1,2})?/i, "")
@@ -21,7 +25,15 @@
     const cleanViRaw = (viText || "")
       .replace(/^(?:\*{1,2})?(?:TRANS(?:LATION)?|DỊCH|VIETNAMESE|VI|ORIG(?:INAL)?|GỐC)\s*:\s*(?:\*{1,2})?/i, "")
       .replace(/^(?:ORIG|GỐC|ORIGINAL)\b[:\s-]*/i, "")
+      .replace(/^(?:Tôi đang dịch|Đang dịch|Dưới đây là bản dịch)\s*[:\s-]*/i, "")
       .trim();
+
+    // Giấu ngay lập tức nếu sub chứa câu chữ AI tự nói về mình ("Tôi đang dịch...") hoặc rò rỉ prompt
+    const isLeakFn = root.VieStorage?.isAiMetaOrPromptLeak;
+    if (isLeakFn && (isLeakFn(cleanOrigRaw) || isLeakFn(cleanViRaw))) {
+      root.VieDOM?.hideOverlay(video);
+      return;
+    }
 
     const isLyrics = Boolean(root.VieCaptions?.ytCueState?.isLyrics);
     const { formattedOrig, formattedVi } = root.VieDOM.formatSubtitleDecorations(cleanOrigRaw, cleanViRaw, isLyrics);

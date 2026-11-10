@@ -351,8 +351,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           targetLang: s.targetLang || "vi"
         });
       }
-      const cleanVi = (res?.vi || "").replace(/^(?:ORIG|GỐC|ORIGINAL)\b[:\s-]*/i, "").trim();
+      const cleanVi = (res?.vi || "")
+        .replace(/^(?:ORIG|GỐC|ORIGINAL)\b[:\s-]*/i, "")
+        .replace(/^(?:Tôi đang dịch|Đang dịch|Dưới đây là bản dịch)\s*[:\s-]*/i, "")
+        .trim();
       const cleanOrig = (res?.orig || "").replace(/^(?:ORIG|GỐC|ORIGINAL)\b[:\s-]*/i, "").trim();
+      if (self.VieStorage.isAiMetaOrPromptLeak(cleanOrig) || self.VieStorage.isAiMetaOrPromptLeak(cleanVi)) {
+        return { orig: "", vi: "", sub2: "" };
+      }
       return { orig: cleanOrig, vi: cleanVi, sub2: res?.sub2 || "" };
     })()
       .then(sendResponse)

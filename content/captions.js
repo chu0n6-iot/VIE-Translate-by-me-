@@ -617,6 +617,10 @@
     }
 
     const state = getVideoState(video);
+    if (state.subMuted) {
+      root.VieDOM?.hideOverlay(video);
+      return true;
+    }
     const t = Math.max(0, (video.currentTime || 0) - (state.subSyncOffset || 0));
     let lo = 0, hi = cues.length - 1, idx = -1;
     while (lo <= hi) {
@@ -885,9 +889,58 @@
       state.toadBtnEl = btn;
     }
 
+    // Nút bật/tắt phụ đề 1-chạm ngay trên video, bật lại vẫn bắt kịp nhịp phim tức thì
+    let toggleBtn = state.subToggleBtnEl;
+    if (toggleBtn && toggleBtn.isConnected) {
+      if (toggleBtn.parentElement !== container) {
+        container.appendChild(toggleBtn);
+      }
+    } else {
+      toggleBtn = container.querySelector(":scope > .vie-quick-sub-toggle") || document.querySelector(".vie-quick-sub-toggle");
+      if (toggleBtn) {
+        if (toggleBtn.parentElement !== container) {
+          container.appendChild(toggleBtn);
+        }
+      } else {
+        toggleBtn = document.createElement("button");
+        toggleBtn.type = "button";
+        toggleBtn.className = "vie-quick-sub-toggle";
+        toggleBtn.title = "Bấm 1 phát để Bật / Tắt ngay phụ đề trên video (Bật lại vẫn khớp đúng nhịp phim!)";
+        toggleBtn.innerHTML = `<span>👁️ Sub: BẬT</span>`;
+        toggleBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          const st = getVideoState(video);
+          st.subMuted = !st.subMuted;
+          const ov = video._vieOverlay || document.querySelector(".vie-overlay");
+          if (ov) ov._subMuted = st.subMuted;
+
+          if (st.subMuted) {
+            toggleBtn.classList.add("vie-sub-off");
+            toggleBtn.innerHTML = `<span>🙈 Sub: TẮT</span>`;
+            root.VieDOM?.hideOverlay(video);
+            showSyncToast(video, "🙈 Đã tạm ẩn phụ đề trên video");
+          } else {
+            toggleBtn.classList.remove("vie-sub-off");
+            toggleBtn.innerHTML = `<span>👁️ Sub: BẬT</span>`;
+            st.lastCueText = "";
+            st.lastText = "";
+            st.lastRenderedSeq = 0;
+            renderYouTubeByTime(video);
+            showSyncToast(video, "👁️ Đã bật lại phụ đề — Bắt kịp ngay nhịp phim hiện tại!");
+          }
+        });
+        container.appendChild(toggleBtn);
+      }
+      state.subToggleBtnEl = toggleBtn;
+    }
+
     // Prune các nút duplicate còn sót trên DOM
     document.querySelectorAll(".vie-toad-audio-btn").forEach((b) => {
       if (b !== btn) b.remove();
+    });
+    document.querySelectorAll(".vie-quick-sub-toggle").forEach((b) => {
+      if (b !== toggleBtn) b.remove();
     });
 
     updateToadButtonUI(video);
