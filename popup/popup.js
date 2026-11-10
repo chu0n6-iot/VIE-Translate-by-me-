@@ -323,7 +323,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function updateProviderUI(provider, keepCurrentKeyInput = false) {
-    const isGtx = provider === "gtx";
+    const isGtx = provider === "gtx" || provider === "ollama";
     apiSection.style.display = isGtx ? "none" : "block";
     testBtn.style.display = isGtx ? "none" : "inline-block";
 
@@ -488,7 +488,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     triggerToadHop();
     triggerMicroToast(`⚡ Chuyển bộ máy: ${p.toUpperCase()}`);
     const key = apiKeyInput.value.trim();
-    if (p !== "gtx" && key && key === verifiedKey) {
+    if (p !== "gtx" && p !== "ollama" && key && key === verifiedKey) {
       chrome.storage.local
         .get({ availableModels: [], model: "auto", detectedModel: "" })
         .then((s) => {
@@ -856,7 +856,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   saveBtn.addEventListener("click", async () => {
     await saveCurrentSettings(false);
     const key = apiKeyInput.value.trim();
-    if (providerSelect.value !== "gtx" && key && key !== verifiedKey) {
+    if (providerSelect.value !== "gtx" && providerSelect.value !== "ollama" && key && key !== verifiedKey) {
       verifyKey(key);
     }
   });

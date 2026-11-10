@@ -1170,3 +1170,8 @@
       background: rgba(239, 68, 68, 0.15);
     }
 
+
+/* Local AI (Ollama) */
+.ollama-hint { font-size: 12px; opacity: 0.8; margin-top: 6px; line-height: 1.5; }
+.ollama-hint code { background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 4px; }
+#ollamaSection input, #ollamaSection select { width: 100%; margin: 4px 0 8px; box-sizing: border-box; }

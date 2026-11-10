@@ -50,8 +50,23 @@
       <select id="provider">
         <option value="gemini">Google Gemini AI (Free - Chuẩn ngữ cảnh & Xưng hô)</option>
         <option value="groq">Groq Cloud (Free - Tốc độ phản hồi siêu thanh)</option>
+        <option value="ollama">🏠 Local AI – Ollama (Miễn phí, riêng tư, chạy trên máy bạn)</option>
         <option value="gtx">Google Translate (Free - Tức thì, không cần Key)</option>
       </select>
+    </div>
+
+    <div id="ollamaSection" style="display:none">
+      <label for="ollamaUrl">Địa chỉ Ollama:</label>
+      <input type="text" id="ollamaUrl" value="http://localhost:11434" spellcheck="false" />
+      <label for="ollamaModel">Model:</label>
+      <select id="ollamaModel"><option value="">(tự chọn model tốt nhất)</option></select>
+      <button type="button" id="ollamaTestBtn" class="btn-change-key">🔄 Kiểm tra &amp; tải danh sách model</button>
+      <div id="ollamaStatus" class="ollama-hint"></div>
+      <div class="ollama-hint">
+        Không bắt buộc! Không cài Ollama thì tự dùng Google Translate miễn phí.<br />
+        1) Cài <a href="https://ollama.com/download" target="_blank">ollama.com</a> · 2) <code>ollama pull qwen2.5:7b</code><br />
+        3) Đặt biến môi trường <code>OLLAMA_ORIGINS=chrome-extension://*</code> rồi khởi động lại Ollama.
+      </div>
     </div>
 
     <div id="apiSection">
@@ -328,5 +343,6 @@
 
   <script src="../utils/storage.js"></script>
   <script src="popup.js"></script>
+  <script src="ollama.js"></script>
 </body>
 </html>
