@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="#-tiếng-việt-bản-hướng-dẫn-đầy-đủ-từ-a-z">🇻🇳 Bản Tiếng Việt (A–Z)</a> •
-  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.6.9`)</a> •
+  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.7.0`)</a> •
   <a href="#-english-complete-a-to-z-guide">🇬🇧 English Version (A–Z)</a> •
   <a href="#-version-history--new-mechanisms-changelog">📋 English Changelog</a>
 </p>
@@ -19,14 +19,14 @@
 ---
 
 > ⚡ **LƯU Ý DÀNH CHO CỘNG TÁC VIÊN / COLLABORATORS (TỐI ƯU HÓA AI INDEXING)**:
-> Codebase của dự án đã được đại tu và module hóa toàn diện (`v0.6.9`), loại bỏ hoàn toàn các God file cồng kềnh nhằm giúp các công cụ lập trình AI (Antigravity IDE, Cursor, GitHub Copilot...) đọc hiểu cực nhanh và tiết kiệm tối đa token.
+> Codebase của dự án đã được đại tu và module hóa toàn diện (`v0.7.0`), loại bỏ hoàn toàn các God file cồng kềnh nhằm giúp các công cụ lập trình AI (Antigravity IDE, Cursor, GitHub Copilot...) đọc hiểu cực nhanh và tiết kiệm tối đa token.
 > **Mẹo quan trọng:** Trước khi yêu cầu AI sửa lỗi hoặc phát triển tính năng mới, bạn **chỉ cần gõ kèm `@AI_CONTEXT.md` ở đầu câu lệnh**. AI sẽ lập tức nắm toàn bộ bản đồ kiến trúc mà **không cần quét lại toàn bộ codebase**, giúp tốc độ phản hồi tăng vọt!
 
 # 🇻🇳 TIẾNG VIỆT (Bản Hướng Dẫn Đầy Đủ Từ A–Z)
 
-**VIE-Translate (Translate Toad AI `v0.6.9`)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)**, kết hợp **Trợ Lý Học Ngoại Ngữ Chuyên Sâu (`Từ Loại POS • Ví Dụ Thực Tế • Fact Thú Vị & Mẹo Nhớ • Cụm Đi Kèm • Sổ Từ Vựng`)**, **Cân Chỉnh Độ Lệch Sub/Nhạc Tức Thì (`Sub Sync Calibration`)** và **Đọc Phát Âm Chuẩn Giọng Bản Xứ** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles (hỗ trợ Facebook, TikTok, Twitter/X & web HTML5 bất kỳ)**.
+**VIE-Translate (Translate Toad AI `v0.7.0`)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)**, kết hợp **Trợ Lý Học Ngoại Ngữ Chuyên Sâu (`Từ Loại POS • Ví Dụ Thực Tế • Fact Thú Vị & Mẹo Nhớ • Cụm Đi Kèm • Sổ Từ Vựng`)**, **Cân Chỉnh Độ Lệch Sub/Nhạc Tức Thì (`Sub Sync Calibration`)** và **Đọc Phát Âm Chuẩn Giọng Bản Xứ** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles (hỗ trợ Facebook, TikTok, Twitter/X & web HTML5 bất kỳ)**.
 
-## ✨ Tính Năng Nổi Bật (`v0.6.9`)
+## ✨ Tính Năng Nổi Bật (`v0.7.0`)
 
 1. **📚 Phần Học Từ Vựng Đa Chiều Đặc Sắc (Rich Vocabulary Engine)**:
    - **Huy hiệu từ loại song ngữ trực quan (POS Badges)**: Tự động phân loại Động từ (Verb), Danh từ (Noun), Tính từ (Adjective), Trạng từ (Adverb), Cụm động từ (Phrasal Verb), Thành ngữ (Idiom), Tiếng lóng (Slang) với màu sắc bắt mắt.
@@ -38,12 +38,12 @@
    - **Tự động căn chỉnh độ lệch Intro của MV ca nhạc**: Tự động so khớp mốc thời gian phát âm thực từ phụ đề YouTube ASR với lời bài hát LRCLIB; tự động bù trừ khoảng chênh lệch thời lượng (`durationDelta`) của các Official Music Video (có đoạn thoại/cảnh phim mở đầu) và đọc thẻ chuẩn `[offset: +/-ms]` trong file LRC để phụ đề khớp từng nhịp hát.
    - **Thanh chỉnh lệch sub 1-chạm (`⏱️ Lệch sub: ⏪ -1s / 0s / +1s ⏩ / ↺`)**: Nằm ngay trên thanh công cụ học tập dưới câu phụ đề, cho phép bạn bấm nới nhanh ±1s (hoặc nhiều giây) tức thì để phụ đề trễ lại hay chạy sớm theo ý muốn.
 3. **🎵 Thêm Nốt Nhạc (`♪ ... ♪`) & Dấu Câu Biểu Cảm Phong Phú**:
-   - Tự động bao bọc lời bài hát bằng nốt nhạc `♪ ... ♪` cho cả câu gốc và câu dịch.
+   - Tự động bao bọc lời bài hát bằng nốt nhạc `♪ ... ♪` cho cả câu gốc và câu dịch (chỉ áp dụng cho bài hát, tuyệt đối không gắn vào lời nói chuyện đối thoại).
    - Bổ sung quy tắc dịch AI thêm dấu câu biểu cảm vào các câu đặc thù: `?` cho câu hỏi, `!` / `!?` cho câu cảm thán/kinh ngạc, `...` cho câu ngập ngừng/thì thầm/bỏ lửng, `“...”` khi trích dẫn lời thoại.
 4. **🔊 Đọc Ngoại Ngữ Chuẩn Giọng Bản Xứ (Native Foreign Voice TTS)**:
    - Tự động nhận diện ngôn ngữ của từ vựng / câu thoại (Tiếng Anh 🇬🇧, Tiếng Pháp 🇫🇷, Tiếng Nhật 🇯🇵, Tiếng Hàn 🇰🇷, Tiếng Trung 🇨🇳, Tiếng Đức 🇩🇪, Tiếng Tây Ban Nha 🇪🇸, Tiếng Nga 🇷🇺...) và kích hoạt đúng giọng đọc bản xứ (`en-US`, `fr-FR`, `ja-JP`, `ko-KR`...), loại bỏ hoàn toàn tình trạng dùng giọng đọc tiếng Việt đọc từ tiếng nước ngoài.
 5. **🎓 Dừng Cảnh & Xem Thêm Ngữ Cảnh Thực Tế (`Scene Nuance Coach`)**:
-   - **Rê chuột hoặc bấm dừng video để học ngay trên câu thoại (`Hover-to-Pause & Action Bar`)**: Hiện thanh công cụ học tập (`🎓 Xem thêm: Ngữ cảnh & Cách dùng thực tế` • `🔊 Nghe câu` • `⏱️ Lệch sub`).
+   - **Rê chuột hoặc bấm dừng video để học ngay trên câu thoại (`Hover-to-Pause & Action Bar`)**: Hiện thanh công cụ học tập (`🎓 Xem thêm: Ngữ cảnh & Cách dùng thực tế` • `🔍 Quét chữ màn hình (OCR)` • `🔊 Nghe câu` • `⏱️ Lệch sub`).
    - **Nút `🎓 Xem thêm` (*"Ồ, hóa ra đoạn này dịch ra như ri à!"*)**: Bóc tách **Nghĩa đen từng chữ (`LITERAL`)**, **Tại sao trong cảnh này dịch như vậy (`NUANCE`)**, **Cách người bản xứ dùng thực tế ngoài đời (`USAGE`)**, **Từ vựng & Idiom ăn điểm (`VOCAB`)** và **Ví dụ áp dụng ngay (`EXAMPLE`)**.
 6. **⚡ Tối Ưu Hóa Dịch Real-Time & Auto-Captions (Zero-Starvation Engine)**:
    - Cơ chế **0ms Fast Preview + 95ms AI Refinement** giúp phụ đề hiện tức thì ngay khi nhân vật mở lời và tự nâng cấp lên bản dịch AI mượt mà không bị trễ nhịp.
@@ -56,7 +56,24 @@
 
 ## 🚀 Lịch Sử Cập Nhật & Các Cơ Chế Mới (Changelog)
 
-### 🌟 Phiên bản `v0.6.9` (Mới nhất) — *Cứu Hộ Quota API Key 429 Tự Động, Tự Bật Phụ Đề YouTube & Tối Ưu Hóa 0-Token*
+### 🌟 Phiên bản `v0.7.0` (Mới nhất) — *Chặn Rò Rỉ Câu Chữ AI, Nút Ẩn/Hiện Sub 1-Chạm, Phong Cách Unhinged Brainrot 💀 & Easter Eggs Điện Ảnh*
+- **🛡️ Khắc Phục Triệt Để Lỗi Hiện Câu Chữ AI Tự Nói / Rò Rỉ Prompt (`isAiMetaOrPromptLeak Filter`)**:
+  - **Nguyên nhân**: Khi đoạn âm thanh thu được từ video là khoảng lặng hoặc tiếng nhạc không có lời nói, model Gemini Audio đôi khi tự lặp lại câu lệnh prompt tiếng Anh (`Listen to this audio clip and transcribe... Format JSON ONLY...`) vào trường `orig` và dịch luôn câu prompt đó sang tiếng Việt (`Hãy nghe đoạn âm thanh này và phiên âm lời nói...`) hoặc xuất ra câu tự thuật (`Tôi đang dịch...`).
+  - **Giải pháp 3 lớp**:
+    1. Tách riêng chỉ thị hệ thống (`systemInstruction`) trong `transcribeAndTranslateWithGeminiAudio`: bắt buộc trả về `{"orig":"","vi":""}` nếu không có giọng nói rõ ràng.
+    2. Xây dựng bộ lọc đa tầng `isAiMetaOrPromptLeak` trong `utils/storage.js`, `api/gemini.js`, `background/background.js` và `content/content.js`.
+    3. Bất kỳ câu phụ đề nào chứa nội dung rò rỉ prompt hoặc câu tự nói của AI (*"Tôi đang dịch..."*, *"Dưới đây là bản dịch..."*, *"Listen to this audio..."*, *"Format JSON ONLY..."*) đều bị chặn và giấu đi ngay lập tức 100%.
+- **👁️ Nút Bật / Tắt Phụ Đề Tức Thì 1-Chạm Ngay Trên Video (`1-Click Instant Sub Toggle & Resync`)**:
+  - Bổ sung nút nổi **`👁️ Sub: BẬT` / `🙈 Sub: TẮT`** (`.vie-quick-sub-toggle`) nằm ngay góc trên bên phải video (cạnh nút AI Nghe & Dịch).
+  - **Tắt 1 phát ăn ngay**: Bấm một chạm là ẩn sạch khung phụ đề ngay lập tức để xem cảnh phim trọn vẹn.
+  - **Bật lại bắt kịp nhịp phim 0ms**: Khi bấm bật lại, hệ thống tự động xóa cache câu cũ (`lastCueText = ""`), lập tức đồng bộ với mốc `video.currentTime` hiện tại và hiển thị ngay câu thoại đúng nhịp phim mà không bị trễ hay lệch câu.
+- **💀 Phong Cách Biên Dịch Mới: `💀 Unhinged / Brainrot & Family Guy` (`Unhinged Meme Translation Style`)**:
+  - Thêm chế độ dịch thuật bá đạo nhất trong tab **🌍 Ngôn Ngữ**: **💀 Unhinged / Brainrot & Family Guy**.
+  - Dịch theo phong cách châm biếm cực gắt của *Family Guy* (Peter Griffin / Stewie), kết hợp từ lóng brainrot (*skibidi, rizz chúa, mewing, ohio, sigma, fanum tax, cook luôn, sủi*), dark jokes và các nhân vật meme huyền thoại (*IShowSpeed, Khá Bảnh múa quạt, Charlie Kirk, Lapeace, Gigachad*) nhưng vẫn bám sát tình tiết cốt truyện để người xem hiểu phim.
+- **🍿 Subtle Cinema Easter Eggs (`phimmoi` & `rophim` Tributes)**:
+  - Thêm các Easter Eggs tinh tế dành cho hội mê phim khi bấm vào chú cóc **Translate Toad** trong Popup hoặc rê chuột lên dòng mẹo trên thanh học tập, cùng bộ nhận diện khung trình phát cổ điển (`#box-player`, `.watch-player`).
+
+### 🌟 Phiên bản `v0.6.9` — *Cứu Hộ Quota API Key 429 Tự Động, Tự Bật Phụ Đề YouTube, Sửa Lỗi Tua Video & Quét Chữ Màn Hình OCR*
 - **🛡️ Cơ chế Cứu hộ Quota API Key 429 & Tự động Kích hoạt Dự phòng Miễn phí (`Automated Quota Recovery & Free Backup`)**:
   - **Bản chất lỗi Quota 429 trên Google AI Studio**: Các model thử nghiệm/preview (`gemini-3.8-flash`...) bị Google áp giới hạn nghiêm ngặt chỉ **20 lượt gọi/ngày (20 RPD)** trên Free Tier. Khi một dự án chạm mốc này, mọi API Key mới tạo trong cùng dự án đó đều bị Google từ chối với mã lỗi `429: Generate content requests per day limit exceeded... Please retry in 6h49m...`.
   - **Tự động ưu tiên Model hạn ngạch cao 1,500 RPD**: Hệ thống tự động đẩy các model nhẹ có hạn ngạch lớn gấp 75 lần (`gemini-2.5-flash-lite`, `gemini-2.0-flash-lite`, `gemini-2.0-flash` với 1,500 lượt/ngày) lên đầu danh sách ưu tiên (+2500 điểm), chấm dứt việc tự ý gọi model preview gây lãng phí quota.
@@ -217,7 +234,19 @@
 
 ## 📋 Version History & New Mechanisms (Changelog)
 
-### 🌟 `v0.6.9` (Latest) — *Automated Quota 429 Recovery, YouTube Subtitle Auto-Start & Token Optimization*
+### 🌟 `v0.7.0` (Latest) — *AI Prompt Leak Filter, 1-Click Instant Sub Toggle, Unhinged Brainrot 💀 Style & Cinema Easter Eggs*
+- **🛡️ Multi-Layer AI Meta & Prompt Leak Filter (`isAiMetaOrPromptLeak`)**:
+  - **Root Cause**: When an audio slice contained silence or background music, Gemini Audio occasionally echoed the English prompt instructions (`Listen to this audio clip... Format JSON ONLY...`) into `orig` and translated the prompt into Vietnamese (`Hãy nghe đoạn âm thanh này...`) or emitted self-referential text (`Tôi đang dịch...`).
+  - **Solution**: Moved instructions to `systemInstruction` with an explicit empty JSON rule for silence, and deployed `isAiMetaOrPromptLeak` across `utils/storage.js`, `api/gemini.js`, `background/background.js`, and `content/content.js` to immediately suppress any meta/prompt leak from appearing on screen.
+- **👁️ 1-Click Instant Subtitle Toggle & Resync (`👁️ Sub: BẬT` / `🙈 Sub: TẮT`)**:
+  - Added `.vie-quick-sub-toggle` button directly on the top-right corner of the video player.
+  - Instantly hides subtitles with 1 click, and when toggled back ON, clears cached text trackers and immediately resyncs to the exact current movie timestamp in 0ms.
+- **💀 New Translation Style: `💀 Unhinged / Brainrot & Family Guy`**:
+  - Added an unhinged, dark-humor, Family Guy-inspired satirical translation mode packed with internet brainrot slang (*skibidi, rizz, mewing, ohio, sigma, fanum tax*) and iconic meme references (*IShowSpeed, Khá Bảnh, Charlie Kirk, Lapeace*) while keeping the core plot understandable.
+- **🍿 Subtle Cinema Easter Eggs (`phimmoi` & `rophim` Tributes)**:
+  - Added subtle nostalgic movie-buff Easter Eggs on Toad mascot clicks in the popup, learn-bar tooltips, and classic streaming player selectors (`#box-player`, `.watch-player`).
+
+### 🌟 `v0.6.9` — *Automated Quota 429 Recovery, YouTube Subtitle Auto-Start & Token Optimization*
 - **🛡️ Automated API Quota 429 Recovery & Unlimited Free Fallback (`Automated Quota Recovery`)**:
   - **Root Cause of Error 429 on Google AI Studio**: Google strictly enforces a 20 request-per-day (RPD) limit on experimental/preview models (`gemini-3.8-flash`) on the Free Tier. When this threshold is crossed, all subsequent requests in the same project fail with HTTP 429 (`limit: 20, model: gemini-3.8-flash, description: Generate content requests per day limit exceeded...`).
   - **Automated High-Quota Prioritization**: Re-prioritized model discovery to promote high-quota lightweight models (`gemini-2.5-flash-lite`, `gemini-2.0-flash-lite`, `gemini-2.0-flash` with 1,500 RPD) with +2500 weights, preventing preview models from consuming project quotas.

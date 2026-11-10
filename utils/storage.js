@@ -33,7 +33,8 @@
     cinema: "Phong cách phụ đề điện ảnh / Netflix chuyên nghiệp: câu từ cô đọng, súc tích, giàu cảm xúc và nhịp điệu, chuyển tải trọn vẹn mạch tư duy và thần thái nhân vật. Tuyệt đối không dịch thô ngữ pháp ngoại lai.",
     academic: "Phong cách học thuật & chuyên ngành: dịch chuẩn xác thuật ngữ khoa học, kỹ thuật, lập trình, y sinh, kinh tế; diễn đạt mạch lạc, liên kết lập luận chặt chẽ giữa các câu.",
     genz: "Phong cách trẻ trung, hài hước, năng động (GenZ / Vlog / Gaming): dùng từ ngữ tự nhiên, bắt trend hợp ngữ cảnh nhưng diễn đạt thuần Việt liền mạch, giữ chuẩn ý câu gốc.",
-    literal: "Phong cách dịch đối chiếu song ngữ nhưng vẫn giữ câu cú tiếng Việt tự nhiên, không cụt lủn hay tối nghĩa."
+    literal: "Phong cách dịch đối chiếu song ngữ nhưng vẫn giữ câu cú tiếng Việt tự nhiên, không cụt lủn hay tối nghĩa.",
+    unhinged: "PHONG CÁCH UNHINGED, LÁO XƯƠNG & CHÂM BIẾM FAMILY GUY (Brainrot Meme Edition 💀): Ngôn từ siêu láo xược, châm biếm đen tối (dark humor), bựa bẩn không kiêng nể, cà khịa cực gắt đúng phong cách Peter Griffin / Stewie trong Family Guy. Sử dụng triệt để từ lóng brainrot đỉnh nóc kịch trần (skibidi, rizz chúa, mewing, ohio, sigma, fanum tax, cook luôn, ảo tưởng, sủi luôn, gà mờ). Lồng ghép khéo léo các meme nổi tiếng (IShowSpeed sủa gâu gâu/quậy tanh bành, Khá Bảnh múa quạt/đạo lý giang hồ mạng, Charlie Kirk tranh luận/mặt giọt nước, Lapeace, Gigachad, Homelander). Phá vỡ bức tường thứ 4, châm chọc nhân vật chính, đối đáp đanh đá cay độc nhưng VẪN PHẢI bám sát tình tiết cốt truyện để người xem hiểu phim. Giữ độ láo xược và unhinged tối đa 100%!"
   };
 
   const PRONOUN_INSTRUCTIONS = {
@@ -119,6 +120,35 @@
       if (k.startsWith("gsk_")) return "groq";
       if (k.startsWith("AQ.") || k.startsWith("AIza")) return "gemini";
       return "";
+    },
+
+    isAiMetaOrPromptLeak(text) {
+      if (!text) return false;
+      const s = String(text).trim();
+      const lower = s.toLowerCase();
+      if (
+        lower.includes("listen to this audio") ||
+        lower.includes("transcribe the spoken speech") ||
+        lower.includes("format json only") ||
+        lower.includes("exact spoken speech") ||
+        lower.includes("translation in vi") ||
+        lower.includes("lời nói chính xác bằng ngôn ngữ") ||
+        lower.includes("bản dịch sang tiếng việt") ||
+        lower.includes("đoạn âm thanh này và phiên âm") ||
+        lower.includes("format json")
+      ) {
+        return true;
+      }
+      if (
+        /^(?:tôi đang dịch|đang dịch\b|dưới đây là bản dịch|đây là bản dịch|bản dịch là:|bản dịch của tôi)/i.test(s) ||
+        lower.includes("tôi đang dịch") ||
+        lower.includes("tôi là mô hình ai") ||
+        lower.includes("tôi là một ai") ||
+        lower.includes("dưới đây là bản dịch")
+      ) {
+        return true;
+      }
+      return false;
     }
   };
 

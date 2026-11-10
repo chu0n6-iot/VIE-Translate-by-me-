@@ -245,16 +245,54 @@
     throw lastErr || new Error("All Gemini models failed.");
   }
 
+  function isAiMetaOrPromptLeak(text) {
+    if (!text) return false;
+    const s = String(text).trim();
+    const lower = s.toLowerCase();
+    if (
+      lower.includes("listen to this audio") ||
+      lower.includes("transcribe the spoken speech") ||
+      lower.includes("format json only") ||
+      lower.includes("exact spoken speech") ||
+      lower.includes("translation in vi") ||
+      lower.includes("lời nói chính xác bằng ngôn ngữ") ||
+      lower.includes("bản dịch sang tiếng việt") ||
+      lower.includes("đoạn âm thanh này và phiên âm") ||
+      lower.includes("format json")
+    ) {
+      return true;
+    }
+    if (
+      /^(?:tôi đang dịch|đang dịch\b|dưới đây là bản dịch|đây là bản dịch|bản dịch là:|bản dịch của tôi)/i.test(s) ||
+      lower.includes("tôi đang dịch") ||
+      lower.includes("tôi là mô hình ai") ||
+      lower.includes("tôi là một ai") ||
+      lower.includes("dưới đây là bản dịch")
+    ) {
+      return true;
+    }
+    return false;
+  }
+
   function sanitizeAudioText(t) {
+    if (!t || isAiMetaOrPromptLeak(t)) return "";
     return (t || "")
       .replace(/^(?:\*{1,2})?(?:ORIG(?:INAL)?|GỐC|TRANS(?:LATION)?|DỊCH)\s*:\s*(?:\*{1,2})?/i, "")
       .replace(/^(?:ORIG|GỐC|ORIGINAL)\b[:\s-]*/i, "")
+      .replace(/^(?:Tôi đang dịch|Đang dịch|Dưới đây là bản dịch)\s*[:\s-]*/i, "")
       .trim();
   }
 
   async function transcribeAndTranslateWithGeminiAudio({ audioBase64, mimeType, geminiKey, targetLang = "vi" }) {
     const candidates = await discoverGeminiModels(geminiKey);
     const body = {
+      systemInstruction: {
+        parts: [
+          {
+            text: `You are an accurate live speech captioner and translator. Listen to the audio clip, transcribe the exact spoken words into 'orig', and translate them into ${targetLang} into 'vi'. Never output prompt instructions, meta commentary, or disclaimers. If there is no clear speech (silence, music, noise), return {"orig":"","vi":""}. Return JSON ONLY: {"orig": "...", "vi": "..."}`
+          }
+        ]
+      },
       contents: [
         {
           role: "user",
@@ -266,7 +304,7 @@
               }
             },
             {
-              text: `Listen to this audio clip and transcribe the spoken speech, then translate it to ${targetLang}. Format JSON ONLY: {"orig": "exact spoken speech in original language", "vi": "translation in ${targetLang}"}`
+              text: `Transcribe and translate to ${targetLang}. JSON format: {"orig": "...", "vi": "..."}`
             }
           ]
         }
@@ -295,10 +333,14 @@
         if (parsed) {
           let orig = sanitizeAudioText(parsed.orig || "");
           let vi = sanitizeAudioText(parsed.vi || "");
+          if (isAiMetaOrPromptLeak(orig) || isAiMetaOrPromptLeak(vi)) {
+            continue;
+          }
           const gtxFn = self.VieGTX?.translate || self.VieGtx?.translateWithGoogleFree;
           if (orig && !vi && gtxFn) {
             try {
               vi = await gtxFn(orig, targetLang);
+              if (isAiMetaOrPromptLeak(vi)) vi = "";
             } catch {
               vi = orig;
             }

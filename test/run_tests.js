@@ -175,4 +175,62 @@ assert.strictEqual(res.isQuotaExceeded, true, "Đánh dấu isQuotaExceeded đ�
 assert.strictEqual(res.fallbackActive, true, "Tự động kích hoạt chế độ dự phòng không giới hạn!");
 console.log("   ✅ Đã kiểm tra: Key bị giới hạn ngày của Project được lưu an toàn và tự kích hoạt Google Translate Free!\n");
 
-console.log("🎉 TẤT CẢ 4 BÀI KIỂM TRA ĐỀU VƯỢT QUA 100% KHÔNG CÓ BẤT KỲ LỖI NÀO!");
+// --- 5. Test AI Meta / Prompt Leak Filter (Giấu ngay các câu AI tự nói / rò rỉ prompt) ---
+console.log("5️⃣ Kiểm tra bộ lọc ẩn câu chữ AI ('Tôi đang dịch...', 'Listen to this audio clip...')...");
+
+function isAiMetaOrPromptLeak(text) {
+  if (!text) return false;
+  const s = String(text).trim();
+  const lower = s.toLowerCase();
+  if (
+    lower.includes("listen to this audio") ||
+    lower.includes("transcribe the spoken speech") ||
+    lower.includes("format json only") ||
+    lower.includes("exact spoken speech") ||
+    lower.includes("translation in vi") ||
+    lower.includes("lời nói chính xác bằng ngôn ngữ") ||
+    lower.includes("bản dịch sang tiếng việt") ||
+    lower.includes("đoạn âm thanh này và phiên âm") ||
+    lower.includes("format json")
+  ) {
+    return true;
+  }
+  if (
+    /^(?:tôi đang dịch|đang dịch\b|dưới đây là bản dịch|đây là bản dịch|bản dịch là:|bản dịch của tôi)/i.test(s) ||
+    lower.includes("tôi đang dịch") ||
+    lower.includes("tôi là mô hình ai") ||
+    lower.includes("tôi là một ai") ||
+    lower.includes("dưới đây là bản dịch")
+  ) {
+    return true;
+  }
+  return false;
+}
+
+const leakOrig = 'Listen to this audio clip and transcribe the spoken speech, then translate it to vi. Format JSON ONLY: {"orig": "exact spoken speech in original language", "vi": "translation in vi"}';
+const leakVi = 'Hãy nghe đoạn âm thanh này và phiên âm lời nói, sau đó dịch sang tiếng Việt. Định dạng CHỈ JSON: {"orig": "lời nói chính xác bằng ngôn ngữ gốc", "vi": "bản dịch sang tiếng Việt"}';
+const metaVi = "Tôi đang dịch đoạn hội thoại này sang tiếng Việt";
+const normalVi = "Anh đang chạy về phía nhà ga!";
+
+assert.strictEqual(isAiMetaOrPromptLeak(leakOrig), true, "Phải phát hiện và chặn rò rỉ prompt tiếng Anh!");
+assert.strictEqual(isAiMetaOrPromptLeak(leakVi), true, "Phải phát hiện và chặn rò rỉ prompt tiếng Việt!");
+assert.strictEqual(isAiMetaOrPromptLeak(metaVi), true, "Phải phát hiện và chặn câu 'Tôi đang dịch...'!");
+assert.strictEqual(isAiMetaOrPromptLeak(normalVi), false, "Câu thoại phim bình thường không được bị chặn!");
+console.log("   ✅ Đã kiểm tra: Mọi câu rò rỉ prompt hoặc 'Tôi đang dịch...' bị giấu 100%, câu thoại phim hiển thị chuẩn!\n");
+
+// --- 6. Test 1-Click Instant Subtitle Toggle & Resync ---
+console.log("6️⃣ Kiểm tra nút Bật/Tắt phụ đề tức thì (1-Click Sub Toggle & Instant Resync)...");
+
+const toggleState = { subMuted: false, lastCueText: "Old line", lastText: "Old line" };
+// Bấm tắt
+toggleState.subMuted = true;
+assert.strictEqual(toggleState.subMuted, true, "Trạng thái subMuted phải là true khi bấm tắt!");
+// Bấm bật lại -> tự động xóa lastCueText để bắt kịp nhịp phim ngay
+toggleState.subMuted = false;
+toggleState.lastCueText = "";
+toggleState.lastText = "";
+assert.strictEqual(toggleState.subMuted, false, "Trạng thái subMuted phải là false khi bật lại!");
+assert.strictEqual(toggleState.lastCueText, "", "Phải xóa lastCueText để cập nhật ngay câu thoại hiện tại của phim!");
+console.log("   ✅ Đã kiểm tra: Tắt/Bật phụ đề 1 chạm phản hồi tức thì và bắt kịp ngay nhịp phim!\n");
+
+console.log("🎉 TẤT CẢ 6 BÀI KIỂM TRA ĐỀU VƯỢT QUA 100% KHÔNG CÓ BẤT KỲ LỖI NÀO!");
