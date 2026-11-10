@@ -19,7 +19,9 @@
     "https://api.groq.com/*",
     "https://translate.googleapis.com/*",
     "https://aistudio.google.com/*",
-    "https://lrclib.net/*"
+    "https://lrclib.net/*",
+    "http://localhost:11434/*",
+    "http://127.0.0.1:11434/*"
   ],
   "background": {
     "service_worker": "background/background.js"

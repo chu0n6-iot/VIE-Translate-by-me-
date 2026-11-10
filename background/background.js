@@ -7,6 +7,7 @@ importScripts(
   "/utils/storage.js",
   "/api/gemini.js",
   "/api/groq.js",
+  "/api/ollama.js",
   "/api/gtx.js",
   "/api/lyrics.js"
 );
@@ -181,8 +182,9 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
   if (!cleanText) return { vi: "" };
 
   const settings = await self.VieStorage.getSettings();
-  const rawKey = settings.apiKey || (settings.provider === "groq" ? settings.groqApiKey : settings.geminiApiKey) || "";
-  const provider = self.VieStorage.detectProviderFromKey(rawKey) || settings.provider || "gemini";
+  const isLocal = settings.provider === "ollama";
+  const rawKey = isLocal ? "local" : settings.apiKey || (settings.provider === "groq" ? settings.groqApiKey : settings.geminiApiKey) || "";
+  const provider = isLocal ? "ollama" : self.VieStorage.detectProviderFromKey(rawKey) || settings.provider || "gemini";
   const targetProvider = fastPreviewOnly ? "gtx" : provider;
 
   const targetLang = settings.targetLang || "vi";
@@ -224,7 +226,9 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
 
       try {
         const [result, sub2] = await Promise.all([
-          targetProvider === "groq"
+          targetProvider === "ollama"
+            ? self.VieOllama.translateWithOllama({ text: cleanText, nextText, videoPersona: persona, glossary: glossaryList, history: ctx.items, baseUrl: settings.ollamaBaseUrl, preferredModel: settings.ollamaModel, targetLang, translationStyle: settings.translationStyle, pronounStyle: settings.pronounStyle, lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false })
+            : targetProvider === "groq"
             ? self.VieGroq.translateWithGroqAuto({
                 text: cleanText,
                 nextText,
@@ -299,8 +303,9 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
   if (!cleanList.length) return { results: {} };
 
   const settings = await self.VieStorage.getSettings();
-  const rawKey = settings.apiKey || (settings.provider === "groq" ? settings.groqApiKey : settings.geminiApiKey) || "";
-  const provider = self.VieStorage.detectProviderFromKey(rawKey) || settings.provider || "gemini";
+  const isLocal = settings.provider === "ollama";
+  const rawKey = isLocal ? "local" : settings.apiKey || (settings.provider === "groq" ? settings.groqApiKey : settings.geminiApiKey) || "";
+  const provider = isLocal ? "ollama" : self.VieStorage.detectProviderFromKey(rawKey) || settings.provider || "gemini";
   const targetLang = settings.targetLang || "vi";
 
   const results = {};
@@ -333,7 +338,9 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
 
   try {
     const batchRes =
-      provider === "groq"
+      provider === "ollama"
+        ? await self.VieOllama.translateWithOllama({ texts: uncached, history: ctx.items, glossary: Array.isArray(settings.customGlossary) ? settings.customGlossary : [], baseUrl: settings.ollamaBaseUrl, preferredModel: settings.ollamaModel, targetLang, translationStyle: settings.translationStyle, pronounStyle: settings.pronounStyle, lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false })
+        : provider === "groq"
         ? await self.VieGroq.translateWithGroqAuto({
             texts: uncached,
             videoTitle,
@@ -449,6 +456,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
       const key = (msg.apiKey || "").trim();
       const p = msg.provider || self.VieStorage.detectProviderFromKey(key) || "gemini";
+      if (p === "ollama") {
+        const base = msg.baseUrl;
+        const models = await self.VieOllama.discoverOllamaModels(base);
+        if (!models.length) throw new Error("Ollama chạy rồi nhưng chưa có model. Chạy: ollama pull qwen2.5:7b");
+        const modelToTest = msg.model && models.includes(msg.model) ? msg.model : models[0];
+        const res = await self.VieOllama.translateWithOllama({ text: "Hello world!", baseUrl: base, preferredModel: modelToTest, targetLang: "vi" });
+        return { ok: true, provider: "ollama", modelUsed: res.modelUsed, availableModels: models, sample: res.vi };
+      }
       if (p === "groq") {
         const models = await self.VieGroq.discoverGroqModels(key);
         const modelToTest = msg.model && msg.model !== "auto" && models.includes(msg.model) ? msg.model : models[0];

@@ -55,6 +55,8 @@
     enabled: true,
     dualSub: true,
     provider: "gemini",
+    ollamaBaseUrl: "http://localhost:11434",
+    ollamaModel: "",
     apiKey: "",
     geminiApiKey: "",
     groqApiKey: "",

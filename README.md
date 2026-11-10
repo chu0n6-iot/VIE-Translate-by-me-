@@ -238,3 +238,12 @@ git pull origin main
 
 ## 📄 License
 [MIT License](LICENSE)
+## 🏠 Local AI (Ollama) — tùy chọn, miễn phí, riêng tư
+
+Không bắt buộc. Nếu không cài, extension tự dùng Google Translate miễn phí.
+
+1. Cài [Ollama](https://ollama.com/download) và chạy `ollama pull qwen2.5:7b`.
+2. Đặt biến môi trường `OLLAMA_ORIGINS=chrome-extension://*` rồi khởi động lại Ollama.
+3. Popup ➔ Kết Nối ➔ chọn **Local AI – Ollama** ➔ bấm *Kiểm tra & tải danh sách model*.
+
+Ollama tắt/lỗi ➔ tự động fallback về Google Translate, không gián đoạn phụ đề.

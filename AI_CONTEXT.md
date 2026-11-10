@@ -7,6 +7,7 @@
 - [utils/storage.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/utils/storage.js): Quản lý `chrome.storage.local`, settings, Persona, Multi-Speaker formatting & cache key.
 - [api/gemini.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/api/gemini.js): Gọi Google Gemini API, prompt dịch thuật theo Persona, tách thoại Multi-Speaker, ép Glossary & tra từ điển.
 - [api/groq.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/api/groq.js): Gọi Groq Cloud API siêu thanh, prompt Persona, Multi-Speaker & ép Glossary.
+- [api/ollama.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/api/ollama.js): Local AI tùy chọn qua Ollama (localhost:11434), lỗi/không cài ➔ tự fallback GTX. UI: `popup/ollama.js`.
 - [api/gtx.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/api/gtx.js): Bộ máy dự phòng Google Translate miễn phí tức thì (0ms latency, không cần Key).
 - [api/lyrics.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/api/lyrics.js): Tìm kiếm và parse lời bài hát đồng bộ thời gian (LRC) từ LRCLIB.
 - [background/background.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/background/background.js): Service worker: điều phối, nhận diện Persona, định dạng Multi-Speaker, ép Glossary & khóa xưng hô.
@@ -22,7 +23,7 @@
 - [aistudio-page-hook.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/aistudio-page-hook.js): Hook clipboard trong MAIN world trên AI Studio để bắt Key tức thì.
 
 ## 2. Luồng Dữ liệu Chính (Data Flow)
-`Video/DOM/Selection` ➔ `captions.js` (Smart Merge & Multi-Speaker) ➔ `content.js` (0ms preview) ➔ `background.js` (Persona + Multi-Speaker + Glossary) ➔ `api/gemini.js` / `groq.js` ➔ `dom.js` (Render tách dòng Người A / Người B).
+`Video/DOM/Selection` ➔ `captions.js` (Smart Merge & Multi-Speaker) ➔ `content.js` (0ms preview) ➔ `background.js` (Persona + Multi-Speaker + Glossary) ➔ `api/gemini.js` / `groq.js` / `ollama.js` ➔ `dom.js` (Render tách dòng Người A / Người B).
 
 ## 3. Quy tắc Bắt buộc cho AI
 1. **Luôn đọc `AI_CONTEXT.md` đầu tiên** để định vị chính xác file cần sửa theo đúng nhiệm vụ.
