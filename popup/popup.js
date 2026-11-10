@@ -1076,7 +1076,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         </div>`
             : ""
         }
-        ${item.fact ? `<div class="vocab-fact-box">✨ <b>Fact &amp; Mẹo nhớ:</b> ${escapeHtml(item.fact)}</div>` : ""}
+        ${item.fact || item.funFact ? `<div class="vocab-fact-box">✨ <b>Fact &amp; Mẹo nhớ:</b> ${escapeHtml(item.fact || item.funFact)}</div>` : ""}
         ${
           synonymList.length > 0
             ? `
@@ -1138,7 +1138,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const lines = list.map((v, i) => {
         const parts = [
           `${i + 1}. ${v.word} ${v.pron ? `(/${v.pron}/)` : ""} [${v.pos || "Từ vựng"}]`,
-          `   • Nghĩa trong ngữ cảnh: ${v.meaning}`
+          `   • Nghĩa: ${v.meaning}`
         ];
         if (v.sentence) parts.push(`   • Ngữ cảnh phim: "${v.sentence}"`);
         if (Array.isArray(v.posVariants) && v.posVariants.length) {

@@ -11,18 +11,22 @@
 
 <p align="center">
   <a href="#-tiếng-việt-bản-hướng-dẫn-đầy-đủ-từ-a-z">🇻🇳 Bản Tiếng Việt (A–Z)</a> •
-  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.6.6`)</a> •
+  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.6.7`)</a> •
   <a href="#-english-complete-a-to-z-guide">🇬🇧 English Version (A–Z)</a> •
   <a href="#-version-history--new-mechanisms-changelog">📋 English Changelog</a>
 </p>
 
 ---
 
+> ⚡ **LƯU Ý DÀNH CHO CỘNG TÁC VIÊN / COLLABORATORS (TỐI ƯU HÓA AI INDEXING)**:
+> Codebase của dự án đã được đại tu và module hóa toàn diện (`v0.6.7`), loại bỏ hoàn toàn các God file cồng kềnh nhằm giúp các công cụ lập trình AI (Antigravity IDE, Cursor, GitHub Copilot...) đọc hiểu cực nhanh và tiết kiệm tối đa token.
+> **Mẹo quan trọng:** Trước khi yêu cầu AI sửa lỗi hoặc phát triển tính năng mới, bạn **chỉ cần gõ kèm `@AI_CONTEXT.md` ở đầu câu lệnh**. AI sẽ lập tức nắm toàn bộ bản đồ kiến trúc mà **không cần quét lại toàn bộ codebase**, giúp tốc độ phản hồi tăng vọt!
+
 # 🇻🇳 TIẾNG VIỆT (Bản Hướng Dẫn Đầy Đủ Từ A–Z)
 
-**VIE-Translate (Translate Toad AI `v0.6.6`)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)**, kết hợp **Trợ Lý Học Ngoại Ngữ Chuyên Sâu (`Từ Loại POS • Ví Dụ Thực Tế • Fact Thú Vị & Mẹo Nhớ • Cụm Đi Kèm • Sổ Từ Vựng`)**, **Cân Chỉnh Độ Lệch Sub/Nhạc Tức Thì (`Sub Sync Calibration`)** và **Đọc Phát Âm Chuẩn Giọng Bản Xứ** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles**.
+**VIE-Translate (Translate Toad AI `v0.6.7`)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)**, kết hợp **Trợ Lý Học Ngoại Ngữ Chuyên Sâu (`Từ Loại POS • Ví Dụ Thực Tế • Fact Thú Vị & Mẹo Nhớ • Cụm Đi Kèm • Sổ Từ Vựng`)**, **Cân Chỉnh Độ Lệch Sub/Nhạc Tức Thì (`Sub Sync Calibration`)** và **Đọc Phát Âm Chuẩn Giọng Bản Xứ** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles**.
 
-## ✨ Tính Năng Nổi Bật (`v0.6.6`)
+## ✨ Tính Năng Nổi Bật (`v0.6.7`)
 
 1. **📚 Phần Học Từ Vựng Đa Chiều Đặc Sắc (Rich Vocabulary Engine)**:
    - **Huy hiệu từ loại song ngữ trực quan (POS Badges)**: Tự động phân loại Động từ (Verb), Danh từ (Noun), Tính từ (Adjective), Trạng từ (Adverb), Cụm động từ (Phrasal Verb), Thành ngữ (Idiom), Tiếng lóng (Slang) với màu sắc bắt mắt.
@@ -52,11 +56,17 @@
 
 ## 🚀 Lịch Sử Cập Nhật & Các Cơ Chế Mới (Changelog)
 
-### 🌟 Phiên bản `v0.6.6` (Mới nhất) — *Học Từ Vựng Đa Chiều Đặc Sắc: Phân Biệt Đa Từ Loại (Multi-POS), So Sánh Ngữ Nghĩa/Cách Dùng & Bộ Lọc Noun/Verb/Adj*
-- **Cơ chế Phân Tách & So Sánh Đa Từ Loại (`Multi-POS Breakdown & Contrast`)**:
-  - Đối với các từ thuộc **NHIỀU từ loại khác nhau** (ví dụ vừa là Verb vừa là Noun hay Adj như *record*, *present*, *lead*, *run*, *close*...), AI tự động chỉ rõ **sự khác nhau về ngữ nghĩa, phát âm/trọng âm và cách dùng** giữa từng từ loại đó trên cả thẻ tra từ nổi trên video và Sổ từ vựng.
-- **Bộ Lọc Phân Loại Từ Vựng Trực Quan (`POS Category Filter Chips`)**:
-  - Bổ sung thanh công cụ phân loại từ vựng trong tab **`📚 Học Từ`**: `Tất cả` • `🟢 Verb` • `🔵 Noun` • `🟣 Adj` • `🟡 Cụm / Idiom` • `⚪ Khác` kèm số lượng thống kê tự động cho từng nhóm, giúp người học chia nhóm và ôn luyện có hệ thống.
+### 🌟 Phiên bản `v0.6.7` (Mới nhất) — *Đại Tu Kiến Trúc Module Hóa Toàn Diện & Tối Ưu Hóa AI Indexing*
+- **Xóa bỏ triệt để "God files"**: Chia tách các file nguyên khối (`background.js`, `content.js`, `options.html/js`) thành các module chuyên biệt:
+  - `api/`: `gemini.js`, `groq.js`, `gtx.js`, `lyrics.js`.
+  - `content/`: `content.js` (entry point mỏng nhẹ), `dom.js` (UI subtitle & dictionary), `selection.js` (bôi đen dịch), `captions.js` (quan sát video & auto-captions), `overlay.css`.
+  - `background/`: `background.js` (service worker điều phối & cache).
+  - `popup/`: `popup.html`, `popup.css`, `popup.js` (giao diện cài đặt tách rời CSS giúp giảm 62% dung lượng HTML).
+  - `utils/`: `storage.js` (quản trị tập trung `chrome.storage.local` và cache key).
+- **Hệ thống chặn quét rác cho AI (`.aiignore`, `.cursorignore`)**: Ngăn chặn IDE AI quét vào file media nhị phân (`assets/`, `*.png`), node_modules, lock files, giúp tiết kiệm tối đa token.
+- **Bản đồ ngữ cảnh siêu tốc (`AI_CONTEXT.md`)**: File memory map dưới 35 dòng ở thư mục gốc. Collaborator chỉ cần gõ `@AI_CONTEXT.md` ở đầu prompt để AI nắm cấu trúc tức thì mà không cần quét lại toàn bộ codebase.
+
+### 🌟 Phiên bản `v0.6.6` — *Học Từ Vựng Đa Chiều Đặc Sắc: Từ Loại (POS), Ví Dụ Đời Thường, Fact Thú Vị & Collocations*
 - **Huy hiệu từ loại song ngữ trực quan (`Bilingual POS Badges`)**:
   - Tự động nhận diện và gán màu sắc trực quan cho từng từ loại: **Danh từ (Noun)** xanh lam, **Động từ (Verb)** xanh ngọc, **Tính từ (Adjective)** tím, **Trạng từ (Adverb)** đỏ hồng, **Cụm động từ (Phrasal Verb)** / **Thành ngữ (Idiom)** / **Tiếng lóng (Slang)** vàng hổ phách.
 - **Ví dụ thực tế khác ngoài đời (`Real-World Usage Examples`) kèm phát âm giọng bản xứ**:
@@ -66,7 +76,7 @@
 - **Cụm từ hay đi kèm & Từ đồng nghĩa (`Collocations & Synonyms`)**:
   - Liệt kê các từ đồng nghĩa và cụm kết hợp từ tự nhiên người bản xứ hay dùng.
 - **Nâng cấp Sổ Từ Vựng (`📚 Học Từ`) & Xuất file `.txt`**:
-  - Toàn bộ từ loại, biến thể đa từ loại, ví dụ thực tế, fact thú vị và collocations được lưu trữ đồng bộ trong Sổ từ vựng, có nút bấm nghe từng câu ví dụ và xuất ra file `.txt` chuẩn chỉnh như một giáo trình học từ vựng cá nhân.
+  - Toàn bộ từ loại, ví dụ thực tế, fact thú vị và collocations được lưu trữ đồng bộ trong Sổ từ vựng, có nút bấm nghe từng câu ví dụ và xuất ra file `.txt` chuẩn chỉnh như một giáo trình học từ vựng cá nhân.
 
 ### ⏱️ Phiên bản `v0.6.5` — *Cân Chỉnh Lệch Sub/Nhạc, Nốt Nhạc Biểu Cảm & Đọc Giọng Bản Xứ*
 - **Cơ chế mới — Tự Động Bù Lệch Intro & Bộ Chỉnh Sub Sync Tức Thì (`Sub Sync Calibration`)**:
@@ -146,11 +156,12 @@
 
 ## 📋 Version History & New Mechanisms (Changelog)
 
-### 🌟 `v0.6.6` (Latest) — *Multi-Dimensional Vocabulary Engine (Multi-POS Breakdown, Real-World Examples, Fun Facts & POS Filter Chips)*
-- **New Mechanism — Multi-POS Breakdown & Usage Contrast (`posVariants`)**:
-  - For words belonging to **multiple parts of speech** (e.g., both Verb and Noun/Adjective such as *record*, *present*, *lead*, *run*, *close*...), AI explicitly contrasts the differences in meaning, pronunciation/stress, and usage between those parts of speech on both the on-video popup card and the Vocabulary Notebook.
-- **New Mechanism — POS Category Filter Chips**:
-  - Adds interactive category filters in the `📚 Học Từ` tab: `All` • `🟢 Verb` • `🔵 Noun` • `🟣 Adj` • `🟡 Phrasal / Idiom` • `⚪ Other` with real-time counters, allowing learners to organize and study words by grammatical category.
+### 🌟 `v0.6.7` (Latest) — *Complete Modular Architecture Overhaul & Instant AI Indexing Optimization*
+- **Modular Refactoring & Zero "God Files"**: Decoupled monolithic files into single-responsibility modules under `api/`, `content/`, `background/`, `popup/`, and `utils/`. Extracted 900+ lines of inline CSS into `popup/popup.css` (reducing HTML footprint by 62%).
+- **AI Token Saver & Index Ignore System (`.aiignore`, `.cursorignore`)**: Excludes binary media, icons, and build artifacts from AI scans to minimize token consumption and maximize speed.
+- **Instant Context Memory Map (`AI_CONTEXT.md`)**: Collaborators can simply prepend `@AI_CONTEXT.md` in prompts so AI models instantly index the codebase without redundant full-repo scans.
+
+### 🌟 `v0.6.6` — *Multi-Dimensional Vocabulary Engine (POS Badges, Real-World Examples, Fun Facts & Collocations)*
 - **New Mechanism — Visual Bilingual Part-of-Speech Badges (`POS Badges`)**:
   - Distinguishes Noun, Verb, Adjective, Adverb, Phrasal Verb, Idiom, and Slang with dedicated styling.
 - **New Mechanism — Real-World Example Sentences & Audio Playback**:
@@ -160,7 +171,7 @@
 - **New Mechanism — Synonyms & Collocations**:
   - Displays natural word pairings.
 - **New Mechanism — Comprehensive Vocabulary Notebook (`📚 Học Từ`) & Rich `.txt` Export**:
-  - Displays and exports all POS, multi-POS comparisons, examples, and fun facts in a clean format.
+  - Displays and exports all POS, examples, and fun facts in a clean format.
 
 ### ⏱️ `v0.6.5` — *Live Sub Sync Calibration, Expressive Musical Notes & Native Voice Synthesis*
 - **New Mechanism — Live Sub Sync Calibration & Auto Intro Offset**:
