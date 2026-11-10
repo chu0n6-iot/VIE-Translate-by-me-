@@ -29,4 +29,5 @@
 1. **Luôn đọc `AI_CONTEXT.md` đầu tiên** để định vị chính xác file cần sửa theo đúng nhiệm vụ.
 2. **TUYỆT ĐỐI KHÔNG đọc toàn bộ codebase** nếu chỉ cần sửa một module riêng biệt.
 3. Không tái tạo "God file"; duy trì tính độc lập và kích thước nhỏ gọn của từng module.
-4. Ghi chú kiến trúc mới (v0.7.x): `background.js` có key pool (`withKeyPool`, `keyCooldown`, `backupKeys`) + `limitTranslationLength`; `captions.js` có `resetForNewVideo` (reset khi đổi video), `getVideoContext`; `content.js` có toast hết key (`showQuotaToast`) và gợi ý F5 (`startNoSubWatchdog`).
+4. Ghi chú kiến trúc mới (v0.7.4): Âm thanh tương tác WebAudio phong phú (popup/sfx.js & dom.js playUiSound); tab layout 4 cột; 11 bài kiểm tra tự động bao gồm nhận diện API key, xoay tua key dự phòng, Google Translate dự phòng trực tuyến, chống stack câu dài.
+- `background.js` có key pool (`withKeyPool`, `keyCooldown`, `backupKeys`) + `limitTranslationLength`; `captions.js` có `resetForNewVideo` (reset khi đổi video), `getVideoContext`; `content.js` có toast hết key (`showQuotaToast`) và gợi ý F5 (`startNoSubWatchdog`).

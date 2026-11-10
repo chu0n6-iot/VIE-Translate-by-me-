@@ -251,12 +251,22 @@
   transition: background 0.12s ease, color 0.12s ease;
 }
 
+.vie-overlay .vie-word {
+  display: inline-block;
+  padding: 1px 3px;
+  margin: 0 1px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
 .vie-overlay .vie-word:hover,
 .vie-overlay .vie-word.vie-word-active {
-  background: rgba(251, 191, 36, 0.28);
-  color: #fef08a;
-  text-decoration: underline;
-  text-decoration-color: rgba(251, 191, 36, 0.85);
+  background: rgba(251, 191, 36, 0.35);
+  color: #fffbeb;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+  transform: translateY(-1.5px) scale(1.05);
+  text-decoration: none;
 }
 
 /* Thẻ từ điển nổi ngay trên phụ đề */
