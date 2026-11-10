@@ -8,6 +8,7 @@ importScripts(
   "/api/gemini.js",
   "/api/groq.js",
   "/api/ollama.js",
+  "/api/whisper.js",
   "/api/gtx.js",
   "/api/lyrics.js"
 );
@@ -425,6 +426,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "TRANSCRIBE_AUDIO") {
     (async () => {
       const s = await self.VieStorage.getSettings();
+      if (s.whisperEnabled) {
+        try {
+          const text = (await self.VieWhisper.transcribe(s, msg.audioBase64, msg.mimeType, msg.videoTitle || "")).trim();
+          if (isWhisperNoise(text)) return { orig: "", vi: "" };
+          const trans = await handleTranslate(text, msg.videoTitle || "", tabId, false);
+          return { orig: text, vi: trans.vi || "", sub2: trans.sub2 || "" };
+        } catch {
+          // Whisper local lỗi ➔ thử tiếp bằng key cloud (nếu có)
+        }
+      }
       const keys = [s.apiKey, s.groqApiKey, s.geminiApiKey].filter(Boolean);
       const groqKey = keys.find((k) => self.VieStorage.detectProviderFromKey(k) === "groq") || "";
       const geminiKey = keys.find((k) => self.VieStorage.detectProviderFromKey(k) === "gemini") || "";
@@ -459,6 +470,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     self.VieLyrics.searchLyrics(msg)
       .then(sendResponse)
       .catch(() => sendResponse({ found: false }));
+    return true;
+  }
+
+  if (msg.type === "TEST_WHISPER") {
+    (async () => ({
+      gpu: await self.VieWhisper.ping(msg.gpuUrl),
+      cpu: await self.VieWhisper.ping(msg.cpuUrl)
+    }))().then(sendResponse);
     return true;
   }
 
