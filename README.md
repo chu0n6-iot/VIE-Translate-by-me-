@@ -69,13 +69,27 @@
   - **Tự động kích hoạt nút CC (`autoEnsureYouTubeCC`)**: Khi mở video hoặc bắt đầu phát (`play`), VIE-Translate tự động mô phỏng bật nút CC của YouTube để lấy luồng phụ đề gốc mà không làm phiền người xem; đồng thời dùng CSS ẩn triệt để phụ đề mặc định của YouTube (`opacity: 0 !important`) để chỉ hiển thị phụ đề dịch thẩm mỹ của VIE-Translate.
   - **Đồng bộ chuyển trang ngầm YouTube SPA**: Lắng nghe sự kiện `yt-navigate-finish` và `yt-page-data-updated` để tự động khởi tạo phụ đề và CC ngay khi người dùng bấm chuyển video mới trên YouTube.
   - **Cơ chế nạp lại cues với 12 lần thử (Smart Retry)**: Khắc phục trường hợp YouTube Player đang khởi tạo `movie_player.getPlayerResponse()` trễ, giúp phụ đề tự động lên hình ngay khi video bắt đầu phát.
-- **⚡ Chiến Lược Tối Ưu Hóa Token Tối Đa & Bảo Toàn Ngữ Pháp Câu (`Token Conservation & Full Grammar Integrity`)**:
-  - **Tầng 1 (0 tokens — Tiết kiệm tuyệt đối)**: Tự động tra cứu lời bài hát chuẩn xác từ LRCLIB (0 tokens, khớp nhịp từng câu).
-  - **Tầng 2 (0 audio tokens)**: Trích xuất trực tiếp phụ đề gốc văn bản từ YouTube CC / `movie_player.getPlayerResponse()` chỉ trong 1ms (tiết kiệm 100% token âm thanh đa phương thức).
-  - **Tầng 3 (Gom câu ngữ pháp hoàn chỉnh)**: Thuật toán `mergeEventsIntoSentences` tự động ghép các từ vựng ngắt quãng của phụ đề tự động (ASR) thành câu hoàn chỉnh theo dấu chấm câu `[.?!…]` và khoảng lặng âm thanh (>0.8s), tránh việc dịch vụn vặt từng từ làm sai lệch ngữ pháp.
-  - **Tầng 4 (Dịch mạch lạc liên kết 2 chiều)**: Truyền kèm `nextText` (câu kế tiếp) và 6 lượt `history` giúp AI diễn đạt thuần Việt đúng văn cảnh, bảo toàn chủ ngữ - vị ngữ.
-  - **Tầng 5 (Bộ nhớ đệm 0 token)**: `localCache` lưu trữ hàng trăm câu đã dịch, tua lại hoặc xem lại video tốn đúng 0 token.
-  - **Tầng 6 (Dự phòng âm thanh)**: Chỉ sử dụng AI nghe âm thanh từ loa khi video thực sự KHÔNG có lyrics và KHÔNG có nút CC.
+- **⚡ Khắc Phục Lỗi Mất Sub Khi Tua Video (Zero-Sub-Loss on Seeking)**:
+  - Tách biệt biến theo dõi mốc thời gian `lastCueText` và biến chống gửi trùng `lastText`.
+  - Lắng nghe sự kiện `seeking` và `seeked` trên toàn bộ cửa sổ trình duyệt: tự động hủy `hideTimer`, xóa cache kiểm tra trùng lặp để khi tua tới hoặc tua lùi (seek ±10s), phụ đề tại mốc thời gian mới hiển thị ngay lập tức từ `localCache` trong 0ms mà không bị biến mất hay trễ nhịp.
+- **🎯 Sửa Lỗi "Căn Tự Động" Bị Đứng Hình & Kẹt Câu (`Fix Auto-Align Subtitle Freezing`)**:
+  - Loại bỏ hoàn toàn công thức so lệch độ dài video giả định (`durationDelta`) từng khiến mốc thời gian bị trễ 30–60s và kẹt cứng ở câu đầu tiên.
+  - Thuật toán `correlateLiveAudioWithCues` được giới hạn rào chắn chặt chẽ trong phạm vi ±8 giây xung quanh thời điểm phát hiện tại (không tìm kiếm lan man cả video), và giới hạn độ lệch an toàn tối đa ±5.0s.
+  - Khi bấm `🎯 Căn tự động`: nếu chưa có độ lệch hoặc muốn làm mới, hệ thống tự động đưa về mốc gốc chuẩn `0.0s`, loại bỏ hoàn toàn tình trạng đứng sub hoặc chạy lặp lại một câu.
+- **🎵 Loại Bỏ Nốt Nhạc Trên Lời Nói Chuyện Thông Thường (`Smart Music Notes Filter`)**:
+  - Chấm dứt tình trạng tự ý thêm `♪ ... ♪` vào các đoạn hội thoại, nói chuyện của nhân vật.
+  - Chỉ thêm nốt nhạc `♪` khi: (1) Phụ đề gốc YouTube CC đã có sẵn ký hiệu nốt nhạc, hoặc (2) Lời bài hát chính thức từ LRCLIB (`isLyricsTrack = true`) và không phải là đoạn hội thoại nói chuyện.
+- **🔍 Quét Chữ Trên Màn Hình & Dịch Bối Cảnh Phim Đa Hướng (Visual On-Screen Text / OCR)**:
+  - Tích hợp nút bấm `🔍 Quét chữ màn hình (OCR)` trực tiếp trên thanh công cụ phụ đề.
+  - Chụp ảnh khung hình video (qua Canvas độ nét cao hoặc `chrome.tabs.captureVisibleTab`) và truyền cho Gemini Multimodal Vision phân tích.
+  - Tự động nhận diện biển báo, biển hiệu, tin nhắn điện thoại, tài liệu, mốc thời gian hoặc chữ chạy trên phim; dịch sang tiếng Việt và chú thích ý nghĩa bối cảnh câu chuyện ngay cả trong các phân cảnh không có lời thoại đối thoại.
+- **▶️ Tự Động Dịch Ngay Khi Vào Video (100% Hands-Free)**:
+  - Mặc định kích hoạt `autoAudioNoCC: true`.
+  - Khi mở video: tự động bật CC trên YouTube, hiển thị nhãn `✨ Tự động dịch (CC)` hoặc `🎵 Lời bài hát`.
+  - Trên các trang video không có CC (Facebook, TikTok, Twitter/X): sau 1.8s phát mà không có sub, hệ thống tự động kích hoạt chế độ lắng nghe & dịch mà người dùng không cần phải bấm tay.
+- **🧪 Bộ Kiểm Tra Tự Động & Trang Thử Nghiệm Trực Quan (`Test Suite & Test Bench`)**:
+  - Bổ sung `test/run_tests.js` kiểm tra tự động 100% logic nốt nhạc, seeking, auto-sync và quota recovery.
+  - Bổ sung trang thử nghiệm tương tác `test/test_bench.html` trực quan.
 
 ### 🌟 Phiên bản `v0.6.8` — *Khắc Phục Lỗi Nút Dịch Tự Tắt & Mở Rộng Facebook, TikTok, Twitter/X, HTML5 Toàn Diện*
 - **🛠️ Khắc phục triệt để lỗi nút "AI Nghe & Dịch" tự bật rồi tắt ngay lập tức (`Fix Toad Button Auto-Revert Glitch`)**:
@@ -216,13 +230,21 @@
   - **Automated CC Trigger (`autoEnsureYouTubeCC`)**: Automatically activates YouTube's native caption button upon video play to receive raw subtitle tracks, while visually suppressing YouTube's default captions via CSS (`opacity: 0 !important`) so only VIE-Translate's styled subtitles render.
   - **YouTube SPA Navigation Hooking**: Listens to `yt-navigate-finish` and `yt-page-data-updated` to re-synchronize captions and CC when navigating between videos without a full page reload.
   - **12-Attempt Smart Retry**: Overcomes asynchronous initialization delays in `movie_player.getPlayerResponse()`.
-- **⚡ Maximum Token Optimization & Full Sentence Grammar Cohesion (`Token Conservation Engine`)**:
-  - **Tier 1 (0 tokens)**: High-accuracy synced song lyrics via LRCLIB (0 tokens).
-  - **Tier 2 (0 audio tokens)**: Direct extraction of native YouTube CC text (0 multimodal audio tokens).
-  - **Tier 3 (Complete Sentence Merging)**: The `mergeEventsIntoSentences` algorithm stitches fragmented ASR speech cues into grammatically complete clauses bordered by punctuation marks `[.?!…]` and natural speech pauses.
-  - **Tier 4 (Bidirectional Context Translation)**: Lookahead `nextText` and recent `history` feed contextual markers to the AI for fluid Vietnamese syntax.
-  - **Tier 5 (0-Token Local Cache)**: In-memory LRU caching preserves translations during seeks and re-plays.
-  - **Tier 6 (Audio Last-Resort)**: Real-time speaker audio transcription activates only when a video has neither lyrics nor CC.
+- **⚡ Zero-Sub-Loss on Video Seeking (`Seeking Persistence`)**:
+  - Decoupled timeline cue tracker (`lastCueText`) from deduplication state (`lastText`).
+  - Added global capture-phase `seeking` and `seeked` listeners that clear pending hide timers and immediately render cached subtitles in 0ms upon scrubbing forward or backward.
+- **🎯 Fix Auto-Align Subtitle Freezing (`Auto-Sync Protection`)**:
+  - Removed unreliable `durationDelta` intro guessing that caused subtitles to stall on early cues.
+  - Restricted `correlateLiveAudioWithCues` to a ±8s window around the current playback timestamp and clamped offsets within ±5.0s, with instant 0.0s reset on re-alignment.
+- **🎵 Smart Music Notes Filter (No Notes on Spoken Dialogue)**:
+  - Musical notes (`♪ ... ♪`) are now strictly restricted to explicit musical symbols in native captions or verified LRCLIB song lyrics (`isLyricsTrack = true`), never applied to spoken dialogue.
+- **🔍 Visual On-Screen Text Scanner (OCR & Multi-Directional Scene Context)**:
+  - Added `🔍 Quét chữ màn hình (OCR)` button to the subtitle toolbar.
+  - Captures video frames (via Canvas or `chrome.tabs.captureVisibleTab`) and uses Gemini Vision to detect, translate, and explain on-screen signs, text messages, documents, and timestamps in dialogue-free scenes.
+- **▶️ 100% Hands-Free Auto-Start Translation**:
+  - Enabled `autoAudioNoCC: true` by default so non-CC videos (Facebook, TikTok, custom HTML5) automatically begin AI audio translation after 1.8s of playback.
+- **🧪 Automated Test Suite & Interactive Test Bench**:
+  - Added `test/run_tests.js` and `test/test_bench.html` for end-to-end verification.
 
 ### 🌟 `v0.6.8` — *Fix Button Auto-Revert Glitch & Universal Facebook, TikTok, Twitter/X HTML5 Support*
 - **🛠️ Fix Instant Revert of "AI Nghe & Dịch" Button (`Fix Toad Button Auto-Revert Glitch`)**:

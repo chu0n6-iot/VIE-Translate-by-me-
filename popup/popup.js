@@ -347,7 +347,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     availableModels: [],
     verifiedKey: "",
     fallbackToFree: true,
-    autoAudioNoCC: false,
+    autoAudioNoCC: true,
     softenProfanity: true,
     hoverPauseDict: true,
     savedVocab: [],

@@ -396,12 +396,70 @@ Trả về duy nhất JSON hợp lệ (không markdown, không codeblock):
     throw new Error("Không thể phân tích ngữ cảnh lúc này.");
   }
 
+  async function scanAndTranslateVisualText({ imageBase64, mimeType = "image/jpeg", apiKey, videoTitle = "", targetLang = "vi" }) {
+    if (!imageBase64) throw new Error("Không có dữ liệu ảnh để quét chữ.");
+    const prompt = `Bạn là trợ lý dịch thuật điện ảnh & bối cảnh thị giác chuyên nghiệp.
+Hãy quan sát thật kỹ khung hình video này${videoTitle ? ` (thuộc video: "${videoTitle}")` : ""}:
+1. Phát hiện và đọc toàn bộ chữ, biển báo, biển hiệu, tin nhắn điện thoại, thư từ, tài liệu, mốc thời gian, báo chí, nhãn hiệu hoặc dòng chữ chạy trên màn hình (On-Screen Visual Text / OCR).
+2. Dịch sang tiếng Việt sát nghĩa, tự nhiên và giải thích đa hướng bối cảnh phim (ví dụ: đây là biển báo gì, tin nhắn từ ai, địa điểm/thời gian nào, ẩn ý gì trong phân cảnh phim).
+
+Nếu trên màn hình KHÔNG CÓ chữ nào đáng kể (chỉ có phong cảnh/mặt người mà không có chữ):
+Trả về JSON duy nhất: {"hasText": false}
+
+Nếu CÓ chữ trên màn hình:
+Trả về JSON duy nhất (không bọc code block markdown):
+{
+  "hasText": true,
+  "orig": "văn bản gốc tiếng nước ngoài tìm thấy trên khung hình",
+  "vi": "bản dịch tiếng Việt sát nghĩa và tự nhiên",
+  "sceneType": "Biển hiệu / Tin nhắn điện thoại / Mốc thời gian / Tài liệu / Bối cảnh phim",
+  "nuance": "giải thích ngắn gọn ý nghĩa bối cảnh của đoạn chữ này đối với tình tiết câu chuyện"
+}`;
+
+    const body = {
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              inlineData: {
+                mimeType: mimeType || "image/jpeg",
+                data: imageBase64
+              }
+            },
+            { text: prompt }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 600,
+        responseMimeType: "application/json"
+      }
+    };
+
+    const candidates = await discoverGeminiModels(apiKey);
+    for (const m of candidates) {
+      if (isModelInCooldown(apiKey, m)) continue;
+      try {
+        const raw = await callGeminiEndpoint({ model: m, apiKey, body, timeoutMs: 9000 });
+        const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
+        return { ok: true, ...parsed, modelUsed: m };
+      } catch (err) {
+        const isQuota = err.isQuotaExceeded || err.status === 429 || /quota|resource_exhausted|429/i.test(err.message || "");
+        markModelCooldown(apiKey, m, isQuota ? 3600000 : 120000);
+      }
+    }
+    throw new Error("Không thể quét chữ trên màn hình lúc này.");
+  }
+
   root.VieGemini = {
     FALLBACK_GEMINI_MODELS,
     discoverGeminiModels,
     callGeminiEndpoint,
     translateWithGeminiAuto,
     transcribeAndTranslateWithGeminiAudio,
+    scanAndTranslateVisualText,
     lookupWordWithGemini,
     explainSceneWithGemini,
     looksLikeRefusal

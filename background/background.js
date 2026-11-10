@@ -489,6 +489,42 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg.type === "CAPTURE_VISIBLE_TAB") {
+    try {
+      chrome.tabs.captureVisibleTab(null, { format: "jpeg", quality: 80 }, (dataUrl) => {
+        if (chrome.runtime.lastError || !dataUrl) {
+          sendResponse({ ok: false, error: chrome.runtime.lastError?.message || "Không thể chụp màn hình tab" });
+        } else {
+          const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, "");
+          sendResponse({ ok: true, imageBase64: base64 });
+        }
+      });
+    } catch (e) {
+      sendResponse({ ok: false, error: e.message });
+    }
+    return true;
+  }
+
+  if (msg.type === "SCAN_SCREEN_TEXT") {
+    (async () => {
+      const s = await self.VieStorage.getSettings();
+      const rawKey = s.apiKey || s.geminiApiKey || "";
+      if (!rawKey) {
+        return { ok: false, error: "NO_KEY", message: "Cần API Key Gemini để AI quét chữ trên màn hình (OCR)." };
+      }
+      return await self.VieGemini.scanAndTranslateVisualText({
+        imageBase64: msg.imageBase64,
+        mimeType: msg.mimeType || "image/jpeg",
+        apiKey: rawKey,
+        videoTitle: msg.videoTitle || "",
+        targetLang: s.targetLang || "vi"
+      });
+    })()
+      .then(sendResponse)
+      .catch((err) => sendResponse({ ok: false, error: err.message || "Lỗi quét chữ trên màn hình" }));
+    return true;
+  }
+
   if (msg.type === "CLEAR_CACHE") {
     cache.clear();
     contextByTab.clear();

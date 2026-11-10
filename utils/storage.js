@@ -68,7 +68,7 @@
     overlayWidth: 72,
     overlayScale: 100,
     overlayBottom: 12,
-    autoAudioNoCC: false,
+    autoAudioNoCC: true,
     softenProfanity: true,
     hoverPauseDict: true,
     selectionTranslate: true,
