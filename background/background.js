@@ -176,6 +176,49 @@ async function resolveSecondaryTranslation(cleanText, secondaryLang, targetLang)
   }
 }
 
+const keyCooldown = new Map();
+const KEY_COOLDOWN_MS = 15 * 60 * 1000;
+
+function isQuotaError(err) {
+  return !!(err && (err.isQuotaExceeded || err.status === 429 ||
+    /quota|resource_exhausted|rate_limit|exceeded your current quota|429/i.test(err.message || "")));
+}
+
+function buildKeyPool(settings, rawKey) {
+  const list = [rawKey, ...String(settings.backupKeys || "").split(/[\s,;]+/), settings.geminiApiKey, settings.groqApiKey];
+  const seen = new Set();
+  return list
+    .map((k) => (k || "").trim())
+    .filter((k) => k && self.VieStorage.detectProviderFromKey(k) && !seen.has(k) && seen.add(k));
+}
+
+async function withKeyPool(settings, rawKey, fn) {
+  const pool = buildKeyPool(settings, rawKey);
+  const now = Date.now();
+  const avail = pool.filter((k) => (keyCooldown.get(k) || 0) <= now);
+  let lastErr = null;
+  let quotaHits = 0;
+  for (const key of avail) {
+    try {
+      return await fn(key, self.VieStorage.detectProviderFromKey(key));
+    } catch (err) {
+      lastErr = err;
+      if (isQuotaError(err)) {
+        quotaHits++;
+        keyCooldown.set(key, Date.now() + KEY_COOLDOWN_MS);
+      }
+    }
+  }
+  const e = lastErr || new Error("no key available");
+  e.allKeysExhausted = pool.length > 0 && (avail.length === 0 || quotaHits === avail.length);
+  throw e;
+}
+
+function limitTranslationLength(vi, src) {
+  const max = Math.max(60, Math.round((src || "").length * 2.3));
+  return (vi || "").length > max ? "" : vi;
+}
+
 async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = false, nextText = "") {
   const cleanText = self.VieStorage?.formatMultiSpeakerDialogue
     ? self.VieStorage.formatMultiSpeakerDialogue(rawText)
@@ -226,44 +269,24 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
       }
 
       try {
-        const [result, sub2] = await Promise.all([
-          targetProvider === "ollama"
-            ? self.VieOllama.translateWithOllama({ text: cleanText, nextText, videoPersona: persona, glossary: glossaryList, history: ctx.items, baseUrl: settings.ollamaBaseUrl, preferredModel: settings.ollamaModel, targetLang, translationStyle: settings.translationStyle, pronounStyle: settings.pronounStyle, lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false })
-            : targetProvider === "groq"
-            ? self.VieGroq.translateWithGroqAuto({
-                text: cleanText,
-                nextText,
-                videoTitle,
-                videoPersona: persona,
-                glossary: glossaryList,
-                history: ctx.items,
-                apiKey: rawKey,
-                preferredModel: settings.model || "auto",
-                targetLang,
-                translationStyle: settings.translationStyle,
-                pronounStyle: settings.pronounStyle,
-                lockedPronounPair: ctx.lockedPronounPair,
-                softenProfanity: settings.softenProfanity !== false
-              })
-            : self.VieGemini.translateWithGeminiAuto({
-                text: cleanText,
-                nextText,
-                videoTitle,
-                videoPersona: persona,
-                glossary: glossaryList,
-                history: ctx.items,
-                apiKey: rawKey,
-                preferredModel: settings.model || "auto",
-                targetLang,
-                translationStyle: settings.translationStyle,
-                pronounStyle: settings.pronounStyle,
-                lockedPronounPair: ctx.lockedPronounPair,
-                softenProfanity: settings.softenProfanity !== false
-              }),
-          sub2Promise
-        ]);
+        const callAI = (key, prov) => {
+          if (prov === "ollama") {
+            return self.VieOllama.translateWithOllama({ text: cleanText, nextText, videoPersona: persona, glossary: glossaryList, history: ctx.items, baseUrl: settings.ollamaBaseUrl, preferredModel: settings.ollamaModel, targetLang, translationStyle: settings.translationStyle, pronounStyle: settings.pronounStyle, lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false });
+          }
+          const common = {
+            text: cleanText, nextText, videoTitle, videoPersona: persona, glossary: glossaryList,
+            history: ctx.items, apiKey: key,
+            preferredModel: settings.model || "auto", targetLang,
+            translationStyle: settings.translationStyle, pronounStyle: settings.pronounStyle,
+            lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false
+          };
+          return prov === "groq" ? self.VieGroq.translateWithGroqAuto(common) : self.VieGemini.translateWithGeminiAuto(common);
+        };
+        const aiTask = targetProvider === "ollama" ? callAI("local", "ollama") : withKeyPool(settings, rawKey, callAI);
+        const [result, sub2] = await Promise.all([aiTask, sub2Promise]);
 
-        const rawVi = result.vi || "";
+        const rawVi = limitTranslationLength(result.vi || "", cleanText);
+        if (!rawVi) throw new Error("translation too long or empty");
         let finalVi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson) : rawVi;
         if (self.VieStorage?.formatMultiSpeakerDialogue) finalVi = self.VieStorage.formatMultiSpeakerDialogue(finalVi);
         finalVi = applyGlossaryOverrides(finalVi, glossaryList, cleanText);
@@ -287,7 +310,7 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
         if (self.VieStorage?.formatMultiSpeakerDialogue) vi = self.VieStorage.formatMultiSpeakerDialogue(vi);
         vi = applyGlossaryOverrides(vi, glossaryList, cleanText);
         if (vi) setCached(`gtx:${self.VieStorage.getCacheKey(cleanText, settings)}`, vi);
-        return { vi, sub2, provider: "gtx" };
+        return { vi, sub2, provider: "gtx", quotaExhausted: !!err.allKeysExhausted };
       }
     } finally {
       inFlight.delete(cacheKey);
@@ -345,39 +368,25 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
   }
 
   try {
-    const batchRes =
-      provider === "ollama"
-        ? await self.VieOllama.translateWithOllama({ texts: uncached, history: ctx.items, glossary: Array.isArray(settings.customGlossary) ? settings.customGlossary : [], baseUrl: settings.ollamaBaseUrl, preferredModel: settings.ollamaModel, targetLang, translationStyle: settings.translationStyle, pronounStyle: settings.pronounStyle, lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false })
-        : provider === "groq"
-        ? await self.VieGroq.translateWithGroqAuto({
-            texts: uncached,
-            videoTitle,
-            history: ctx.items,
-            apiKey: rawKey,
-            preferredModel: settings.model || "auto",
-            targetLang,
-            translationStyle: settings.translationStyle,
-            pronounStyle: settings.pronounStyle,
-            lockedPronounPair: ctx.lockedPronounPair,
-            softenProfanity: settings.softenProfanity !== false
-          })
-        : await self.VieGemini.translateWithGeminiAuto({
-            texts: uncached,
-            videoTitle,
-            history: ctx.items,
-            apiKey: rawKey,
-            preferredModel: settings.model || "auto",
-            targetLang,
-            translationStyle: settings.translationStyle,
-            pronounStyle: settings.pronounStyle,
-            lockedPronounPair: ctx.lockedPronounPair,
-            softenProfanity: settings.softenProfanity !== false
-          });
+    const batchGlossary = Array.isArray(settings.customGlossary) ? settings.customGlossary : [];
+    const batchCall = (key, prov) => {
+      if (prov === "ollama") {
+        return self.VieOllama.translateWithOllama({ texts: uncached, history: ctx.items, glossary: batchGlossary, baseUrl: settings.ollamaBaseUrl, preferredModel: settings.ollamaModel, targetLang, translationStyle: settings.translationStyle, pronounStyle: settings.pronounStyle, lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false });
+      }
+      const common = {
+        texts: uncached, videoTitle, history: ctx.items, apiKey: key,
+        preferredModel: settings.model || "auto", targetLang,
+        translationStyle: settings.translationStyle, pronounStyle: settings.pronounStyle,
+        lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false
+      };
+      return prov === "groq" ? self.VieGroq.translateWithGroqAuto(common) : self.VieGemini.translateWithGeminiAuto(common);
+    };
+    const batchRes = provider === "ollama" ? await batchCall("local", "ollama") : await withKeyPool(settings, rawKey, batchCall);
 
     const translations = batchRes.translations || [];
     for (let i = 0; i < uncached.length; i++) {
       const src = uncached[i];
-      const rawVi = (translations[i] || "").trim();
+      const rawVi = limitTranslationLength((translations[i] || "").trim(), src);
       const vi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson) : rawVi;
       if (vi) {
         setCached(`${provider}:${self.VieStorage.getCacheKey(src, settings)}`, vi);
@@ -410,14 +419,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const tabId = sender.tab?.id ?? "global";
 
   if (msg.type === "TRANSLATE") {
-    handleTranslate(msg.text, msg.videoTitle || "", tabId, msg.fastPreviewOnly === true, msg.nextText || "")
+    handleTranslate(msg.text, (msg.videoTitle || "") + (msg.videoContext ? " | Mô tả: " + msg.videoContext : ""), tabId, msg.fastPreviewOnly === true, msg.nextText || "")
       .then(sendResponse)
       .catch((err) => sendResponse({ error: err.message || "Lỗi dịch phụ đề" }));
     return true;
   }
 
   if (msg.type === "TRANSLATE_BATCH") {
-    handleTranslateBatch(msg.texts || [], msg.videoTitle || "", tabId)
+    handleTranslateBatch(msg.texts || [], (msg.videoTitle || "") + (msg.videoContext ? " | Mô tả: " + msg.videoContext : ""), tabId)
       .then(sendResponse)
       .catch((err) => sendResponse({ error: err.message || "Lỗi dịch hàng loạt" }));
     return true;
@@ -457,8 +466,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           targetLang: s.targetLang || "vi"
         });
       }
-      const cleanVi = (res?.vi || "").replace(/^(?:ORIG|GỐC|ORIGINAL)\b[:\s-]*/i, "").trim();
+      const cleanVi = (res?.vi || "")
+        .replace(/^(?:ORIG|GỐC|ORIGINAL)\b[:\s-]*/i, "")
+        .replace(/^(?:Tôi đang dịch|Đang dịch|Dưới đây là bản dịch)\s*[:\s-]*/i, "")
+        .trim();
       const cleanOrig = (res?.orig || "").replace(/^(?:ORIG|GỐC|ORIGINAL)\b[:\s-]*/i, "").trim();
+      if (self.VieStorage.isAiMetaOrPromptLeak(cleanOrig) || self.VieStorage.isAiMetaOrPromptLeak(cleanVi)) {
+        return { orig: "", vi: "", sub2: "" };
+      }
       return { orig: cleanOrig, vi: cleanVi, sub2: res?.sub2 || "" };
     })()
       .then(sendResponse)
@@ -494,25 +509,62 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return { ok: true, provider: "ollama", modelUsed: res.modelUsed, availableModels: models, sample: res.vi };
       }
       if (p === "groq") {
-        const models = await self.VieGroq.discoverGroqModels(key);
-        const modelToTest = msg.model && msg.model !== "auto" && models.includes(msg.model) ? msg.model : models[0];
-        const res = await self.VieGroq.translateWithGroqAuto({
+        try {
+          const models = await self.VieGroq.discoverGroqModels(key);
+          const modelToTest = msg.model && msg.model !== "auto" && models.includes(msg.model) ? msg.model : models[0];
+          const res = await self.VieGroq.translateWithGroqAuto({
+            text: "Hello world!",
+            apiKey: key,
+            preferredModel: modelToTest,
+            targetLang: "vi"
+          });
+          return { ok: true, provider: "groq", modelUsed: res.modelUsed, availableModels: models, sample: res.vi };
+        } catch (err) {
+          const errMsg = err?.message || "";
+          if (/quota|rate_limit|429/i.test(errMsg)) {
+            return {
+              ok: true,
+              provider: "groq",
+              isQuotaExceeded: true,
+              modelUsed: "llama-3.3-70b-versatile",
+              availableModels: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
+              sample: "Xin chào thế giới! (Chế độ Dự phòng Không Giới Hạn)",
+              warning: "Key Groq hợp lệ! Tạm thời chạm ngưỡng gọi, đã tự động bật Dự phòng Google Translate để bạn xem video ngay."
+            };
+          }
+          throw err;
+        }
+      }
+
+      // Gemini
+      const models = await self.VieGemini.discoverGeminiModels(key);
+      const preferredModel = models.find((m) => m.includes("flash-lite")) || models[0] || "gemini-2.5-flash-lite";
+      const modelToTest = msg.model && msg.model !== "auto" && models.includes(msg.model) ? msg.model : preferredModel;
+      try {
+        const res = await self.VieGemini.translateWithGeminiAuto({
           text: "Hello world!",
           apiKey: key,
           preferredModel: modelToTest,
           targetLang: "vi"
         });
-        return { ok: true, provider: "groq", modelUsed: res.modelUsed, availableModels: models, sample: res.vi };
+        return { ok: true, provider: "gemini", modelUsed: res.modelUsed, availableModels: models, sample: res.vi };
+      } catch (err) {
+        const errMsg = err?.message || "";
+        const isQuota = /quota|resource_exhausted|rate_limit|exceeded your current quota|429/i.test(errMsg);
+        if (isQuota) {
+          // Key hoàn toàn hợp lệ, chỉ là Google đang tạm chạm giới hạn ngày của Project (RPD limit)
+          return {
+            ok: true,
+            provider: "gemini",
+            isQuotaExceeded: true,
+            modelUsed: modelToTest || "gemini-2.5-flash-lite",
+            availableModels: models.length ? models : ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-2.0-flash"],
+            sample: "Xin chào thế giới! (Chế độ Dự phòng Không Giới Hạn)",
+            warning: "Key Google Gemini hợp lệ! Hiện tại Google đang tạm tính chạm giới hạn ngày của Project (hồi phục sau vài giờ). Hệ thống đã tự động kích hoạt chế độ Dự phòng Không Giới Hạn (Google Translate) để bạn xem video ngay lập tức!"
+          };
+        }
+        throw err;
       }
-      const models = await self.VieGemini.discoverGeminiModels(key);
-      const modelToTest = msg.model && msg.model !== "auto" && models.includes(msg.model) ? msg.model : models[0];
-      const res = await self.VieGemini.translateWithGeminiAuto({
-        text: "Hello world!",
-        apiKey: key,
-        preferredModel: modelToTest,
-        targetLang: "vi"
-      });
-      return { ok: true, provider: "gemini", modelUsed: res.modelUsed, availableModels: models, sample: res.vi };
     })()
       .then(sendResponse)
       .catch((err) => sendResponse({ ok: false, error: err.message || "Lỗi kết nối API" }));
@@ -523,7 +575,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
       const key = (msg.apiKey || "").trim();
       const models = await self.VieGemini.discoverGeminiModels(key);
-      const activeModel = models[0] || "gemini-2.5-flash-lite";
+      const activeModel = models.find((m) => m.includes("flash-lite")) || models[0] || "gemini-2.5-flash-lite";
       await self.VieStorage.setSettings({
         provider: "gemini",
         apiKey: key,
@@ -541,16 +593,40 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg.type === "OPEN_KEY_SETUP") {
+    const url = chrome.runtime.getURL("popup/popup.html");
+    try {
+      chrome.action.openPopup().catch(() => chrome.tabs.create({ url }));
+    } catch {
+      chrome.tabs.create({ url });
+    }
+    sendResponse({ ok: true });
+    return false;
+  }
+
   if (msg.type === "LOOKUP_WORD") {
     (async () => {
       const s = await self.VieStorage.getSettings();
-      const key = s.geminiApiKey || s.apiKey || "";
-      if (!key) {
-        // Fallback to GTX single word
-        const vi = await self.VieGTX.translate(msg.word, s.targetLang || "vi");
-        return { ok: true, word: msg.word, meaning: vi, pron: "", pos: "Vocabulary", note: "" };
+      const gk = buildKeyPool(s, s.apiKey || "").filter((k) => self.VieStorage.detectProviderFromKey(k) === "gemini" && (keyCooldown.get(k) || 0) <= Date.now());
+      const key = gk[0] || "";
+      const gtxFallback = async () => {
+        let vi = "";
+        try { vi = await self.VieGTX.translate(msg.word, s.targetLang || "vi"); } catch {}
+        let ctx = "";
+        if (msg.sentence) {
+          try { ctx = await self.VieGTX.translate(msg.sentence, s.targetLang || "vi"); } catch {}
+        }
+        return {
+          ok: true, word: msg.word, meaning: vi || msg.word, pron: "", pos: "Từ vựng",
+          note: ctx ? "Cả câu: " + ctx : "", fallback: true
+        };
+      };
+      if (!key) return await gtxFallback();
+      try {
+        return await self.VieGemini.lookupWordWithGemini(msg.word, msg.sentence || "", key);
+      } catch {
+        return await gtxFallback();
       }
-      return await self.VieGemini.lookupWordWithGemini(msg.word, msg.sentence || "", key);
     })()
       .then(sendResponse)
       .catch((err) => sendResponse({ ok: false, error: err.message }));
@@ -571,6 +647,42 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     })()
       .then(sendResponse)
       .catch((err) => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+
+  if (msg.type === "CAPTURE_VISIBLE_TAB") {
+    try {
+      chrome.tabs.captureVisibleTab(null, { format: "jpeg", quality: 80 }, (dataUrl) => {
+        if (chrome.runtime.lastError || !dataUrl) {
+          sendResponse({ ok: false, error: chrome.runtime.lastError?.message || "Không thể chụp màn hình tab" });
+        } else {
+          const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, "");
+          sendResponse({ ok: true, imageBase64: base64 });
+        }
+      });
+    } catch (e) {
+      sendResponse({ ok: false, error: e.message });
+    }
+    return true;
+  }
+
+  if (msg.type === "SCAN_SCREEN_TEXT") {
+    (async () => {
+      const s = await self.VieStorage.getSettings();
+      const rawKey = s.apiKey || s.geminiApiKey || "";
+      if (!rawKey) {
+        return { ok: false, error: "NO_KEY", message: "Cần API Key Gemini để AI quét chữ trên màn hình (OCR)." };
+      }
+      return await self.VieGemini.scanAndTranslateVisualText({
+        imageBase64: msg.imageBase64,
+        mimeType: msg.mimeType || "image/jpeg",
+        apiKey: rawKey,
+        videoTitle: msg.videoTitle || "",
+        targetLang: s.targetLang || "vi"
+      });
+    })()
+      .then(sendResponse)
+      .catch((err) => sendResponse({ ok: false, error: err.message || "Lỗi quét chữ trên màn hình" }));
     return true;
   }
 

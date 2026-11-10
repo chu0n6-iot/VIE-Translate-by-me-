@@ -112,11 +112,31 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, 1350);
   }
 
+  const SUBTLE_EASTER_EGGS = [
+    "🎬 Vietsub mượt đến mức cứ ngỡ đang cày bộ phim mới lúc nửa đêm...",
+    "🍿 Chất lượng phụ đề nét căng chuẩn rạp, hội mê rổ phim nhìn là ưng bụng liền!",
+    "🐸 Đổi bao nhiêu tên miền đi nữa thì Cóc vẫn ở đây dịch phim mới cho bạn!",
+    "✨ Góc nhỏ cho dân sành phim: Nhặt trọn từng câu thoại vào chiếc rổ kỷ niệm!"
+  ];
+  let easterEggIdx = 0;
+
   function triggerToadHop() {
     if (!toadAvatarWrap) return;
     toadAvatarWrap.classList.remove("toad-hop");
     void toadAvatarWrap.offsetWidth;
     toadAvatarWrap.classList.add("toad-hop");
+  }
+
+  if (toadAvatarWrap) {
+    toadAvatarWrap.style.cursor = "pointer";
+    toadAvatarWrap.title = "Bấm vào Cóc để nghe tâm sự điện ảnh 🐸🍿";
+    toadAvatarWrap.addEventListener("click", () => {
+      triggerToadHop();
+      const quote = SUBTLE_EASTER_EGGS[easterEggIdx % SUBTLE_EASTER_EGGS.length];
+      easterEggIdx++;
+      setToadSay(quote);
+      triggerMicroToast("🍿 Easter Egg Điện Ảnh!");
+    });
   }
 
   function flashPreviewStage() {
@@ -180,7 +200,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     previewOrig.style.display = showDual ? "block" : "none";
     previewOrig.textContent = SAMPLE_SENTENCES[sLang] || SAMPLE_SENTENCES.orig;
 
-    if (tLang === "vi") {
+    const tStyle = translationStyleSelect ? translationStyleSelect.value : "natural";
+    if (tStyle === "unhinged") {
+      previewVi.textContent = "💀 Quả rizz này skibidi vãi chưởng, múa quạt như Khá Bảnh ở Ohio luôn lil bro! 🐶🔥";
+    } else if (tLang === "vi") {
       if (pStyle === "toi_ban") previewVi.textContent = SAMPLE_SENTENCES.vi_toi;
       else if (pStyle === "anh_em") previewVi.textContent = SAMPLE_SENTENCES.vi_anh;
       else previewVi.textContent = SAMPLE_SENTENCES.vi_minh;
@@ -352,6 +375,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     dualSub: true,
     provider: "gemini",
     apiKey: "",
+    backupKeys: "",
     groqApiKey: "",
     geminiApiKey: "",
     model: "auto",
@@ -359,7 +383,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     availableModels: [],
     verifiedKey: "",
     fallbackToFree: true,
-    autoAudioNoCC: false,
+    autoAudioNoCC: true,
     softenProfanity: true,
     hoverPauseDict: true,
     savedVocab: [],
@@ -387,6 +411,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     (stored.apiKey.startsWith("AQ.") || stored.apiKey.startsWith("AIza") ? stored.apiKey : "");
   if (stored.apiKey && !keysByProvider.groq && !keysByProvider.gemini) {
     keysByProvider[stored.provider === "gemini" ? "gemini" : "groq"] = stored.apiKey;
+  }
+
+  const backupKeysEl = document.getElementById("backupKeys");
+  if (backupKeysEl) {
+    backupKeysEl.value = stored.backupKeys || "";
+    backupKeysEl.addEventListener("change", () => chrome.storage.local.set({ backupKeys: backupKeysEl.value.trim() }));
   }
 
   enabledInput.checked = Boolean(stored.enabled);
@@ -759,6 +789,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await chrome.storage.local.set({
       provider: p,
       apiKey: key,
+      backupKeys: (document.getElementById("backupKeys")?.value || "").trim(),
       groqApiKey: keysByProvider.groq,
       geminiApiKey: keysByProvider.gemini,
       model: modelValue
@@ -766,13 +797,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (!silent) {
       triggerToadHop();
-      triggerMicroToast("💾 Đã lưu cài đặt!");
-      setToadSay("Ộp ộp! Đã lưu mọi tùy chỉnh phụ đề của bạn! 🐸💛");
+      triggerMicroToast("Đã lưu");
+      setToadSay("Đã lưu rồi nhé!");
       showStatus("✓ Đã lưu toàn bộ cài đặt thành công!", "ok");
       if (saveBtn) {
         const origText = saveBtn.textContent;
         saveBtn.classList.add("btn-saved-anim");
-        saveBtn.textContent = "✨ Đã lưu thành công!";
+        saveBtn.textContent = "Đã lưu";
         setTimeout(() => {
           saveBtn.classList.remove("btn-saved-anim");
           saveBtn.textContent = origText;
@@ -843,12 +874,21 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
 
         triggerToadHop();
-        triggerMicroToast(`🐸 Kết nối: ${res.modelUsed}`);
-        setToadSay(`Tuyệt vời! Cóc đang dịch bằng [${res.modelUsed}] 🐸🎧`);
-        showStatus(
-          `✓ API Key hợp lệ! Tìm thấy ${(res.availableModels || []).length} model. Đang dùng [${res.modelUsed}] (Tự động chuyển model khác nếu hết Quota).\nDịch thử: "${res.sample}"`,
-          "ok"
-        );
+        if (res.isQuotaExceeded) {
+          triggerMicroToast(`🐸 Đã lưu Key (Tự động kích hoạt Dự phòng Miễn phí)`);
+          setToadSay(`Key chuẩn rồi! Cóc tự động kích hoạt Dự phòng Không Giới Hạn khi Google hết Quota nhé! 🐸🛡️`);
+          showStatus(
+            `✓ API Key hợp lệ! Đã lưu thành công.\n🛡️ Lưu ý: Google đang tạm giới hạn lượt gọi ngày của Project này (${res.modelUsed}).\n✨ VIE-Translate đã TỰ ĐỘNG KÍCH HOẠT chế độ Dự phòng Google Translate Không Giới Hạn để bạn xem video ngay tức thì mà không cần chờ đợi!`,
+            "ok"
+          );
+        } else {
+          triggerMicroToast(`🐸 Kết nối: ${res.modelUsed}`);
+          setToadSay(`Tuyệt vời! Cóc đang dịch bằng [${res.modelUsed}] 🐸🎧`);
+          showStatus(
+            `✓ API Key hợp lệ! Tìm thấy ${(res.availableModels || []).length} model. Đang dùng [${res.modelUsed}] (Tự động chuyển model khác nếu hết Quota).\nDịch thử: "${res.sample}"`,
+            "ok"
+          );
+        }
       }
     );
   }

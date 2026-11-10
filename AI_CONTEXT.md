@@ -20,6 +20,7 @@
 - [popup/popup.html](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/popup/popup.html): Giao diện cài đặt (Tab API, Ngôn ngữ & Tách giọng đối thoại, Style, Sổ từ & Glossary).
 - [popup/popup.css](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/popup/popup.css): Phong cách giao diện cài đặt (dark theme, glassmorphism, micro-animations).
 - [popup/popup.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/popup/popup.js): Điều khiển cài đặt API Key, Persona, Smart Boundary, Multi-Speaker, Sổ từ & Glossary.
+- [popup/sfx.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/popup/sfx.js): Âm thanh tương tác WebAudio (tiếng cóc ộp, pop giọt nước, hợp âm lưu cài đặt).
 - [aistudio-helper.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/aistudio-helper.js): Tự động phát hiện và trích xuất Gemini API Key từ tab Google AI Studio.
 - [aistudio-page-hook.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/aistudio-page-hook.js): Hook clipboard trong MAIN world trên AI Studio để bắt Key tức thì.
 
@@ -30,3 +31,8 @@
 1. **Luôn đọc `AI_CONTEXT.md` đầu tiên** để định vị chính xác file cần sửa theo đúng nhiệm vụ.
 2. **TUYỆT ĐỐI KHÔNG đọc toàn bộ codebase** nếu chỉ cần sửa một module riêng biệt.
 3. Không tái tạo "God file"; duy trì tính độc lập và kích thước nhỏ gọn của từng module.
+4. Ghi chú kiến trúc v0.8.0 (Hợp nhất Local AI & Toàn bộ cơ chế nâng cao):
+- Local AI qua Ollama (`api/ollama.js`) và Whisper local (`api/whisper.js`, `tools/whisper_server.py`).
+- Multi-Speaker tách dòng (`formatMultiSpeakerDialogue`), Glossary ép thuật ngữ (`applyGlossaryOverrides`), Persona tự nhận diện (`detectVideoPersona`), gộp câu thông minh (`smartMergeCaptions`).
+- Key Pool xoay tua & hồi phục 429 (`withKeyPool`, `keyCooldown`, `backupKeys`), toast hết key (`showQuotaToast`), cảnh báo F5 (`startNoSubWatchdog`).
+- Chống stack tràn câu (`limitTranslationLength`), reset video (`resetForNewVideo`), chống dính chữ (`normalizeSubtitleText`), âm thanh WebAudio (`popup/sfx.js`, `dom.js` `playUiSound`).

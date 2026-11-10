@@ -199,7 +199,10 @@
         markModelCooldown(apiKey, m, 120000);
       }
     }
-    throw lastErr || new Error("All Groq models failed.");
+    if (lastErr) throw lastErr;
+    const cd = new Error("All Groq models are cooling down (rate_limit).");
+    cd.isQuotaExceeded = true;
+    throw cd;
   }
 
   async function transcribeWithGroqWhisper(audioBase64, mimeType, apiKey, prompt = "") {

@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="#-tiếng-việt-bản-hướng-dẫn-đầy-đủ-từ-a-z">🇻🇳 Bản Tiếng Việt (A–Z)</a> •
-  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.7.0`)</a> •
+  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.8.0`)</a> •
   <a href="#-english-complete-a-to-z-guide">🇬🇧 English Version (A–Z)</a> •
   <a href="#-version-history--new-mechanisms-changelog">📋 English Changelog</a>
 </p>
@@ -19,16 +19,16 @@
 ---
 
 > ⚡ **LƯU Ý DÀNH CHO CỘNG TÁC VIÊN / COLLABORATORS (TỐI ƯU HÓA AI INDEXING)**:
-> Codebase của dự án đã được đại tu và module hóa toàn diện (`v0.6.7` ➔ `v0.7.0`), loại bỏ hoàn toàn các God file cồng kềnh nhằm giúp các công cụ lập trình AI (Antigravity IDE, Cursor, GitHub Copilot...) đọc hiểu cực nhanh và tiết kiệm tối đa token.
+> Codebase của dự án đã được đại tu và module hóa toàn diện (`v0.6.7` ➔ `v0.8.0`), loại bỏ hoàn toàn các God file cồng kềnh nhằm giúp các công cụ lập trình AI (Antigravity IDE, Cursor, GitHub Copilot...) đọc hiểu cực nhanh và tiết kiệm tối đa token.
 > **Mẹo quan trọng:** Trước khi yêu cầu AI sửa lỗi hoặc phát triển tính năng mới, bạn **chỉ cần gõ kèm `@AI_CONTEXT.md` ở đầu câu lệnh**. AI sẽ lập tức nắm toàn bộ bản đồ kiến trúc mà **không cần quét lại toàn bộ codebase**, giúp tốc độ phản hồi tăng vọt!
 
 # 🇻🇳 TIẾNG VIỆT (Bản Hướng Dẫn Đầy Đủ Từ A–Z)
 
-**VIE-Translate (Translate Toad AI `v0.7.0` — Local AI Edition)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)**, kết hợp **Trợ Lý Học Ngoại Ngữ Chuyên Sâu (`Từ Loại POS • Ví Dụ Thực Tế • Fact Thú Vị & Mẹo Nhớ • Cụm Đi Kèm • Sổ Từ Vựng`)**, **Cân Chỉnh Độ Lệch Sub/Nhạc Tức Thì (`Sub Sync Calibration`)** và **Đọc Phát Âm Chuẩn Giọng Bản Xứ** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles**.
+**VIE-Translate (Translate Toad AI `v0.8.0` — Local AI Edition)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)**, kết hợp **Trợ Lý Học Ngoại Ngữ Chuyên Sâu (`Từ Loại POS • Ví Dụ Thực Tế • Fact Thú Vị & Mẹo Nhớ • Cụm Đi Kèm • Sổ Từ Vựng`)**, **Cân Chỉnh Độ Lệch Sub/Nhạc Tức Thì (`Sub Sync Calibration`)** và **Đọc Phát Âm Chuẩn Giọng Bản Xứ** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles**.
 
-## ✨ Tính Năng Nổi Bật (`v0.7.0`)
+## ✨ Tính Năng Nổi Bật (`v0.8.0`)
 
-0. **🏠 MỚI `v0.7.0` — Local AI (chạy bằng phần cứng của bạn, miễn phí, riêng tư, không cần API Key)**:
+0. **🏠 MỚI `v0.8.0` — Local AI (chạy bằng phần cứng của bạn, miễn phí, riêng tư, không cần API Key)**:
    - **Dịch bằng Ollama**: Qwen / Llama / Gemma chạy ngay trên máy, giữ ngữ cảnh phim, vần điệu nhạc, xưng hô, thuật ngữ.
    - **AI Nghe bằng Whisper local**: chọn **Tự động / Song song GPU + CPU / Chỉ GPU / Chỉ CPU**.
    - **Tùy chọn 100%**: không cài thì tự dùng Google Translate miễn phí, không ép phần cứng; local lỗi ➔ tự fallback.
@@ -61,12 +61,101 @@
 
 ## 🚀 Lịch Sử Cập Nhật & Các Cơ Chế Mới (Changelog)
 
-### 🏠 Phiên bản `v0.7.0` (Mới nhất) — *Local AI Edition: Ollama + Whisper local, GPU/CPU song song*
-- **🏠 Local AI dịch thuật qua Ollama** (`api/ollama.js`, `popup/ollama.js`): chọn **Local AI – Ollama** trong popup; tự liệt kê model đã cài; lỗi/không chạy ➔ tự về Google Translate.
-- **🎧 AI Nghe local qua Whisper** (`api/whisper.js`, `popup/whisper.js`, `tools/whisper_server.py`): 4 chế độ phần cứng (Tự động, Song song GPU+CPU luân phiên đoạn, Chỉ GPU, Chỉ CPU); lỗi ➔ tự dùng key cloud nếu có.
-- **🎙️ Nâng cấp AI Nghe & Dịch**: nghe được dù đang chọn Ollama/Google Translate; đoạn thu 4 giây; lọc câu ảo giác của Whisper ("Thank you for watching"...).
-- **🗣️ Tách lời nhiều người nói** (mỗi người một dòng `- `), **🔒 Khóa thuật ngữ (Glossary)**, **🎭 Tự nhận diện thể loại (Auto Persona)**, **🧩 Gộp câu thông minh**.
-- **🔐 Quyền mới**: `http://localhost/*`, `http://127.0.0.1/*` (chỉ để nói chuyện với server local của bạn).
+### 🤝 Phiên bản `v0.8.0` (Mới nhất) — *Gộp Bản Local AI Của Collaborator + Khôi Phục Toàn Bộ Tính Năng v0.6.8 → v0.7.4*
+- **Local AI (từ collaborator)**: dịch bằng **Ollama** (`api/ollama.js`), AI Nghe bằng **Whisper local** (`api/whisper.js`, `tools/whisper_server.py`) với 4 chế độ GPU/CPU; **Glossary**, **Auto Persona**, **gộp câu thông minh**, **tách lời nhiều người nói**.
+- **Khôi phục**: key dự phòng tự xoay + thông báo "Thêm key", chặn sub dài/stack, reset sub khi đổi video, dùng mô tả YouTube tìm lyrics, gợi ý F5, nút ẩn/hiện sub 1 chạm, phong cách Unhinged 💀, OCR, lọc câu "Tôi đang dịch…", từ điển dự phòng Google Translate, âm thanh tương tác, bộ test.
+- **Sửa xung đột khi gộp**: Ollama dùng chung luồng key pool/fallback; tách người nói chỉ kích hoạt khi có gạch đầu dòng `-`/`>>` (tránh tách nhầm câu CC bị ngắt dòng) và vẫn chống dính chữ; khung sub tối đa 4 dòng để chứa 2 người nói.
+
+### 🌟 Phiên bản `v0.7.4` — *Layout Đặc Sắc, Âm Thanh Tương Tác WebAudio & Kiểm Tra Toàn Diện 11 Bài Test*
+- 🎨 **Giao diện đặc sắc hơn**: Thanh điều hướng 4 Tab cân đối hoàn hảo, hiệu ứng viền phát sáng Toad Hero, thanh trượt vàng dạ quang, thẻ từ nổi bật khi rê chuột.
+- 🔊 **Âm thanh tương tác vui tai (WebAudio thuần 0ms)**: Tiếng ộp ộp của Cóc, tiếng nổ bong bóng nước khi bấm nút, arpeggio 4 nốt khi lưu, tiếng tick nhẹ trên thanh trượt và tiếng switch khi bật/tắt sub trên video.
+- 🧪 **Kiểm tra tự động 11 bài test (Đạt 100%)**:
+  1. AI Translate & Gemini/Groq hoạt động chuẩn xác theo ngữ cảnh & xưng hô.
+  2. Tự nhận diện và sử dụng API keys (Gemini `AIza...`/`AQ...`, Groq `gsk_...`).
+  3. Xoay vòng Key dự phòng tự động khi Key chính chạm Quota 429.
+  4. Google Translate (GTX) lập tức cứu trợ khi hết Model hoặc không có Key (kiểm tra mạng thực tế trực tuyến).
+  5. Bộ lọc chống tràn chữ (Length Guard) ngăn hoàn toàn lỗi gộp sub thành cả đoạn văn dài.
+  6. Dọn sạch phụ đề cũ khi chuyển video, giữ nguyên tua video và chống dính chữ.
+
+### 🌟 Phiên bản `v0.7.3` — *Gọn Sub, Cảnh Báo Hết Key, Key Dự Phòng, Popup Dễ Dùng*
+- Chặn bản dịch AI bị dài/gộp nhiều câu (tự dùng Google Translate), giới hạn sub 3 dòng.
+- Nhiều key: ô "Key dự phòng" (Gemini/Groq), tự đổi key khi hết lượt; hiện thông báo "Thêm key" ngay trên video.
+- Popup rút gọn chữ, bớt emoji; thêm âm thanh tương tác nhỏ (tắt/bật bằng nút loa).
+
+### 🌟 Phiên bản `v0.7.1` — *Sửa Từ Điển, Reset Sub Khi Đổi Video, Chống Dính Chữ*
+- 📖 Từ điển: tăng token, vá JSON bị cắt, cooldown theo quota, luôn có fallback Google Translate.
+- 🔄 Đổi video giữa chừng: reset sạch cue/overlay/bộ nhớ dịch, bỏ qua kết quả dịch cũ.
+- 🎵 Dùng mô tả YouTube (Provided to YouTube / Song–Artist) để tìm lyrics và làm ngữ cảnh dịch.
+- ✂️ Tách các từ dính nhau ("entirelypossible").
+
+### 🌟 Phiên bản `v0.7.0` — *Chặn Rò Rỉ Câu Chữ AI, Nút Ẩn/Hiện Sub 1-Chạm, Phong Cách Unhinged Brainrot 💀 & Easter Eggs Điện Ảnh*
+- **🛡️ Khắc Phục Triệt Để Lỗi Hiện Câu Chữ AI Tự Nói / Rò Rỉ Prompt (`isAiMetaOrPromptLeak Filter`)**:
+  - **Nguyên nhân**: Khi đoạn âm thanh thu được từ video là khoảng lặng hoặc tiếng nhạc không có lời nói, model Gemini Audio đôi khi tự lặp lại câu lệnh prompt tiếng Anh (`Listen to this audio clip and transcribe... Format JSON ONLY...`) vào trường `orig` và dịch luôn câu prompt đó sang tiếng Việt (`Hãy nghe đoạn âm thanh này và phiên âm lời nói...`) hoặc xuất ra câu tự thuật (`Tôi đang dịch...`).
+  - **Giải pháp 3 lớp**:
+    1. Tách riêng chỉ thị hệ thống (`systemInstruction`) trong `transcribeAndTranslateWithGeminiAudio`: bắt buộc trả về `{"orig":"","vi":""}` nếu không có giọng nói rõ ràng.
+    2. Xây dựng bộ lọc đa tầng `isAiMetaOrPromptLeak` trong `utils/storage.js`, `api/gemini.js`, `background/background.js` và `content/content.js`.
+    3. Bất kỳ câu phụ đề nào chứa nội dung rò rỉ prompt hoặc câu tự nói của AI (*"Tôi đang dịch..."*, *"Dưới đây là bản dịch..."*, *"Listen to this audio..."*, *"Format JSON ONLY..."*) đều bị chặn và giấu đi ngay lập tức 100%.
+- **👁️ Nút Bật / Tắt Phụ Đề Tức Thì 1-Chạm Ngay Trên Video (`1-Click Instant Sub Toggle & Resync`)**:
+  - Bổ sung nút nổi **`👁️ Sub: BẬT` / `🙈 Sub: TẮT`** (`.vie-quick-sub-toggle`) nằm ngay góc trên bên phải video (cạnh nút AI Nghe & Dịch).
+  - **Tắt 1 phát ăn ngay**: Bấm một chạm là ẩn sạch khung phụ đề ngay lập tức để xem cảnh phim trọn vẹn.
+  - **Bật lại bắt kịp nhịp phim 0ms**: Khi bấm bật lại, hệ thống tự động xóa cache câu cũ (`lastCueText = ""`), lập tức đồng bộ với mốc `video.currentTime` hiện tại và hiển thị ngay câu thoại đúng nhịp phim mà không bị trễ hay lệch câu.
+- **💀 Phong Cách Biên Dịch Mới: `💀 Unhinged / Brainrot & Family Guy` (`Unhinged Meme Translation Style`)**:
+  - Thêm chế độ dịch thuật bá đạo nhất trong tab **🌍 Ngôn Ngữ**: **💀 Unhinged / Brainrot & Family Guy**.
+  - Dịch theo phong cách châm biếm cực gắt của *Family Guy* (Peter Griffin / Stewie), kết hợp từ lóng brainrot (*skibidi, rizz chúa, mewing, ohio, sigma, fanum tax, cook luôn, sủi*), dark jokes và các nhân vật meme huyền thoại (*IShowSpeed, Khá Bảnh múa quạt, Charlie Kirk, Lapeace, Gigachad*) nhưng vẫn bám sát tình tiết cốt truyện để người xem hiểu phim.
+- **🍿 Subtle Cinema Easter Eggs (`phimmoi` & `rophim` Tributes)**:
+  - Thêm các Easter Eggs tinh tế dành cho hội mê phim khi bấm vào chú cóc **Translate Toad** trong Popup hoặc rê chuột lên dòng mẹo trên thanh học tập, cùng bộ nhận diện khung trình phát cổ điển (`#box-player`, `.watch-player`).
+
+### 🌟 Phiên bản `v0.6.9` — *Cứu Hộ Quota API Key 429 Tự Động, Tự Bật Phụ Đề YouTube, Sửa Lỗi Tua Video & Quét Chữ Màn Hình OCR*
+- **🛡️ Cơ chế Cứu hộ Quota API Key 429 & Tự động Kích hoạt Dự phòng Miễn phí (`Automated Quota Recovery & Free Backup`)**:
+  - **Bản chất lỗi Quota 429 trên Google AI Studio**: Các model thử nghiệm/preview (`gemini-3.8-flash`...) bị Google áp giới hạn nghiêm ngặt chỉ **20 lượt gọi/ngày (20 RPD)** trên Free Tier. Khi một dự án chạm mốc này, mọi API Key mới tạo trong cùng dự án đó đều bị Google từ chối với mã lỗi `429: Generate content requests per day limit exceeded... Please retry in 6h49m...`.
+  - **Tự động ưu tiên Model hạn ngạch cao 1,500 RPD**: Hệ thống tự động đẩy các model nhẹ có hạn ngạch lớn gấp 75 lần (`gemini-2.5-flash-lite`, `gemini-2.0-flash-lite`, `gemini-2.0-flash` với 1,500 lượt/ngày) lên đầu danh sách ưu tiên (+2500 điểm), chấm dứt việc tự ý gọi model preview gây lãng phí quota.
+  - **Tự động cứu hộ — Không làm phiền người dùng**: Khi người dùng dán API Key mới và Google phản hồi lỗi 429 do cạn lượt ngày của Project:
+    - VIE-Translate **xác thực đây là Key xịn/chuẩn, tự động lưu ngay lập tức** (không còn văng thông báo lỗi đỏ chối từ).
+    - **TỰ ĐỘNG KÍCH HOẠT CHẾ ĐỘ DỰ PHÒNG GOOGLE TRANSLATE MIỄN PHÍ KHÔNG GIỚI HẠN (`VieGTX`)**: Video dịch trơn tru tức thì 100%, người dùng không cần bấm thêm nút nào hay đợi hết 6–7 tiếng.
+    - Tự động đặt thời gian chờ (1h Cooldown) cho model chạm hạn ngạch để khi Google hồi phục quota, tiện ích tự động kết nối lại AI mượt mà.
+- **▶️ Tự Động Bật Phụ Đề & Đồng Bộ Nút CC Trên YouTube (`YouTube CC Auto-Start & Auto-Display`)**:
+  - **Khắc phục lỗi video YouTube không tự hiện phụ đề**: Loại bỏ điều kiện cũ từng ẩn khung phụ đề `.vie-overlay` khi nút CC của YouTube đang tắt (`aria-pressed === "false"`).
+  - **Tự động kích hoạt nút CC (`autoEnsureYouTubeCC`)**: Khi mở video hoặc bắt đầu phát (`play`), VIE-Translate tự động mô phỏng bật nút CC của YouTube để lấy luồng phụ đề gốc mà không làm phiền người xem; đồng thời dùng CSS ẩn triệt để phụ đề mặc định của YouTube (`opacity: 0 !important`) để chỉ hiển thị phụ đề dịch thẩm mỹ của VIE-Translate.
+  - **Đồng bộ chuyển trang ngầm YouTube SPA**: Lắng nghe sự kiện `yt-navigate-finish` và `yt-page-data-updated` để tự động khởi tạo phụ đề và CC ngay khi người dùng bấm chuyển video mới trên YouTube.
+  - **Cơ chế nạp lại cues với 12 lần thử (Smart Retry)**: Khắc phục trường hợp YouTube Player đang khởi tạo `movie_player.getPlayerResponse()` trễ, giúp phụ đề tự động lên hình ngay khi video bắt đầu phát.
+- **⚡ Khắc Phục Lỗi Mất Sub Khi Tua Video (Zero-Sub-Loss on Seeking)**:
+  - Tách biệt biến theo dõi mốc thời gian `lastCueText` và biến chống gửi trùng `lastText`.
+  - Lắng nghe sự kiện `seeking` và `seeked` trên toàn bộ cửa sổ trình duyệt: tự động hủy `hideTimer`, xóa cache kiểm tra trùng lặp để khi tua tới hoặc tua lùi (seek ±10s), phụ đề tại mốc thời gian mới hiển thị ngay lập tức từ `localCache` trong 0ms mà không bị biến mất hay trễ nhịp.
+- **🎯 Sửa Lỗi "Căn Tự Động" Bị Đứng Hình & Kẹt Câu (`Fix Auto-Align Subtitle Freezing`)**:
+  - Loại bỏ hoàn toàn công thức so lệch độ dài video giả định (`durationDelta`) từng khiến mốc thời gian bị trễ 30–60s và kẹt cứng ở câu đầu tiên.
+  - Thuật toán `correlateLiveAudioWithCues` được giới hạn rào chắn chặt chẽ trong phạm vi ±8 giây xung quanh thời điểm phát hiện tại (không tìm kiếm lan man cả video), và giới hạn độ lệch an toàn tối đa ±5.0s.
+  - Khi bấm `🎯 Căn tự động`: nếu chưa có độ lệch hoặc muốn làm mới, hệ thống tự động đưa về mốc gốc chuẩn `0.0s`, loại bỏ hoàn toàn tình trạng đứng sub hoặc chạy lặp lại một câu.
+- **🎵 Loại Bỏ Nốt Nhạc Trên Lời Nói Chuyện Thông Thường (`Smart Music Notes Filter`)**:
+  - Chấm dứt tình trạng tự ý thêm `♪ ... ♪` vào các đoạn hội thoại, nói chuyện của nhân vật.
+  - Chỉ thêm nốt nhạc `♪` khi: (1) Phụ đề gốc YouTube CC đã có sẵn ký hiệu nốt nhạc, hoặc (2) Lời bài hát chính thức từ LRCLIB (`isLyricsTrack = true`) và không phải là đoạn hội thoại nói chuyện.
+- **🔍 Quét Chữ Trên Màn Hình & Dịch Bối Cảnh Phim Đa Hướng (Visual On-Screen Text / OCR)**:
+  - Tích hợp nút bấm `🔍 Quét chữ màn hình (OCR)` trực tiếp trên thanh công cụ phụ đề.
+  - Chụp ảnh khung hình video (qua Canvas độ nét cao hoặc `chrome.tabs.captureVisibleTab`) và truyền cho Gemini Multimodal Vision phân tích.
+  - Tự động nhận diện biển báo, biển hiệu, tin nhắn điện thoại, tài liệu, mốc thời gian hoặc chữ chạy trên phim; dịch sang tiếng Việt và chú thích ý nghĩa bối cảnh câu chuyện ngay cả trong các phân cảnh không có lời thoại đối thoại.
+- **▶️ Tự Động Dịch Ngay Khi Vào Video (100% Hands-Free)**:
+  - Mặc định kích hoạt `autoAudioNoCC: true`.
+  - Khi mở video: tự động bật CC trên YouTube, hiển thị nhãn `✨ Tự động dịch (CC)` hoặc `🎵 Lời bài hát`.
+  - Trên các trang video không có CC (Facebook, TikTok, Twitter/X): sau 1.8s phát mà không có sub, hệ thống tự động kích hoạt chế độ lắng nghe & dịch mà người dùng không cần phải bấm tay.
+- **🧪 Bộ Kiểm Tra Tự Động & Trang Thử Nghiệm Trực Quan (`Test Suite & Test Bench`)**:
+  - Bổ sung `test/run_tests.js` kiểm tra tự động 100% logic nốt nhạc, seeking, auto-sync và quota recovery.
+  - Bổ sung trang thử nghiệm tương tác `test/test_bench.html` trực quan.
+
+### 🌟 Phiên bản `v0.6.8` — *Khắc Phục Lỗi Nút Dịch Tự Tắt & Mở Rộng Facebook, TikTok, Twitter/X, HTML5 Toàn Diện*
+- **🛠️ Khắc phục triệt để lỗi nút "AI Nghe & Dịch" tự bật rồi tắt ngay lập tức (`Fix Toad Button Auto-Revert Glitch`)**:
+  - **Tách biệt ý muốn thu âm với việc tải lyrics**: Trước đây, khi bấm nút "AI Nghe & Dịch", nếu video đã có lời bài hát (hoặc tải thành công từ LRCLIB), hàm thu âm tự động gọi `userWantsAudioCapture = false` và chuyển nút về `idle` sau 100ms khiến người dùng thấy nút tự động nảy ngược trở lại. Nay hệ thống tách biệt hoàn toàn: việc tìm kiếm lyrics chạy nền không bao giờ huỷ trạng thái lắng nghe của người dùng; nút luôn duy trì ở trạng thái `🎙️ Đang nghe & dịch...` ổn định cho đến khi người dùng bấm tắt.
+  - **Chống nhấp đúp (Click Debouncing)**: Thêm cơ chế chặn nhấp chuột dồn dập (400ms debounce), tránh hiện tượng nhấp đúp làm nút bật và tắt ngay trong nháy mắt.
+  - **Hệ thống thu âm 3 tầng dự phòng (`3-Tier Audio Extraction`)**:
+    - *Tầng 1*: Native `captureStream()` / `mozCaptureStream()`.
+    - *Tầng 2 (Đột phá)*: Web Audio API `AudioContext.createMediaElementSource(video)` kết hợp `createMediaStreamDestination()` — vượt qua rào cản CORS và thẻ video không cấp stream trực tiếp, vừa trích xuất âm thanh cho AI vừa giữ nguyên đường ra loa (`ctx.destination`) cho người dùng nghe bình thường.
+    - *Tầng 3*: `video.srcObject` cho các luồng WebRTC / LiveStream trực tiếp.
+  - **Giữ vòng lặp thu âm khi video tạm dừng**: Nếu video tạm dừng, bộ đệm ghi âm tự động đợi tiếp mà không tắt nút hay thoát chế độ thu âm.
+- **🌐 Mở rộng dịch thuật sang Facebook Video & các trang không dùng `.html5-video-player` (`Universal Non-HTML5 & Facebook Video Engine`)**:
+  - **Hỗ trợ toàn diện Facebook Video**: Tương thích hoàn hảo với Facebook Watch, Facebook Reels, Facebook Feed và khung Theatre/Dialog (`div[data-video-id]`, `div[data-pagelet*='Video']`, `div[role='dialog']`, `div.x1y1aw1k`).
+  - **Hỗ trợ TikTok & Twitter / X**: Tương thích các vùng chứa video đặc thù (`div[data-e2e='feed-video']`, `div[data-testid='videoPlayer']`).
+  - **Thuật toán định vị khung hình thông minh `findBestVideoContainer(video)`**: Tự động leo ngược DOM phân tích kích thước để gắn khung phụ đề `.vie-overlay` và nút `.vie-toad-audio-btn` chuẩn xác, không bị lệch ra ngoài hay bị che khuất.
+  - **Bắt video tức thì qua Capture Phase**: Lắng nghe sự kiện `play` và `playing` ở cấp độ `window` với cờ `capture: true`, bắt trọn mọi video vừa bắt đầu phát trên Facebook Feed / Reels mà không cần đợi DOM Mutation Observer.
+  - **Nâng cấp nút Toad Audio luôn nổi bật & dễ bấm**: Đặt độ mờ mặc định `opacity: 0.78` (thay vì ẩn hoàn toàn `opacity: 0`), kết hợp kính mờ `backdrop-filter: blur(8px)` và viền vàng sang trọng, giúp người dùng dễ dàng nhìn thấy và bấm nghe dịch ngay cả trên các trang không có hiệu ứng hover player.
+
 
 ### 🌟 Phiên bản `v0.6.7` — *Dịch Thuật Chuyên Nghiệp Liên Kết Câu Trước-Sau & Khắc Phục Lỗi Giao Diện*
 - **🧠 Cơ chế mới — Dịch Thuật Chuyên Nghiệp Liên Kết Mạch Lạc Câu Trước - Câu Sau (`Cohesive Discourse Translation Engine`)**:
@@ -173,9 +262,9 @@
 
 # 🇬🇧 ENGLISH (Complete A-to-Z Guide)
 
-**VIE-Translate (Translate Toad AI `v0.7.0` — Local AI Edition)** is a real-time browser extension that translates video subtitles into **Vietnamese or any custom bilingual pair**, acts as a **Multi-Dimensional Vocabulary & Scene Nuance Coach**, and provides **Instant Subtitle/Lyrics Timing Calibration & Native Voice Speech Synthesis** using **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)**, and **Google Translate**.
+**VIE-Translate (Translate Toad AI `v0.8.0` — Local AI Edition)** is a real-time browser extension that translates video subtitles into **Vietnamese or any custom bilingual pair**, acts as a **Multi-Dimensional Vocabulary & Scene Nuance Coach**, and provides **Instant Subtitle/Lyrics Timing Calibration & Native Voice Speech Synthesis** using **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)**, and **Google Translate**.
 
-## ✨ Key Features (`v0.7.0`)
+## ✨ Key Features (`v0.8.0`)
 
 0. **🏠 NEW in `v0.7.0` — Local AI (your own hardware, free, private, no API key)**:
    - **Ollama translation** (Qwen / Llama / Gemma) with movie context, lyric rhyme, pronoun lock and glossary.
@@ -209,12 +298,90 @@
 
 ## 📋 Version History & New Mechanisms (Changelog)
 
-### 🏠 `v0.7.0` (Latest) — *Local AI Edition: Ollama + Local Whisper, parallel GPU/CPU*
-- **🏠 Local translation via Ollama** (`api/ollama.js`, `popup/ollama.js`): auto-lists installed models; unreachable ➔ silent Google Translate fallback.
-- **🎧 Local listening via Whisper** (`api/whisper.js`, `popup/whisper.js`, `tools/whisper_server.py`): Auto, Parallel GPU+CPU (chunks alternate), GPU only, CPU only; failure ➔ cloud key if present.
-- **🎙️ Improved AI Listen & Translate**: works with any translation provider; 4s chunks; Whisper hallucination filter.
-- **🗣️ Multi-speaker line splitting**, **🔒 Glossary lock**, **🎭 Auto Persona**, **🧩 Smart sentence merge**.
-- **🔐 New permissions**: `http://localhost/*`, `http://127.0.0.1/*` (only to reach your own local servers).
+### 🤝 `v0.8.0` (Latest) — *Merged Collaborator's Local AI Edition + Restored All v0.6.8 → v0.7.4 Features*
+- **Local AI (collaborator)**: Ollama translation, local Whisper (GPU/CPU modes), Glossary lock, Auto Persona, smart sentence merge, multi-speaker lines.
+- **Restored**: backup-key rotation + "Add key" alert, long/stacked subtitle guard, reset on video switch, YouTube description lyrics lookup, F5 hint, 1-click sub toggle, Unhinged 💀 style, OCR, AI meta-leak filter, dictionary GTX fallback, interaction sounds, test suite.
+- **Merge fixes**: Ollama shares the key-pool/fallback flow; multi-speaker split only on explicit `-`/`>>` markers (no false splits on wrapped CC lines) with de-glue kept; subtitle box clamps to 4 lines.
+
+### 🌟 `v0.7.4` — *Polished Layout, WebAudio Interaction Sound Effects & 11 Comprehensive Verification Tests*
+- 🎨 **Polished Layout**: Balanced 4-tab bar layout, glowing Toad Hero border, luminous gold range slider thumbs, interactive word hover capsules.
+- 🔊 **Rich WebAudio Sound Effects**: Cute frog croak, bubbly water drops on button clicks, 4-note major arpeggio upon saving, slider tick feedback, and in-video subtitle switch sounds.
+- 🧪 **11 Automated E2E Tests (100% Passed)**:
+  1. AI translation context and pronoun consistency verified.
+  2. Gemini/Groq API key format detection & automatic usage.
+  3. Backup key pool rotation upon 429 Quota Exceeded.
+  4. Instant Google Translate (GTX) zero-loss fallback verified against live Google servers.
+  5. Length guard prevents long stacked subtitle paragraphs.
+  6. Clean video-switch state reset, seeking persistence, and glued-word normalization.
+
+### 🌟 `v0.7.3` — *Tidy Subs, Out-of-Key Alert, Backup Keys, Simpler Popup*
+- Over-long/merged AI translations are rejected (GTX fallback); subtitle clamped to 3 lines.
+- Backup key pool (Gemini/Groq) with automatic rotation and an in-video "Add key" alert.
+- Shorter popup copy, fewer emojis, small interaction sounds (speaker toggle).
+
+### 🌟 `v0.7.1` — *Dictionary Fix, Reset on Video Switch, Glued-Word Fix*
+- Dictionary: bigger budget, JSON repair, quota-aware cooldown, guaranteed GTX fallback.
+- Full state reset on video switch; stale translations ignored.
+- YouTube description used for lyrics search and translation context.
+- De-glued words in captions.
+
+### 🌟 `v0.7.0` — *AI Prompt Leak Filter, 1-Click Instant Sub Toggle, Unhinged Brainrot 💀 Style & Cinema Easter Eggs*
+- **🛡️ Multi-Layer AI Meta & Prompt Leak Filter (`isAiMetaOrPromptLeak`)**:
+  - **Root Cause**: When an audio slice contained silence or background music, Gemini Audio occasionally echoed the English prompt instructions (`Listen to this audio clip... Format JSON ONLY...`) into `orig` and translated the prompt into Vietnamese (`Hãy nghe đoạn âm thanh này...`) or emitted self-referential text (`Tôi đang dịch...`).
+  - **Solution**: Moved instructions to `systemInstruction` with an explicit empty JSON rule for silence, and deployed `isAiMetaOrPromptLeak` across `utils/storage.js`, `api/gemini.js`, `background/background.js`, and `content/content.js` to immediately suppress any meta/prompt leak from appearing on screen.
+- **👁️ 1-Click Instant Subtitle Toggle & Resync (`👁️ Sub: BẬT` / `🙈 Sub: TẮT`)**:
+  - Added `.vie-quick-sub-toggle` button directly on the top-right corner of the video player.
+  - Instantly hides subtitles with 1 click, and when toggled back ON, clears cached text trackers and immediately resyncs to the exact current movie timestamp in 0ms.
+- **💀 New Translation Style: `💀 Unhinged / Brainrot & Family Guy`**:
+  - Added an unhinged, dark-humor, Family Guy-inspired satirical translation mode packed with internet brainrot slang (*skibidi, rizz, mewing, ohio, sigma, fanum tax*) and iconic meme references (*IShowSpeed, Khá Bảnh, Charlie Kirk, Lapeace*) while keeping the core plot understandable.
+- **🍿 Subtle Cinema Easter Eggs (`phimmoi` & `rophim` Tributes)**:
+  - Added subtle nostalgic movie-buff Easter Eggs on Toad mascot clicks in the popup, learn-bar tooltips, and classic streaming player selectors (`#box-player`, `.watch-player`).
+
+### 🌟 `v0.6.9` — *Automated Quota 429 Recovery, YouTube Subtitle Auto-Start & Token Optimization*
+- **🛡️ Automated API Quota 429 Recovery & Unlimited Free Fallback (`Automated Quota Recovery`)**:
+  - **Root Cause of Error 429 on Google AI Studio**: Google strictly enforces a 20 request-per-day (RPD) limit on experimental/preview models (`gemini-3.8-flash`) on the Free Tier. When this threshold is crossed, all subsequent requests in the same project fail with HTTP 429 (`limit: 20, model: gemini-3.8-flash, description: Generate content requests per day limit exceeded...`).
+  - **Automated High-Quota Prioritization**: Re-prioritized model discovery to promote high-quota lightweight models (`gemini-2.5-flash-lite`, `gemini-2.0-flash-lite`, `gemini-2.0-flash` with 1,500 RPD) with +2500 weights, preventing preview models from consuming project quotas.
+  - **Zero User Burden on Quota Exceeded**: When testing or validating new keys:
+    - VIE-Translate **validates the key as authentic and saves it immediately** instead of failing with an error.
+    - **AUTOMATICALLY ACTIVATES UNLIMITED FREE GOOGLE TRANSLATE BACKUP (`VieGTX`)**: Users enjoy uninterrupted real-time video translation instantly with zero waiting time and zero manual toggles.
+    - Applies an automated 1-hour cooldown to exhausted models, seamlessly reconnecting AI endpoints when the daily quota resets.
+- **▶️ YouTube Subtitles Auto-Start & Native CC Auto-Sync (`YouTube CC Auto-Start`)**:
+  - **Fixed Subtitles Not Auto-Starting**: Removed outdated condition that hid the `.vie-overlay` when YouTube's native CC button was in `aria-pressed === "false"`.
+  - **Automated CC Trigger (`autoEnsureYouTubeCC`)**: Automatically activates YouTube's native caption button upon video play to receive raw subtitle tracks, while visually suppressing YouTube's default captions via CSS (`opacity: 0 !important`) so only VIE-Translate's styled subtitles render.
+  - **YouTube SPA Navigation Hooking**: Listens to `yt-navigate-finish` and `yt-page-data-updated` to re-synchronize captions and CC when navigating between videos without a full page reload.
+  - **12-Attempt Smart Retry**: Overcomes asynchronous initialization delays in `movie_player.getPlayerResponse()`.
+- **⚡ Zero-Sub-Loss on Video Seeking (`Seeking Persistence`)**:
+  - Decoupled timeline cue tracker (`lastCueText`) from deduplication state (`lastText`).
+  - Added global capture-phase `seeking` and `seeked` listeners that clear pending hide timers and immediately render cached subtitles in 0ms upon scrubbing forward or backward.
+- **🎯 Fix Auto-Align Subtitle Freezing (`Auto-Sync Protection`)**:
+  - Removed unreliable `durationDelta` intro guessing that caused subtitles to stall on early cues.
+  - Restricted `correlateLiveAudioWithCues` to a ±8s window around the current playback timestamp and clamped offsets within ±5.0s, with instant 0.0s reset on re-alignment.
+- **🎵 Smart Music Notes Filter (No Notes on Spoken Dialogue)**:
+  - Musical notes (`♪ ... ♪`) are now strictly restricted to explicit musical symbols in native captions or verified LRCLIB song lyrics (`isLyricsTrack = true`), never applied to spoken dialogue.
+- **🔍 Visual On-Screen Text Scanner (OCR & Multi-Directional Scene Context)**:
+  - Added `🔍 Quét chữ màn hình (OCR)` button to the subtitle toolbar.
+  - Captures video frames (via Canvas or `chrome.tabs.captureVisibleTab`) and uses Gemini Vision to detect, translate, and explain on-screen signs, text messages, documents, and timestamps in dialogue-free scenes.
+- **▶️ 100% Hands-Free Auto-Start Translation**:
+  - Enabled `autoAudioNoCC: true` by default so non-CC videos (Facebook, TikTok, custom HTML5) automatically begin AI audio translation after 1.8s of playback.
+- **🧪 Automated Test Suite & Interactive Test Bench**:
+  - Added `test/run_tests.js` and `test/test_bench.html` for end-to-end verification.
+
+### 🌟 `v0.6.8` — *Fix Button Auto-Revert Glitch & Universal Facebook, TikTok, Twitter/X HTML5 Support*
+- **🛠️ Fix Instant Revert of "AI Nghe & Dịch" Button (`Fix Toad Button Auto-Revert Glitch`)**:
+  - **Decoupled User Intent from Lyrics Presence**: Previously, clicking "AI Nghe & Dịch" checked for song lyrics; if lyrics were already cached or found on LRCLIB, the function explicitly called `userWantsAudioCapture = false` and reverted the button back to `idle` within 100ms. In `v0.6.8`, lyrics detection runs quietly in the background without canceling the user's audio capture. The button stays active in `🎙️ Đang nghe & dịch...` until the user deliberately toggles it off.
+  - **Click Debouncing**: Added a 400ms debounce guard to prevent rapid double-clicks from toggling audio capture on and off instantly.
+  - **3-Tier Audio Stream Extraction**:
+    - *Tier 1*: Native `video.captureStream()` or `mozCaptureStream()`.
+    - *Tier 2 (Breakthrough)*: Web Audio API `createMediaElementSource(video)` routed to `createMediaStreamDestination()` — eliminates CORS / cross-origin media blocks while routing audio simultaneously to `ctx.destination` so users continue hearing video audio seamlessly through speakers.
+    - *Tier 3*: `video.srcObject` for live WebRTC / MediaStream video feeds.
+  - **Continuous Loop on Pause**: If the video is paused or buffering, the audio loop gracefully pauses and polls without resetting the button state or user intent.
+- **🌐 Universal Video Container Detection & Facebook Video Support**:
+  - **Dedicated Facebook Video Support**: Full compatibility with Facebook Watch, Facebook Reels, Newsfeed auto-play videos, and Theatre/Dialog modals (`div[data-video-id]`, `div[data-pagelet*='Video']`, `div[role='dialog']`, `div.x1y1aw1k`).
+  - **TikTok & Twitter/X Support**: Custom player support for TikTok (`div[data-e2e='feed-video']`, `div[class*='DivVideoContainer']`) and Twitter/X (`div[data-testid='videoPlayer']`).
+  - **Smart Wrapper Traversal `findBestVideoContainer(video)`**: Dynamically inspects parent bounding boxes to ensure subtitles and the Toad button attach tightly to the true video bounding box across all custom player architectures.
+  - **Capture Phase Video Hooking**: Listens to `play` and `playing` events on `window` in the capture phase, instantly latching onto any newly started video in infinite scroll feeds without waiting for DOM mutation ticks.
+  - **Always Visible & Sleek Toad Button**: Updated `.vie-toad-audio-btn` to default translucent visibility (`opacity: 0.78`) with `backdrop-filter: blur(8px)` and golden borders, ensuring it is immediately discoverable and clickable on Facebook and custom HTML5 players without requiring a hover state.
+
 
 ### 🌟 `v0.6.7` — *Cohesive Discourse Translation, Instant Subtitles & Critical Audio Fixes*
 - **🧠 New Mechanism — Cohesive Discourse Translation Engine**:
