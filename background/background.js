@@ -317,14 +317,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const tabId = sender.tab?.id ?? "global";
 
   if (msg.type === "TRANSLATE") {
-    handleTranslate(msg.text, msg.videoTitle || "", tabId, msg.fastPreviewOnly === true, msg.nextText || "")
+    handleTranslate(msg.text, (msg.videoTitle || "") + (msg.videoContext ? " | Mô tả: " + msg.videoContext : ""), tabId, msg.fastPreviewOnly === true, msg.nextText || "")
       .then(sendResponse)
       .catch((err) => sendResponse({ error: err.message || "Lỗi dịch phụ đề" }));
     return true;
   }
 
   if (msg.type === "TRANSLATE_BATCH") {
-    handleTranslateBatch(msg.texts || [], msg.videoTitle || "", tabId)
+    handleTranslateBatch(msg.texts || [], (msg.videoTitle || "") + (msg.videoContext ? " | Mô tả: " + msg.videoContext : ""), tabId)
       .then(sendResponse)
       .catch((err) => sendResponse({ error: err.message || "Lỗi dịch hàng loạt" }));
     return true;
@@ -465,13 +465,25 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "LOOKUP_WORD") {
     (async () => {
       const s = await self.VieStorage.getSettings();
-      const key = s.geminiApiKey || s.apiKey || "";
-      if (!key) {
-        // Fallback to GTX single word
-        const vi = await self.VieGTX.translate(msg.word, s.targetLang || "vi");
-        return { ok: true, word: msg.word, meaning: vi, pron: "", pos: "Vocabulary", note: "" };
+      const key = s.geminiApiKey || (/^AIza/.test(s.apiKey || "") ? s.apiKey : "") || "";
+      const gtxFallback = async () => {
+        let vi = "";
+        try { vi = await self.VieGTX.translate(msg.word, s.targetLang || "vi"); } catch {}
+        let ctx = "";
+        if (msg.sentence) {
+          try { ctx = await self.VieGTX.translate(msg.sentence, s.targetLang || "vi"); } catch {}
+        }
+        return {
+          ok: true, word: msg.word, meaning: vi || msg.word, pron: "", pos: "Từ vựng",
+          note: ctx ? "Cả câu: " + ctx : "", fallback: true
+        };
+      };
+      if (!key) return await gtxFallback();
+      try {
+        return await self.VieGemini.lookupWordWithGemini(msg.word, msg.sentence || "", key);
+      } catch {
+        return await gtxFallback();
       }
-      return await self.VieGemini.lookupWordWithGemini(msg.word, msg.sentence || "", key);
     })()
       .then(sendResponse)
       .catch((err) => sendResponse({ ok: false, error: err.message }));

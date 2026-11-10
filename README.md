@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="#-tiếng-việt-bản-hướng-dẫn-đầy-đủ-từ-a-z">🇻🇳 Bản Tiếng Việt (A–Z)</a> •
-  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.7.0`)</a> •
+  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.7.1`)</a> •
   <a href="#-english-complete-a-to-z-guide">🇬🇧 English Version (A–Z)</a> •
   <a href="#-version-history--new-mechanisms-changelog">📋 English Changelog</a>
 </p>
@@ -19,14 +19,14 @@
 ---
 
 > ⚡ **LƯU Ý DÀNH CHO CỘNG TÁC VIÊN / COLLABORATORS (TỐI ƯU HÓA AI INDEXING)**:
-> Codebase của dự án đã được đại tu và module hóa toàn diện (`v0.7.0`), loại bỏ hoàn toàn các God file cồng kềnh nhằm giúp các công cụ lập trình AI (Antigravity IDE, Cursor, GitHub Copilot...) đọc hiểu cực nhanh và tiết kiệm tối đa token.
+> Codebase của dự án đã được đại tu và module hóa toàn diện (`v0.7.1`), loại bỏ hoàn toàn các God file cồng kềnh nhằm giúp các công cụ lập trình AI (Antigravity IDE, Cursor, GitHub Copilot...) đọc hiểu cực nhanh và tiết kiệm tối đa token.
 > **Mẹo quan trọng:** Trước khi yêu cầu AI sửa lỗi hoặc phát triển tính năng mới, bạn **chỉ cần gõ kèm `@AI_CONTEXT.md` ở đầu câu lệnh**. AI sẽ lập tức nắm toàn bộ bản đồ kiến trúc mà **không cần quét lại toàn bộ codebase**, giúp tốc độ phản hồi tăng vọt!
 
 # 🇻🇳 TIẾNG VIỆT (Bản Hướng Dẫn Đầy Đủ Từ A–Z)
 
-**VIE-Translate (Translate Toad AI `v0.7.0`)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)**, kết hợp **Trợ Lý Học Ngoại Ngữ Chuyên Sâu (`Từ Loại POS • Ví Dụ Thực Tế • Fact Thú Vị & Mẹo Nhớ • Cụm Đi Kèm • Sổ Từ Vựng`)**, **Cân Chỉnh Độ Lệch Sub/Nhạc Tức Thì (`Sub Sync Calibration`)** và **Đọc Phát Âm Chuẩn Giọng Bản Xứ** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles (hỗ trợ Facebook, TikTok, Twitter/X & web HTML5 bất kỳ)**.
+**VIE-Translate (Translate Toad AI `v0.7.1`)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)**, kết hợp **Trợ Lý Học Ngoại Ngữ Chuyên Sâu (`Từ Loại POS • Ví Dụ Thực Tế • Fact Thú Vị & Mẹo Nhớ • Cụm Đi Kèm • Sổ Từ Vựng`)**, **Cân Chỉnh Độ Lệch Sub/Nhạc Tức Thì (`Sub Sync Calibration`)** và **Đọc Phát Âm Chuẩn Giọng Bản Xứ** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles (hỗ trợ Facebook, TikTok, Twitter/X & web HTML5 bất kỳ)**.
 
-## ✨ Tính Năng Nổi Bật (`v0.7.0`)
+## ✨ Tính Năng Nổi Bật (`v0.7.1`)
 
 1. **📚 Phần Học Từ Vựng Đa Chiều Đặc Sắc (Rich Vocabulary Engine)**:
    - **Huy hiệu từ loại song ngữ trực quan (POS Badges)**: Tự động phân loại Động từ (Verb), Danh từ (Noun), Tính từ (Adjective), Trạng từ (Adverb), Cụm động từ (Phrasal Verb), Thành ngữ (Idiom), Tiếng lóng (Slang) với màu sắc bắt mắt.
@@ -56,7 +56,13 @@
 
 ## 🚀 Lịch Sử Cập Nhật & Các Cơ Chế Mới (Changelog)
 
-### 🌟 Phiên bản `v0.7.0` (Mới nhất) — *Chặn Rò Rỉ Câu Chữ AI, Nút Ẩn/Hiện Sub 1-Chạm, Phong Cách Unhinged Brainrot 💀 & Easter Eggs Điện Ảnh*
+### 🌟 Phiên bản `v0.7.1` (Mới nhất) — *Sửa Từ Điển, Reset Sub Khi Đổi Video, Chống Dính Chữ*
+- 📖 Từ điển: tăng token, vá JSON bị cắt, cooldown theo quota, luôn có fallback Google Translate.
+- 🔄 Đổi video giữa chừng: reset sạch cue/overlay/bộ nhớ dịch, bỏ qua kết quả dịch cũ.
+- 🎵 Dùng mô tả YouTube (Provided to YouTube / Song–Artist) để tìm lyrics và làm ngữ cảnh dịch.
+- ✂️ Tách các từ dính nhau ("entirelypossible").
+
+### 🌟 Phiên bản `v0.7.0` — *Chặn Rò Rỉ Câu Chữ AI, Nút Ẩn/Hiện Sub 1-Chạm, Phong Cách Unhinged Brainrot 💀 & Easter Eggs Điện Ảnh*
 - **🛡️ Khắc Phục Triệt Để Lỗi Hiện Câu Chữ AI Tự Nói / Rò Rỉ Prompt (`isAiMetaOrPromptLeak Filter`)**:
   - **Nguyên nhân**: Khi đoạn âm thanh thu được từ video là khoảng lặng hoặc tiếng nhạc không có lời nói, model Gemini Audio đôi khi tự lặp lại câu lệnh prompt tiếng Anh (`Listen to this audio clip and transcribe... Format JSON ONLY...`) vào trường `orig` và dịch luôn câu prompt đó sang tiếng Việt (`Hãy nghe đoạn âm thanh này và phiên âm lời nói...`) hoặc xuất ra câu tự thuật (`Tôi đang dịch...`).
   - **Giải pháp 3 lớp**:
@@ -234,7 +240,13 @@
 
 ## 📋 Version History & New Mechanisms (Changelog)
 
-### 🌟 `v0.7.0` (Latest) — *AI Prompt Leak Filter, 1-Click Instant Sub Toggle, Unhinged Brainrot 💀 Style & Cinema Easter Eggs*
+### 🌟 `v0.7.1` (Latest) — *Dictionary Fix, Reset on Video Switch, Glued-Word Fix*
+- Dictionary: bigger budget, JSON repair, quota-aware cooldown, guaranteed GTX fallback.
+- Full state reset on video switch; stale translations ignored.
+- YouTube description used for lyrics search and translation context.
+- De-glued words in captions.
+
+### 🌟 `v0.7.0` — *AI Prompt Leak Filter, 1-Click Instant Sub Toggle, Unhinged Brainrot 💀 Style & Cinema Easter Eggs*
 - **🛡️ Multi-Layer AI Meta & Prompt Leak Filter (`isAiMetaOrPromptLeak`)**:
   - **Root Cause**: When an audio slice contained silence or background music, Gemini Audio occasionally echoed the English prompt instructions (`Listen to this audio clip... Format JSON ONLY...`) into `orig` and translated the prompt into Vietnamese (`Hãy nghe đoạn âm thanh này...`) or emitted self-referential text (`Tôi đang dịch...`).
   - **Solution**: Moved instructions to `systemInstruction` with an explicit empty JSON rule for silence, and deployed `isAiMetaOrPromptLeak` across `utils/storage.js`, `api/gemini.js`, `background/background.js`, and `content/content.js` to immediately suppress any meta/prompt leak from appearing on screen.
