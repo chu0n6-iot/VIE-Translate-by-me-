@@ -320,27 +320,53 @@
     }
 
     // Lắng nghe sự kiện chuyển trang ngầm (SPA) của YouTube để kích hoạt ngay phụ đề và CC
+    let lastHandledVid = "";
     const onYouTubePageChange = () => {
       if (!location.hostname.includes("youtube.com")) return;
+      const curVid = new URL(location.href).searchParams.get("v") || "";
+      if (curVid && curVid !== lastHandledVid) {
+        lastHandledVid = curVid;
+        reloadHintVid = "";
+        noSubPlayedMs = 0;
+        const curVideo = document.querySelector("video.html5-main-video") || document.querySelector("video");
+        root.VieCaptions?.resetForNewVideo?.(curVideo, curVid);
+        if (curVideo) {
+          root.VieCaptions?.autoEnsureYouTubeCC?.(curVideo);
+          root.VieCaptions?.loadYouTubeCues?.(curVideo);
+        }
+      }
       document.querySelectorAll("video").forEach((v) => {
         root.VieCaptions?.autoEnsureYouTubeCC?.(v);
         root.VieCaptions?.watchVideo?.(v, onCaptionReceived);
       });
       scanAndWatchVideos();
     };
+
     const onYouTubeNavStart = () => {
       if (!location.hostname.includes("youtube.com")) return;
+      const curVid = new URL(location.href).searchParams.get("v") || "";
+      lastHandledVid = curVid;
       reloadHintVid = "";
       noSubPlayedMs = 0;
-      root.VieCaptions?.resetForNewVideo?.(document.querySelector("video"));
-      const cs = root.VieCaptions?.ytCueState;
-      if (cs) cs.vid = "";
+      const curVideo = document.querySelector("video.html5-main-video") || document.querySelector("video");
+      root.VieCaptions?.resetForNewVideo?.(curVideo, curVid);
     };
+
     window.addEventListener("yt-navigate-start", onYouTubeNavStart);
     document.addEventListener("yt-navigate-start", onYouTubeNavStart);
     window.addEventListener("yt-navigate-finish", onYouTubePageChange);
     document.addEventListener("yt-navigate-finish", onYouTubePageChange);
     window.addEventListener("yt-page-data-updated", onYouTubePageChange);
+    window.addEventListener("popstate", onYouTubePageChange);
+
+    // Interval phát hiện URL đổi tức thì ngay cả khi YouTube không bắn event SPA (100ms)
+    setInterval(() => {
+      if (!location.hostname.includes("youtube.com")) return;
+      const curVid = new URL(location.href).searchParams.get("v") || "";
+      if (curVid && curVid !== lastHandledVid) {
+        onYouTubePageChange();
+      }
+    }, 120);
 
     // Interval to ensure dynamic SPA video players (YouTube SPA nav, etc.) are always watched and have styles applied
     setInterval(scanAndWatchVideos, 1200);
