@@ -723,7 +723,7 @@
         recorder.onstop = async () => {
           if (!state.audioCaptureActive || !chunks.length) return;
           const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
-          if (blob.size < 400) return;
+          if (blob.size < 2500) return;
           const b64 = await blobToBase64(blob);
           const sliceTime = video.currentTime || 0;
           chrome.runtime.sendMessage({
@@ -734,7 +734,7 @@
           }, (res) => {
             if (res?.error === "NO_KEY") {
               stopVideoAudioCapture(video, true);
-              showSyncToast(video, "🔑 Cần API Key (Gemini/Groq) để AI nghe & dịch. Bấm icon Toad để lấy Key!");
+              showSyncToast(video, "🔑 AI nghe cần API Key miễn phí (Groq khuyên dùng hoặc Gemini). Bấm icon Toad để lấy Key — hoặc dùng video có CC!");
               return;
             }
             if (!chrome.runtime.lastError && (res?.vi || res?.orig)) {
@@ -753,7 +753,7 @@
             try { recorder.stop(); } catch {}
           }
           if (state.audioCaptureActive && userWantsAudioCapture) recordNext();
-        }, 1800);
+        }, 4000);
       } catch {
         state.audioLoopTimer = setTimeout(recordNext, 800);
       }

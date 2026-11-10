@@ -297,6 +297,13 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
   return task;
 }
 
+// Whisper hay "ảo giác" ra các câu này khi gặp im lặng/nhạc nền
+function isWhisperNoise(text) {
+  const t = (text || "").trim();
+  if (t.length < 2) return true;
+  return /^(thank(s| you)( so much)?( for watching)?[.!]?|thanks for watching|please subscribe|subscribe to|amara\.org|subtitles by|you|bye[.!]?|\.+|♪+|\[.*\]|\(.*\))$/i.test(t);
+}
+
 async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
   if (!Array.isArray(rawTexts) || !rawTexts.length) return { results: {} };
   const cleanList = Array.from(new Set(rawTexts.map((t) => (t || "").trim()).filter(Boolean))).slice(0, 12);
@@ -418,21 +425,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "TRANSCRIBE_AUDIO") {
     (async () => {
       const s = await self.VieStorage.getSettings();
-      const rawKey = s.apiKey || (s.provider === "groq" ? s.groqApiKey : s.geminiApiKey) || "";
-      if (!rawKey) {
+      const keys = [s.apiKey, s.groqApiKey, s.geminiApiKey].filter(Boolean);
+      const groqKey = keys.find((k) => self.VieStorage.detectProviderFromKey(k) === "groq") || "";
+      const geminiKey = keys.find((k) => self.VieStorage.detectProviderFromKey(k) === "gemini") || "";
+      if (!groqKey && !geminiKey) {
         return { error: "NO_KEY", orig: "", vi: "" };
       }
-      const p = self.VieStorage.detectProviderFromKey(rawKey) || s.provider;
       let res = { orig: "", vi: "" };
-      if (p === "groq") {
-        const text = await self.VieGroq.transcribeWithGroqWhisper(msg.audioBase64, msg.mimeType, rawKey);
+      if (groqKey) {
+        // Whisper (nhanh) nghe ➔ dịch bằng bộ máy đang chọn (Gemini/Groq/Ollama/GTX)
+        const text = (await self.VieGroq.transcribeWithGroqWhisper(msg.audioBase64, msg.mimeType, groqKey, msg.videoTitle || "")).trim();
+        if (isWhisperNoise(text)) return { orig: "", vi: "" };
         const trans = await handleTranslate(text, msg.videoTitle || "", tabId, false);
         res = { orig: text, vi: trans.vi || "", sub2: trans.sub2 || "" };
       } else {
         res = await self.VieGemini.transcribeAndTranslateWithGeminiAudio({
           audioBase64: msg.audioBase64,
           mimeType: msg.mimeType,
-          geminiKey: rawKey,
+          geminiKey,
           targetLang: s.targetLang || "vi"
         });
       }
