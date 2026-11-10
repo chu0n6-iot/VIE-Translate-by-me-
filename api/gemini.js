@@ -230,6 +230,13 @@
     throw lastErr || new Error("All Gemini models failed.");
   }
 
+  function sanitizeAudioText(t) {
+    return (t || "")
+      .replace(/^(?:\*{1,2})?(?:ORIG(?:INAL)?|GỐC|TRANS(?:LATION)?|DỊCH)\s*:\s*(?:\*{1,2})?/i, "")
+      .replace(/^(?:ORIG|GỐC|ORIGINAL)\b[:\s-]*/i, "")
+      .trim();
+  }
+
   async function transcribeAndTranslateWithGeminiAudio({ audioBase64, mimeType, geminiKey, targetLang = "vi" }) {
     const candidates = await discoverGeminiModels(geminiKey);
     const body = {
@@ -260,8 +267,30 @@
       if (isModelInCooldown(geminiKey, m)) continue;
       try {
         const raw = await callGeminiEndpoint({ model: m, apiKey: geminiKey, body, timeoutMs: 6000 });
-        const parsed = JSON.parse(raw);
-        if (parsed.vi || parsed.orig) return parsed;
+        let parsed = null;
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          const matchOrig = raw.match(/(?:orig|gốc)\s*["':]\s*([^"\n\r}]+)/i);
+          const matchVi = raw.match(/(?:vi|trans|dịch)\s*["':]\s*([^"\n\r}]+)/i);
+          if (matchOrig || matchVi) {
+            parsed = { orig: matchOrig ? matchOrig[1] : "", vi: matchVi ? matchVi[1] : "" };
+          }
+        }
+        if (parsed) {
+          let orig = sanitizeAudioText(parsed.orig || "");
+          let vi = sanitizeAudioText(parsed.vi || "");
+          if (orig && !vi && self.VieGtx?.translateWithGoogleFree) {
+            try {
+              vi = await self.VieGtx.translateWithGoogleFree(orig, targetLang);
+            } catch {
+              vi = orig;
+            }
+          }
+          if (vi || orig) {
+            return { orig, vi: sanitizeAudioText(vi) };
+          }
+        }
       } catch {
         markModelCooldown(geminiKey, m, 120000);
       }

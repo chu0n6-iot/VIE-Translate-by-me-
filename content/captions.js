@@ -33,6 +33,8 @@
     cues: [],
     isLyrics: false,
     lyricsSearchedTitle: "",
+    lyricsDuration: 0,
+    refEvents: [],
     sent: new Set(),
     timer: null,
     renderTimer: null
@@ -59,7 +61,12 @@
         audioRetryTimer: null,
         capturedSrc: "",
         videoNavKey: "",
-        toadBtnEl: null
+        toadBtnEl: null,
+        subSyncOffset: 0,
+        autoSynced: false,
+        autoSyncSource: "",
+        hasDetectedAudioOnset: false,
+        autoSyncedWithLiveAudio: false
       };
       videoStateMap.set(video, state);
     }
@@ -147,7 +154,241 @@
     return { title: title.trim(), author: author.trim(), duration };
   }
 
-  async function tryLoadSongLyricsForVideo(video, expectedVid = "", metaOverride = null) {
+  function extractWordTokens(text) {
+    return (text || "")
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .trim()
+      .split(/\s+/)
+      .filter((w) => w.length >= 2);
+  }
+
+  function correlateCuesWithReferenceTracks(lyricsCues, refEvents) {
+    if (!Array.isArray(lyricsCues) || !Array.isArray(refEvents)) return null;
+    if (lyricsCues.length < 3 || refEvents.length < 3) return null;
+
+    const deltas = [];
+    for (const lCue of lyricsCues.slice(0, 35)) {
+      const lTokens = extractWordTokens(lCue.text);
+      if (lTokens.length < 2) continue;
+
+      let bestMatch = null;
+      let bestScore = 0;
+
+      for (const rEvent of refEvents) {
+        const timeDiff = rEvent.start - lCue.start;
+        if (timeDiff < -30 || timeDiff > 120) continue;
+
+        const rTokens = extractWordTokens(rEvent.text);
+        if (!rTokens.length) continue;
+
+        let common = 0;
+        for (const tok of lTokens) {
+          if (rTokens.includes(tok)) common++;
+        }
+        const score = common / Math.max(lTokens.length, rTokens.length);
+        if (common >= 2 && score > bestScore && score >= 0.42) {
+          bestScore = score;
+          bestMatch = rEvent;
+        }
+      }
+
+      if (bestMatch) {
+        const delta = Math.round((bestMatch.start - lCue.start) * 10) / 10;
+        deltas.push(delta);
+      }
+    }
+
+    if (deltas.length < 2) return null;
+    deltas.sort((a, b) => a - b);
+    return deltas[Math.floor(deltas.length / 2)];
+  }
+
+  function detectAudioOnsetForVideo(video, onOnsetDetected) {
+    const state = getVideoState(video);
+    if (state.hasDetectedAudioOnset) return;
+    const captureFn = video.captureStream || video.mozCaptureStream;
+    if (typeof captureFn !== "function") return;
+
+    try {
+      const stream = captureFn.call(video);
+      const audioTracks = stream.getAudioTracks().filter((t) => t.readyState !== "ended");
+      if (!audioTracks.length) return;
+
+      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtxClass) return;
+      const audioCtx = new AudioCtxClass();
+      const source = audioCtx.createMediaStreamSource(new MediaStream(audioTracks));
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      let count = 0;
+
+      const checkTimer = setInterval(() => {
+        count++;
+        if (state.hasDetectedAudioOnset || video.paused || video.ended || count > 120) {
+          clearInterval(checkTimer);
+          try { audioCtx.close(); } catch {}
+          return;
+        }
+
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
+        const avg = sum / bufferLength;
+
+        if (avg > 14 && video.currentTime >= 0.5) {
+          state.hasDetectedAudioOnset = true;
+          clearInterval(checkTimer);
+          try { audioCtx.close(); } catch {}
+          if (typeof onOnsetDetected === "function") {
+            onOnsetDetected(video.currentTime);
+          }
+        }
+      }, 150);
+    } catch {}
+  }
+
+  function correlateLiveAudioWithCues(video, origText, audioTime) {
+    const state = getVideoState(video);
+    if (state.autoSyncedWithLiveAudio) return;
+    const cues = ytCueState.cues;
+    if (!Array.isArray(cues) || cues.length < 3) return;
+
+    const speechTokens = extractWordTokens(origText);
+    if (speechTokens.length < 2) return;
+
+    let bestCue = null;
+    let bestScore = 0;
+    for (const c of cues) {
+      const cueTokens = extractWordTokens(c.text);
+      if (!cueTokens.length) continue;
+      let common = 0;
+      for (const tok of speechTokens) {
+        if (cueTokens.includes(tok)) common++;
+      }
+      const score = common / Math.max(speechTokens.length, cueTokens.length);
+      if (common >= 2 && score > bestScore && score >= 0.45) {
+        bestScore = score;
+        bestCue = c;
+      }
+    }
+
+    if (bestCue && bestScore >= 0.45) {
+      const delta = Math.round((audioTime - bestCue.start) * 10) / 10;
+      if (Math.abs(delta) <= 120) {
+        state.subSyncOffset = delta;
+        state.autoSynced = true;
+        state.autoSyncedWithLiveAudio = true;
+        state.lastText = "";
+        updateOverlaySyncUI(video);
+        renderYouTubeByTime(video);
+        showSyncToast(video, `🎯 Đã tự khớp phụ đề (${delta >= 0 ? "+" : ""}${delta}s) theo giọng hát thực tế!`);
+      }
+    }
+  }
+
+  function updateOverlaySyncUI(video) {
+    const overlay = video._vieOverlay || document.querySelector(".vie-overlay");
+    if (!overlay) return;
+    const state = getVideoState(video);
+    const syncValEl = overlay.querySelector(".vie-sync-val");
+    const resetBtn = overlay.querySelector(".vie-sync-reset");
+    if (!syncValEl) return;
+
+    const offset = state.subSyncOffset || 0;
+    const offsetStr = `${offset > 0 ? "+" : ""}${offset.toFixed(1)}s`;
+    if (state.autoSynced) {
+      syncValEl.innerHTML = `${offsetStr} <span class="vie-sync-auto-tag" title="Đã tự động căn khớp theo âm thanh thực tế">Tự khớp ✨</span>`;
+    } else {
+      syncValEl.textContent = offsetStr;
+    }
+
+    if (resetBtn) {
+      resetBtn.style.display = Math.abs(offset) > 0.05 ? "inline-flex" : "none";
+    }
+  }
+
+  function showSyncToast(video, msg) {
+    const overlay = video._vieOverlay || document.querySelector(".vie-overlay");
+    if (!overlay) return;
+    const tipEl = overlay.querySelector(".vie-learn-tip");
+    if (!tipEl) return;
+    if (!tipEl._defaultTip) tipEl._defaultTip = tipEl.textContent;
+    tipEl.textContent = msg;
+    tipEl.style.color = "#fef08a";
+    tipEl.style.fontWeight = "600";
+    if (tipEl._tipTimer) clearTimeout(tipEl._tipTimer);
+    tipEl._tipTimer = setTimeout(() => {
+      tipEl.textContent = tipEl._defaultTip || "💡 Bấm từ bất kỳ để tra từ điển";
+      tipEl.style.color = "";
+      tipEl.style.fontWeight = "";
+    }, 3000);
+  }
+
+  function adjustSubSyncOffset(video, step, isShift = false) {
+    const state = getVideoState(video);
+    const actualStep = isShift ? step * 2 : step;
+    state.subSyncOffset = Math.round(((state.subSyncOffset || 0) + actualStep) * 10) / 10;
+    state.autoSynced = false;
+    state.lastText = "";
+    updateOverlaySyncUI(video);
+    renderYouTubeByTime(video);
+    showSyncToast(video, `⏱️ Độ lệch: ${state.subSyncOffset > 0 ? "+" : ""}${state.subSyncOffset}s`);
+  }
+
+  function resetSubSyncOffset(video) {
+    const state = getVideoState(video);
+    state.subSyncOffset = 0;
+    state.autoSynced = false;
+    state.lastText = "";
+    updateOverlaySyncUI(video);
+    renderYouTubeByTime(video);
+    showSyncToast(video, "↺ Đã đặt lại độ lệch về 0s");
+  }
+
+  function autoAlignSubtitleWithAudio(video) {
+    const state = getVideoState(video);
+    showSyncToast(video, "🎯 Đang tự động đối chiếu âm thanh & lời...");
+
+    if (ytCueState.refEvents && ytCueState.refEvents.length >= 3 && ytCueState.cues.length >= 3) {
+      const delta = correlateCuesWithReferenceTracks(ytCueState.cues, ytCueState.refEvents);
+      if (delta !== null) {
+        state.subSyncOffset = delta;
+        state.autoSynced = true;
+        state.autoSyncSource = "refTrack";
+        state.lastText = "";
+        updateOverlaySyncUI(video);
+        renderYouTubeByTime(video);
+        showSyncToast(video, `🎯 Tự căn khớp ${delta >= 0 ? "+" : ""}${delta}s theo phụ đề gốc!`);
+        return;
+      }
+    }
+
+    if (ytCueState.lyricsDuration && video.duration && Math.abs(video.duration - ytCueState.lyricsDuration) >= 2.0) {
+      const delta = Math.round((video.duration - ytCueState.lyricsDuration) * 10) / 10;
+      if (delta > 0 && delta <= 120) {
+        state.subSyncOffset = delta;
+        state.autoSynced = true;
+        state.autoSyncSource = "duration";
+        state.lastText = "";
+        updateOverlaySyncUI(video);
+        renderYouTubeByTime(video);
+        showSyncToast(video, `🎯 Tự căn theo đoạn mở đầu MV (+${delta}s)!`);
+        return;
+      }
+    }
+
+    showSyncToast(video, "🎙️ Đang nghe giọng thực tế để tự khóa nhịp...");
+    if (!state.audioCaptureActive) {
+      startVideoAudioCapture(video);
+    }
+  }
+
+  async function tryLoadSongLyricsForVideo(video, expectedVid = "", metaOverride = null, refEventsOverride = null) {
     return new Promise((resolve) => {
       const title = (metaOverride?.title || getVideoTitle() || "").trim();
       if (!title || title.length < 3) return resolve(false);
@@ -167,10 +408,51 @@
         if (res.synced && Array.isArray(res.cues) && res.cues.length >= 4) {
           ytCueState.cues = res.cues;
           ytCueState.isLyrics = true;
+          ytCueState.lyricsDuration = res.duration || 0;
           ytCueState.sent.clear();
           const st = getVideoState(video);
           st.hasReceivedAnySubtitle = true;
           if (st.audioCaptureActive) stopVideoAudioCapture(video, false);
+
+          const refEvents = refEventsOverride || ytCueState.refEvents || [];
+          if (refEvents.length >= 3) {
+            const autoOffset = correlateCuesWithReferenceTracks(res.cues, refEvents);
+            if (autoOffset !== null && Math.abs(autoOffset) >= 0.3) {
+              st.subSyncOffset = autoOffset;
+              st.autoSynced = true;
+              st.autoSyncSource = "refTrack";
+              updateOverlaySyncUI(video);
+              showSyncToast(video, `🎯 Đã tự động căn khớp ${autoOffset > 0 ? "+" : ""}${autoOffset}s theo bài hát!`);
+            }
+          } else if (res.duration && duration && Math.abs(duration - res.duration) >= 2.0) {
+            const durDelta = Math.round((duration - res.duration) * 10) / 10;
+            if (durDelta > 0 && durDelta <= 120) {
+              st.subSyncOffset = durDelta;
+              st.autoSynced = true;
+              st.autoSyncSource = "duration";
+              updateOverlaySyncUI(video);
+              showSyncToast(video, `🎯 Đã căn độ lệch mở đầu MV (+${durDelta}s)!`);
+            }
+          } else {
+            detectAudioOnsetForVideo(video, (onset) => {
+              if (onset > 1.5 && (!st.subSyncOffset || Math.abs(st.subSyncOffset) < 0.5)) {
+                const firstCueStart = res.cues[0]?.start || 0;
+                if (onset > firstCueStart) {
+                  const onsetDelta = Math.round((onset - firstCueStart) * 10) / 10;
+                  if (onsetDelta > 1.0 && onsetDelta < 60) {
+                    st.subSyncOffset = onsetDelta;
+                    st.autoSynced = true;
+                    st.autoSyncSource = "audioOnset";
+                    updateOverlaySyncUI(video);
+                    renderYouTubeByTime(video);
+                    showSyncToast(video, `🎯 Đã tự khớp +${onsetDelta}s theo tiếng nhạc thực tế!`);
+                  }
+                }
+              }
+            });
+          }
+
+          updateOverlaySyncUI(video);
           renderYouTubeByTime(video);
           resolve(true);
           return;
@@ -187,6 +469,7 @@
       if (ytCueState.vid) {
         ytCueState.vid = "";
         ytCueState.cues = [];
+        ytCueState.refEvents = [];
         ytCueState.isLyrics = false;
         ytCueState.sent.clear();
       }
@@ -196,8 +479,17 @@
     if (ytCueState.vid === vid) return;
     ytCueState.vid = vid;
     ytCueState.cues = [];
+    ytCueState.refEvents = [];
     ytCueState.isLyrics = false;
     ytCueState.sent = new Set();
+
+    const st = getVideoState(video);
+    st.subSyncOffset = 0;
+    st.autoSynced = false;
+    st.autoSyncSource = "";
+    st.hasDetectedAudioOnset = false;
+    st.autoSyncedWithLiveAudio = false;
+    updateOverlaySyncUI(video);
 
     try {
       const html = await (await fetch(`/watch?v=${vid}`, { credentials: "include" })).text();
@@ -214,24 +506,30 @@
         asrTrack = tracks.find((t) => t.kind === "asr") || tracks[0] || null;
       }
 
+      const chosenTrack = manualTrack || asrTrack;
+      let refEvents = [];
+      if (chosenTrack) {
+        try {
+          const data = await (await fetch(`${chosenTrack.baseUrl}&fmt=json3`, { credentials: "include" })).json();
+          for (const ev of data.events || []) {
+            if (!ev.segs) continue;
+            const text = normalizeSubtitleText(ev.segs.map((sg) => sg.utf8 || "").join(""));
+            if (!text) continue;
+            const start = (ev.tStartMs || 0) / 1000;
+            refEvents.push({ start, end: start + (ev.dDurationMs || 2000) / 1000, text });
+          }
+        } catch {}
+      }
+      ytCueState.refEvents = refEvents;
+
       if (isMusic && (!manualTrack || userWantsAudioCapture)) {
         ytCueState.lyricsSearchedTitle = title;
-        const foundSynced = await tryLoadSongLyricsForVideo(video, vid, htmlMeta);
+        const foundSynced = await tryLoadSongLyricsForVideo(video, vid, htmlMeta, refEvents);
         if (foundSynced) return;
       }
 
-      const chosenTrack = manualTrack || asrTrack;
-      if (chosenTrack) {
-        const data = await (await fetch(`${chosenTrack.baseUrl}&fmt=json3`, { credentials: "include" })).json();
-        const events = [];
-        for (const ev of data.events || []) {
-          if (!ev.segs) continue;
-          const text = normalizeSubtitleText(ev.segs.map((sg) => sg.utf8 || "").join(""));
-          if (!text) continue;
-          const start = (ev.tStartMs || 0) / 1000;
-          events.push({ start, end: start + (ev.dDurationMs || 2000) / 1000, text });
-        }
-        const cues = chosenTrack.kind === "asr" ? mergeEventsIntoSentences(events) : events;
+      if (chosenTrack && refEvents.length > 0) {
+        const cues = chosenTrack.kind === "asr" ? mergeEventsIntoSentences(refEvents) : refEvents;
         if (ytCueState.vid === vid && cues.length > 0) {
           ytCueState.cues = cues;
           ytCueState.isLyrics = false;
@@ -253,7 +551,8 @@
       }
     }
 
-    const t = video.currentTime || 0;
+    const state = getVideoState(video);
+    const t = Math.max(0, (video.currentTime || 0) - (state.subSyncOffset || 0));
     let lo = 0, hi = cues.length - 1, idx = -1;
     while (lo <= hi) {
       const mid = (lo + hi) >> 1;
@@ -265,7 +564,6 @@
       }
     }
 
-    const state = getVideoState(video);
     const cue = idx >= 0 && t <= cues[idx].end ? cues[idx] : null;
     if (!cue) {
       if (state.lastText) {
@@ -372,14 +670,18 @@
           const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
           if (blob.size < 400) return;
           const b64 = await blobToBase64(blob);
+          const sliceTime = video.currentTime || 0;
           chrome.runtime.sendMessage({
             type: "TRANSCRIBE_AUDIO",
             audioBase64: b64,
             mimeType: recorder.mimeType || "audio/webm",
             videoTitle: getVideoTitle()
           }, (res) => {
-            if (!chrome.runtime.lastError && res?.vi) {
-              root.VieContent?.renderSubtitles(video, res.orig || "", res.vi, res.sub2 || "", false);
+            if (!chrome.runtime.lastError && (res?.vi || res?.orig)) {
+              if (res.orig && ytCueState.cues.length > 0) {
+                correlateLiveAudioWithCues(video, res.orig, Math.max(0, sliceTime - 0.9));
+              }
+              root.VieContent?.renderSubtitles(video, res.orig || "", res.vi || "", res.sub2 || "", false);
             }
           });
         };
@@ -400,30 +702,54 @@
   }
 
   function ensureToadAudioButton(video) {
-    const container = video.parentElement || document.body;
-    let btn = container.querySelector(":scope > .vie-toad-audio-btn");
-    if (!btn) {
-      btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "vie-toad-audio-btn";
-      btn.title = "Translate Toad AI: Tự tìm Lyrics hoặc nghe âm thanh khi video không có CC";
-      btn.innerHTML = `<img src="${chrome.runtime.getURL("assets/icon48.png")}" alt="Toad"><span>AI Nghe & Dịch</span>`;
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        startVideoAudioCapture(video);
-      });
-      container.appendChild(btn);
+    const state = getVideoState(video);
+    const container =
+      video.closest(".html5-video-player, .video-js, .jwplayer, .plyr") ||
+      video.parentElement ||
+      document.body;
+
+    let btn = state.toadBtnEl;
+    if (btn && btn.isConnected) {
+      if (btn.parentElement !== container) {
+        container.appendChild(btn);
+      }
+    } else {
+      btn = container.querySelector(":scope > .vie-toad-audio-btn") || document.querySelector(".vie-toad-audio-btn");
+      if (btn) {
+        if (btn.parentElement !== container) {
+          container.appendChild(btn);
+        }
+      } else {
+        btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "vie-toad-audio-btn";
+        btn.title = "Translate Toad AI: Tự tìm Lyrics hoặc nghe âm thanh khi video không có CC";
+        btn.innerHTML = `<img src="${chrome.runtime.getURL("assets/icon48.png")}" alt="Toad"><span>AI Nghe & Dịch</span>`;
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          startVideoAudioCapture(video);
+        });
+        container.appendChild(btn);
+      }
+      state.toadBtnEl = btn;
     }
+
+    // Prune các nút duplicate còn sót trên DOM
+    document.querySelectorAll(".vie-toad-audio-btn").forEach((b) => {
+      if (b !== btn) b.remove();
+    });
+
+    updateToadButtonUI(video);
   }
 
   function updateToadButtonUI(video, mode = "idle") {
-    const container = video.parentElement || document.body;
-    const btn = container.querySelector(":scope > .vie-toad-audio-btn");
+    const state = getVideoState(video);
+    const btn = state.toadBtnEl || document.querySelector(".vie-toad-audio-btn");
     if (!btn) return;
     const span = btn.querySelector("span");
     if (!span) return;
-    if (mode === "listening" || userWantsAudioCapture) {
+    if (mode === "listening" || userWantsAudioCapture || state.audioCaptureActive) {
       btn.classList.add("vie-audio-active");
       span.textContent = "🎙️ Đang nghe & dịch...";
     } else {
@@ -493,6 +819,13 @@
     getVideoState,
     ensureToadAudioButton,
     updateToadButtonUI,
+    updateOverlaySyncUI,
+    adjustSubSyncOffset,
+    resetSubSyncOffset,
+    autoAlignSubtitleWithAudio,
+    showSyncToast,
+    correlateCuesWithReferenceTracks,
+    correlateLiveAudioWithCues,
     ytCueState
   };
 })(typeof self !== "undefined" ? self : this);

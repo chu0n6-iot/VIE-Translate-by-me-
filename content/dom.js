@@ -25,8 +25,14 @@
   }
 
   function formatSubtitleDecorations(origText, viText, isMusicOrLyrics = false) {
-    let finalOrig = (origText || "").trim();
-    let finalVi = (viText || "").trim();
+    let finalOrig = (origText || "")
+      .replace(/^(?:\*{1,2})?(?:ORIG(?:INAL)?|GỐC|TRANS(?:LATION)?|DỊCH)\s*:\s*(?:\*{1,2})?/i, "")
+      .replace(/^(?:ORIG|GỐC|ORIGINAL)\b[:\s-]*/i, "")
+      .trim();
+    let finalVi = (viText || "")
+      .replace(/^(?:\*{1,2})?(?:TRANS(?:LATION)?|DỊCH|VIETNAMESE|VI|ORIG(?:INAL)?|GỐC)\s*:\s*(?:\*{1,2})?/i, "")
+      .replace(/^(?:ORIG|GỐC|ORIGINAL)\b[:\s-]*/i, "")
+      .trim();
     if (!finalVi && !finalOrig) return { formattedOrig: finalOrig, formattedVi: finalVi };
 
     const hasMusicNote = /[♪♫♬]/.test(finalOrig) || /[♪♫♬]/.test(finalVi) || isMusicOrLyrics;
@@ -158,45 +164,81 @@
   }
 
   function getOrCreateOverlay(video, settings) {
-    let container = video.closest(".html5-video-player, .video-js, .jwplayer, .plyr, .shaka-video-container, .vp-video-wrapper") || video.parentElement || document.body;
+    const container =
+      video.closest(
+        ".html5-video-player, .video-js, .jwplayer, .plyr, .shaka-video-container, .vp-video-wrapper, [data-purpose='video-player'], .watch-video"
+      ) ||
+      video.parentElement ||
+      document.body;
     if (window.getComputedStyle(container).position === "static") {
       container.style.position = "relative";
     }
 
-    let overlay = container.querySelector(":scope > .vie-overlay");
-    if (!overlay) {
-      overlay = document.createElement("div");
-      overlay.className = "vie-overlay vie-hidden";
+    let overlay = video._vieOverlay;
+    if (overlay && overlay.isConnected) {
+      if (overlay.parentElement !== container) {
+        container.appendChild(overlay);
+      }
+    } else {
+      overlay =
+        container.querySelector(":scope > .vie-overlay") ||
+        (video.closest(".html5-video-player, .video-js, .jwplayer, .plyr")?.querySelector(".vie-overlay") || null);
 
-      const dictCard = document.createElement("div");
-      dictCard.className = "vie-dict-card vie-dict-hidden";
-      overlay.appendChild(dictCard);
+      if (overlay) {
+        if (overlay.parentElement !== container) {
+          container.appendChild(overlay);
+        }
+      } else {
+        overlay = document.createElement("div");
+        overlay.className = "vie-overlay vie-hidden";
 
-      const origLine = document.createElement("div");
-      origLine.className = "vie-orig";
+        const dictCard = document.createElement("div");
+        dictCard.className = "vie-dict-card vie-dict-hidden";
+        overlay.appendChild(dictCard);
 
-      const viLine = document.createElement("div");
-      viLine.className = "vie-vi";
+        const origLine = document.createElement("div");
+        origLine.className = "vie-orig";
 
-      const learnBar = document.createElement("div");
-      learnBar.className = "vie-learn-bar";
-      learnBar.innerHTML = `
-        <button type="button" class="vie-learn-btn vie-learn-scene-btn" title="Xem giải thích ngữ cảnh, phân tích câu & cách dùng thực tế">
-          🎓 Xem thêm: Ngữ cảnh &amp; Cách dùng thực tế
-        </button>
-        <button type="button" class="vie-learn-btn vie-learn-speak-all-btn" title="Nghe phát âm cả câu">
-          🔊 Nghe câu
-        </button>
-        <span class="vie-learn-tip">💡 Bấm từ bất kỳ để tra từ điển</span>
-      `;
+        const viLine = document.createElement("div");
+        viLine.className = "vie-vi";
 
-      overlay.appendChild(origLine);
-      overlay.appendChild(viLine);
-      overlay.appendChild(learnBar);
-      container.appendChild(overlay);
+        const learnBar = document.createElement("div");
+        learnBar.className = "vie-learn-bar";
+        learnBar.innerHTML = `
+          <button type="button" class="vie-learn-btn vie-learn-scene-btn" title="Xem giải thích ngữ cảnh, phân tích câu & cách dùng thực tế">
+            🎓 Xem thêm: Ngữ cảnh &amp; Cách dùng thực tế
+          </button>
+          <button type="button" class="vie-learn-btn vie-learn-speak-all-btn" title="Nghe phát âm cả câu">
+            🔊 Nghe câu
+          </button>
+          <div class="vie-sync-group" title="Tự động đối chiếu âm thanh hoặc tự chỉnh độ lệch phụ đề / lyrics">
+            <span class="vie-sync-label">⏱️ Lệch:</span>
+            <button type="button" class="vie-sync-btn vie-sync-minus" title="Chạy sớm hơn 0.5s (giảm độ trễ, Shift click để nhảy 1s)">⏪ -0.5s</button>
+            <span class="vie-sync-val">0s</span>
+            <button type="button" class="vie-sync-btn vie-sync-plus" title="Trễ lại 0.5s (nếu sub chạy trước tiếng nhạc, Shift click để nhảy 1s)">+0.5s ⏩</button>
+            <button type="button" class="vie-sync-btn vie-sync-auto" title="Tự động đối chiếu âm thanh thực tế và lời bài hát để căn chuẩn nhịp">🎯 Căn tự động</button>
+            <button type="button" class="vie-sync-btn vie-sync-reset" title="Đặt lại độ lệch về 0s" style="display:none;">↺</button>
+          </div>
+          <span class="vie-learn-tip">💡 Bấm từ bất kỳ để tra từ điển</span>
+        `;
 
-      bindOverlayEvents(video, overlay, origLine, viLine, dictCard, learnBar, settings);
+        overlay.appendChild(origLine);
+        overlay.appendChild(viLine);
+        overlay.appendChild(learnBar);
+        container.appendChild(overlay);
+
+        bindOverlayEvents(video, overlay, origLine, viLine, dictCard, learnBar, settings);
+      }
+      video._vieOverlay = overlay;
     }
+
+    // Đảm bảo TUYỆT ĐỐI không có overlay duplicate thứ 2 trên DOM
+    document.querySelectorAll(".vie-overlay").forEach((el) => {
+      if (el !== overlay) {
+        el.remove();
+      }
+    });
+
     applyOverlayVisualStyle(overlay, settings);
     return overlay;
   }
@@ -218,9 +260,8 @@
   }
 
   function hideOverlay(video) {
-    const container = video.parentElement || document.body;
-    const overlay = container.querySelector(".vie-overlay");
-    if (overlay && !overlay.classList.contains("vie-dict-open")) {
+    const overlay = video._vieOverlay || video.closest(".html5-video-player, .video-js")?.querySelector(".vie-overlay") || video.parentElement?.querySelector(".vie-overlay");
+    if (overlay && !overlay.classList.contains("vie-dict-open") && !overlay._isDictPinned) {
       overlay.classList.add("vie-hidden");
     }
   }
@@ -271,9 +312,53 @@
       const sentence = origEl.dataset.rawText || origEl.textContent.trim();
       if (sentence) speakWord(sentence);
     });
+
+    learnBar.querySelector(".vie-sync-minus")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      root.VieCaptions?.adjustSubSyncOffset(video, -0.5, e.shiftKey);
+    });
+
+    learnBar.querySelector(".vie-sync-plus")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      root.VieCaptions?.adjustSubSyncOffset(video, +0.5, e.shiftKey);
+    });
+
+    learnBar.querySelector(".vie-sync-auto")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      root.VieCaptions?.autoAlignSubtitleWithAudio(video);
+    });
+
+    learnBar.querySelector(".vie-sync-reset")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      root.VieCaptions?.resetSubSyncOffset(video);
+    });
   }
 
-  function closeDictAndCoach(video, overlay, dictCard, resumeVideo = false) {
+  function closeDictAndCoach(video, overlayOrResume, maybeDictCard, maybeResume) {
+    let overlay = null;
+    let dictCard = null;
+    let resumeVideo = false;
+
+    if (typeof overlayOrResume === "boolean") {
+      resumeVideo = overlayOrResume;
+    } else if (overlayOrResume && overlayOrResume.nodeType) {
+      overlay = overlayOrResume;
+    }
+
+    if (maybeDictCard && maybeDictCard.nodeType) {
+      dictCard = maybeDictCard;
+    }
+    if (typeof maybeResume === "boolean") {
+      resumeVideo = maybeResume;
+    }
+
+    if (!overlay && video) overlay = video._vieOverlay;
+    if (!dictCard && overlay) dictCard = overlay.querySelector(".vie-dict-card");
+
     if (overlay) {
       overlay._isDictPinned = false;
       overlay.classList.remove("vie-dict-open");
@@ -283,11 +368,42 @@
       dictCard.classList.add("vie-dict-hidden");
       dictCard.classList.remove("vie-scene-expanded");
     }
-    if (resumeVideo && overlay?._pausedByHover) {
+
+    // Quét dọn toàn bộ card hoặc duplicate còn sót trên DOM
+    document.querySelectorAll(".vie-dict-card").forEach((card) => {
+      card.classList.add("vie-dict-hidden");
+      card.classList.remove("vie-scene-expanded");
+    });
+    document.querySelectorAll(".vie-overlay").forEach((ov) => {
+      if (ov !== overlay) {
+        ov.remove();
+      } else {
+        ov._isDictPinned = false;
+        ov.classList.remove("vie-dict-open");
+        ov.querySelectorAll(".vie-word.vie-word-active").forEach((el) => el.classList.remove("vie-word-active"));
+      }
+    });
+
+    if (resumeVideo && video && video.paused && overlay?._pausedByHover) {
       overlay._pausedByHover = false;
       video.play().catch(() => {});
     }
   }
+
+  document.addEventListener(
+    "pointerdown",
+    (e) => {
+      if (e.target && (e.target.closest(".vie-overlay") || e.target.closest(".vie-toad-audio-btn"))) {
+        return;
+      }
+      document.querySelectorAll("video").forEach((vid) => {
+        if (vid._vieOverlay?._isDictPinned) {
+          closeDictAndCoach(vid, false);
+        }
+      });
+    },
+    { passive: true }
+  );
 
   function openWordLookup(video, overlay, dictCard, word, sentence, viText, wordSpan) {
     if (overlay) {

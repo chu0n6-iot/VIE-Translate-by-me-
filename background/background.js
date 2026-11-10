@@ -333,17 +333,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const s = await self.VieStorage.getSettings();
       const rawKey = s.apiKey || (s.provider === "groq" ? s.groqApiKey : s.geminiApiKey) || "";
       const p = self.VieStorage.detectProviderFromKey(rawKey) || s.provider;
+      let res = { orig: "", vi: "" };
       if (p === "groq") {
         const text = await self.VieGroq.transcribeWithGroqWhisper(msg.audioBase64, msg.mimeType, rawKey);
         const trans = await handleTranslate(text, msg.videoTitle || "", tabId, false);
-        return { orig: text, vi: trans.vi || "", sub2: trans.sub2 || "" };
+        res = { orig: text, vi: trans.vi || "", sub2: trans.sub2 || "" };
+      } else {
+        res = await self.VieGemini.transcribeAndTranslateWithGeminiAudio({
+          audioBase64: msg.audioBase64,
+          mimeType: msg.mimeType,
+          geminiKey: rawKey,
+          targetLang: s.targetLang || "vi"
+        });
       }
-      return await self.VieGemini.transcribeAndTranslateWithGeminiAudio({
-        audioBase64: msg.audioBase64,
-        mimeType: msg.mimeType,
-        geminiKey: rawKey,
-        targetLang: s.targetLang || "vi"
-      });
+      const cleanVi = (res?.vi || "").replace(/^(?:ORIG|GỐC|ORIGINAL)\b[:\s-]*/i, "").trim();
+      const cleanOrig = (res?.orig || "").replace(/^(?:ORIG|GỐC|ORIGINAL)\b[:\s-]*/i, "").trim();
+      return { orig: cleanOrig, vi: cleanVi, sub2: res?.sub2 || "" };
     })()
       .then(sendResponse)
       .catch(() => sendResponse({ orig: "", vi: "" }));

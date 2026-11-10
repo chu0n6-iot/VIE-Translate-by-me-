@@ -14,8 +14,17 @@
     const overlay = root.VieDOM?.getOrCreateOverlay(video, settings);
     if (!overlay) return;
 
+    const cleanOrigRaw = (origText || "")
+      .replace(/^(?:\*{1,2})?(?:ORIG(?:INAL)?|GỐC)\s*:\s*(?:\*{1,2})?/i, "")
+      .replace(/^(?:ORIG|GỐC|ORIGINAL)\b[:\s-]*/i, "")
+      .trim();
+    const cleanViRaw = (viText || "")
+      .replace(/^(?:\*{1,2})?(?:TRANS(?:LATION)?|DỊCH|VIETNAMESE|VI|ORIG(?:INAL)?|GỐC)\s*:\s*(?:\*{1,2})?/i, "")
+      .replace(/^(?:ORIG|GỐC|ORIGINAL)\b[:\s-]*/i, "")
+      .trim();
+
     const isMusic = root.VieCaptions?.ytCueState?.isLyrics || root.VieCaptions?.looksLikeMusicVideo(root.VieCaptions.getVideoTitle());
-    const { formattedOrig, formattedVi } = root.VieDOM.formatSubtitleDecorations(origText, viText, isMusic);
+    const { formattedOrig, formattedVi } = root.VieDOM.formatSubtitleDecorations(cleanOrigRaw, cleanViRaw, isMusic);
 
     const origEl = overlay.querySelector(".vie-orig");
     const viEl = overlay.querySelector(".vie-vi");
@@ -33,6 +42,7 @@
       viEl.classList.toggle("vie-error", Boolean(isError));
     }
 
+    root.VieCaptions?.updateOverlaySyncUI?.(video);
     overlay.classList.remove("vie-hidden");
   }
 
