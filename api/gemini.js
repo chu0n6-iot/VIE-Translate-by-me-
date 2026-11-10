@@ -8,9 +8,9 @@
 
   const FALLBACK_GEMINI_MODELS = [
     "gemini-2.5-flash-lite",
-    "gemini-2.0-flash-lite",
-    "gemini-2.0-flash",
     "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
     "gemini-flash-lite-latest",
     "gemini-flash-latest",
     "gemma-3-27b-it",
@@ -56,17 +56,15 @@
     if (m.includes("gemini-1.5") || m.includes("gemini-1.0") || m.includes("vision") || m.includes("embedding")) {
       return -9999;
     }
-    let score = 100;
-    // Ưu tiên cao nhất các model flash-lite có quota 1500 RPD (tránh các model bị Google giới hạn 20 RPD)
-    if (m.includes("2.5-flash-lite")) score += 2500;
-    else if (m.includes("2.0-flash-lite")) score += 2400;
-    else if (m.includes("flash-lite-latest")) score += 2300;
-    else if (m.includes("2.0-flash")) score += 2000;
+    let score = 0;
+    if (m.includes("2.5-flash-lite")) score += 2000;
     else if (m.includes("2.5-flash")) score += 1900;
-    else if (m.includes("flash-latest")) score += 1800;
-    else if (m.includes("gemma-3-27b")) score += 1500;
-    else if (m.includes("gemma-3-12b")) score += 1400;
-    else if (m.includes("flash")) score += 1000;
+    else if (m.includes("2.0-flash-lite")) score += 1800;
+    else if (m.includes("2.0-flash")) score += 1700;
+    else if (m.includes("flash-lite-latest")) score += 1600;
+    else if (m.includes("flash-latest")) score += 1500;
+    else if (m.includes("gemma-3-27b")) score += 1300;
+    else if (m.includes("gemma-3-12b")) score += 1200;
     return score;
   }
 
@@ -139,10 +137,7 @@
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
           const errMsg = errData?.error?.message || `Gemini HTTP ${res.status}`;
-          const err = new Error(errMsg);
-          err.status = res.status;
-          err.isQuotaExceeded = res.status === 429 || /quota|resource_exhausted|rate_limit|exceeded your current quota/i.test(errMsg);
-          throw err;
+          throw new Error(errMsg);
         }
         const data = await res.json();
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
@@ -160,6 +155,8 @@
     texts,
     nextText = "",
     videoTitle,
+    videoPersona = "",
+    glossary = [],
     history = [],
     apiKey,
     preferredModel = "auto",
@@ -179,6 +176,10 @@
       if (!ordered.includes(m)) ordered.push(m);
     }
 
+    const validGlossary = Array.isArray(glossary)
+      ? glossary.filter((g) => g && g.src && g.target && g.enabled !== false)
+      : [];
+
     const sysInstruction = [
       `You are an elite bilingual video subtitle translator. Target language: ${targetLang}.`,
       "PROFESSIONAL COHESION & FLOW (LIÊN KẾT MẠCH LẠC CÂU TRƯỚC - CÂU SAU):",
@@ -187,9 +188,17 @@
       "- Sử dụng liên từ tiếng Việt tự nhiên ('Nhưng rồi', 'Thế là', 'Hóa ra', 'Chẳng ngờ', 'Dẫu vậy...') khi câu là vế nối tiếp hoặc câu rút gọn.",
       "- Xử lý các đại từ quy chiếu (it, that, they...) sát theo đối tượng ở câu trước thay vì dịch cứng nhắc.",
       "- Với video ca nhạc/lyrics: dịch giàu vần điệu, hình ảnh thơ ca, giữ trọn hồn bài hát.",
+      videoPersona && root.VieStorage?.PERSONA_INSTRUCTIONS[videoPersona]
+        ? root.VieStorage.PERSONA_INSTRUCTIONS[videoPersona]
+        : "",
       root.VieStorage?.STYLE_INSTRUCTIONS[translationStyle] || "",
       root.VieStorage?.PRONOUN_INSTRUCTIONS[pronounStyle] || "",
       lockedPronounPair ? `LOCKED PRONOUN: ${lockedPronounPair}.` : "",
+      validGlossary.length > 0
+        ? `STRICT GLOSSARY ENFORCEMENT: You MUST translate the following terms exactly as mapped without exception: ${validGlossary
+            .map((g) => `"${g.src}" => "${g.target}"`)
+            .join(", ")}.`
+        : "",
       softenProfanity
         ? "FAMILY-FRIENDLY: Soften severe profanities/vulgar insults into mild natural expressions (e.g. 'chết tiệt', 'khốn kiếp', 'trời đất ơi'). NEVER refuse or stop translating."
         : "UNCENSORED: Faithfully translate any colloquial expressions and slang.",
@@ -238,64 +247,22 @@
         return { vi: out, modelUsed: m };
       } catch (err) {
         lastErr = err;
-        const isQuota = err.isQuotaExceeded || err.status === 429 || /quota|resource_exhausted|429/i.test(err.message || "");
-        markModelCooldown(apiKey, m, isQuota ? 3600000 : 120000);
+        markModelCooldown(apiKey, m, 120000);
       }
     }
-    if (lastErr) throw lastErr;
-    const cd = new Error("All Gemini models are cooling down (quota).");
-    cd.isQuotaExceeded = true;
-    throw cd;
-  }
-
-  function isAiMetaOrPromptLeak(text) {
-    if (!text) return false;
-    const s = String(text).trim();
-    const lower = s.toLowerCase();
-    if (
-      lower.includes("listen to this audio") ||
-      lower.includes("transcribe the spoken speech") ||
-      lower.includes("format json only") ||
-      lower.includes("exact spoken speech") ||
-      lower.includes("translation in vi") ||
-      lower.includes("lời nói chính xác bằng ngôn ngữ") ||
-      lower.includes("bản dịch sang tiếng việt") ||
-      lower.includes("đoạn âm thanh này và phiên âm") ||
-      lower.includes("format json")
-    ) {
-      return true;
-    }
-    if (
-      /^(?:tôi đang dịch|đang dịch\b|dưới đây là bản dịch|đây là bản dịch|bản dịch là:|bản dịch của tôi)/i.test(s) ||
-      lower.includes("tôi đang dịch") ||
-      lower.includes("tôi là mô hình ai") ||
-      lower.includes("tôi là một ai") ||
-      lower.includes("dưới đây là bản dịch")
-    ) {
-      return true;
-    }
-    return false;
+    throw lastErr || new Error("All Gemini models failed.");
   }
 
   function sanitizeAudioText(t) {
-    if (!t || isAiMetaOrPromptLeak(t)) return "";
     return (t || "")
       .replace(/^(?:\*{1,2})?(?:ORIG(?:INAL)?|GỐC|TRANS(?:LATION)?|DỊCH)\s*:\s*(?:\*{1,2})?/i, "")
       .replace(/^(?:ORIG|GỐC|ORIGINAL)\b[:\s-]*/i, "")
-      .replace(/^(?:Tôi đang dịch|Đang dịch|Dưới đây là bản dịch)\s*[:\s-]*/i, "")
       .trim();
   }
 
   async function transcribeAndTranslateWithGeminiAudio({ audioBase64, mimeType, geminiKey, targetLang = "vi" }) {
     const candidates = await discoverGeminiModels(geminiKey);
     const body = {
-      systemInstruction: {
-        parts: [
-          {
-            text: `You are an accurate live speech captioner and translator. Listen to the audio clip, transcribe the exact spoken words into 'orig', and translate them into ${targetLang} into 'vi'. Never output prompt instructions, meta commentary, or disclaimers. If there is no clear speech (silence, music, noise), return {"orig":"","vi":""}. Return JSON ONLY: {"orig": "...", "vi": "..."}`
-          }
-        ]
-      },
       contents: [
         {
           role: "user",
@@ -307,7 +274,7 @@
               }
             },
             {
-              text: `Transcribe and translate to ${targetLang}. JSON format: {"orig": "...", "vi": "..."}`
+              text: `Listen to this audio clip and transcribe the spoken speech, then translate it to ${targetLang}. Format JSON ONLY: {"orig": "exact spoken speech in original language", "vi": "translation in ${targetLang}"}`
             }
           ]
         }
@@ -336,14 +303,10 @@
         if (parsed) {
           let orig = sanitizeAudioText(parsed.orig || "");
           let vi = sanitizeAudioText(parsed.vi || "");
-          if (isAiMetaOrPromptLeak(orig) || isAiMetaOrPromptLeak(vi)) {
-            continue;
-          }
           const gtxFn = self.VieGTX?.translate || self.VieGtx?.translateWithGoogleFree;
           if (orig && !vi && gtxFn) {
             try {
               vi = await gtxFn(orig, targetLang);
-              if (isAiMetaOrPromptLeak(vi)) vi = "";
             } catch {
               vi = orig;
             }
@@ -385,7 +348,7 @@ Trả về duy nhất JSON hợp lệ (không markdown, không codeblock):
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 1400,
+        maxOutputTokens: 600,
         responseMimeType: "application/json"
       }
     };
@@ -394,26 +357,11 @@ Trả về duy nhất JSON hợp lệ (không markdown, không codeblock):
     for (const m of candidates) {
       if (isModelInCooldown(apiKey, m)) continue;
       try {
-        const raw = await callGeminiEndpoint({ model: m, apiKey, body, timeoutMs: 9000 });
-        const clean = String(raw).replace(/```json|```/g, "").trim();
-        let parsed;
-        try {
-          parsed = JSON.parse(clean);
-        } catch {
-          const a = clean.indexOf("{");
-          const b = clean.lastIndexOf("}");
-          if (a >= 0 && b > a) parsed = JSON.parse(clean.slice(a, b + 1));
-          else {
-            const mm = clean.match(/"meaning"\s*:\s*"([^"]+)"/);
-            if (!mm) throw new Error("bad json");
-            const pm = clean.match(/"pos"\s*:\s*"([^"]+)"/);
-            parsed = { word, meaning: mm[1], pos: pm ? pm[1] : "" };
-          }
-        }
+        const raw = await callGeminiEndpoint({ model: m, apiKey, body, timeoutMs: 6500 });
+        const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
         return { ok: true, ...parsed };
-      } catch (err) {
-        if (err && err.isQuotaExceeded) markModelCooldown(apiKey, m, 3600000);
-        else if (!/bad json|JSON/i.test(String(err && err.message))) markModelCooldown(apiKey, m, 60000);
+      } catch {
+        markModelCooldown(apiKey, m, 120000);
       }
     }
     throw new Error("Không thể tra từ lúc này.");
@@ -456,70 +404,12 @@ Trả về duy nhất JSON hợp lệ (không markdown, không codeblock):
     throw new Error("Không thể phân tích ngữ cảnh lúc này.");
   }
 
-  async function scanAndTranslateVisualText({ imageBase64, mimeType = "image/jpeg", apiKey, videoTitle = "", targetLang = "vi" }) {
-    if (!imageBase64) throw new Error("Không có dữ liệu ảnh để quét chữ.");
-    const prompt = `Bạn là trợ lý dịch thuật điện ảnh & bối cảnh thị giác chuyên nghiệp.
-Hãy quan sát thật kỹ khung hình video này${videoTitle ? ` (thuộc video: "${videoTitle}")` : ""}:
-1. Phát hiện và đọc toàn bộ chữ, biển báo, biển hiệu, tin nhắn điện thoại, thư từ, tài liệu, mốc thời gian, báo chí, nhãn hiệu hoặc dòng chữ chạy trên màn hình (On-Screen Visual Text / OCR).
-2. Dịch sang tiếng Việt sát nghĩa, tự nhiên và giải thích đa hướng bối cảnh phim (ví dụ: đây là biển báo gì, tin nhắn từ ai, địa điểm/thời gian nào, ẩn ý gì trong phân cảnh phim).
-
-Nếu trên màn hình KHÔNG CÓ chữ nào đáng kể (chỉ có phong cảnh/mặt người mà không có chữ):
-Trả về JSON duy nhất: {"hasText": false}
-
-Nếu CÓ chữ trên màn hình:
-Trả về JSON duy nhất (không bọc code block markdown):
-{
-  "hasText": true,
-  "orig": "văn bản gốc tiếng nước ngoài tìm thấy trên khung hình",
-  "vi": "bản dịch tiếng Việt sát nghĩa và tự nhiên",
-  "sceneType": "Biển hiệu / Tin nhắn điện thoại / Mốc thời gian / Tài liệu / Bối cảnh phim",
-  "nuance": "giải thích ngắn gọn ý nghĩa bối cảnh của đoạn chữ này đối với tình tiết câu chuyện"
-}`;
-
-    const body = {
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              inlineData: {
-                mimeType: mimeType || "image/jpeg",
-                data: imageBase64
-              }
-            },
-            { text: prompt }
-          ]
-        }
-      ],
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 1400,
-        responseMimeType: "application/json"
-      }
-    };
-
-    const candidates = await discoverGeminiModels(apiKey);
-    for (const m of candidates) {
-      if (isModelInCooldown(apiKey, m)) continue;
-      try {
-        const raw = await callGeminiEndpoint({ model: m, apiKey, body, timeoutMs: 9000 });
-        const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
-        return { ok: true, ...parsed, modelUsed: m };
-      } catch (err) {
-        const isQuota = err.isQuotaExceeded || err.status === 429 || /quota|resource_exhausted|429/i.test(err.message || "");
-        markModelCooldown(apiKey, m, isQuota ? 3600000 : 120000);
-      }
-    }
-    throw new Error("Không thể quét chữ trên màn hình lúc này.");
-  }
-
   root.VieGemini = {
     FALLBACK_GEMINI_MODELS,
     discoverGeminiModels,
     callGeminiEndpoint,
     translateWithGeminiAuto,
     transcribeAndTranslateWithGeminiAudio,
-    scanAndTranslateVisualText,
     lookupWordWithGemini,
     explainSceneWithGemini,
     looksLikeRefusal

@@ -95,10 +95,6 @@
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.75);
   white-space: normal;
   word-break: break-word;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 .vie-overlay[data-bg-style="outline"] .vie-vi {
@@ -119,7 +115,7 @@
   font-size: calc(clamp(13px, 1.4vw, 17px) * var(--vie-scale, 1));
 }
 
-/* Nút nổi Translate Toad AI Audio trên góc video (hỗ trợ Facebook, TikTok, Twitter, YouTube & mọi web HTML5) */
+/* Nút nổi Translate Toad AI Audio trên góc video (cho video không có CC) */
 .vie-toad-audio-btn {
   position: absolute;
   top: 14px;
@@ -128,20 +124,18 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 6px 11px;
   border-radius: 999px;
   background: rgba(12, 18, 34, 0.82);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(251, 191, 36, 0.55);
   color: #fef08a;
   font-family: "Segoe UI", Roboto, Arial, sans-serif;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  opacity: 0.78;
-  transform: translateY(0);
-  transition: opacity 0.2s ease, transform 0.2s ease, background 0.15s ease, box-shadow 0.2s ease;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.2s ease, transform 0.2s ease, background 0.15s ease;
   pointer-events: auto;
   user-select: none;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
@@ -150,22 +144,20 @@
 *:hover > .vie-toad-audio-btn,
 .vie-toad-audio-btn:hover,
 .vie-toad-audio-btn.vie-audio-active {
-  opacity: 1;
-  transform: translateY(0) scale(1.02);
+  opacity: 0.95;
+  transform: translateY(0);
 }
 
 .vie-toad-audio-btn:hover {
   background: rgba(23, 37, 68, 0.95);
   border-color: #fbbf24;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55), 0 0 10px rgba(245, 158, 11, 0.35);
 }
 
 .vie-toad-audio-btn.vie-audio-active {
   background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
   color: #ffffff;
   border-color: #fde68a;
-  box-shadow: 0 0 16px rgba(245, 158, 11, 0.65);
-  opacity: 1;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.55);
 }
 
 .vie-toad-audio-btn img {
@@ -173,47 +165,6 @@
   height: 18px;
   border-radius: 50%;
   object-fit: cover;
-}
-
-/* Nút bật/tắt phụ đề tức thì 1-chạm trên góc video */
-.vie-quick-sub-toggle {
-  position: absolute;
-  top: 14px;
-  right: 178px;
-  z-index: 2147483646;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 11px;
-  border-radius: 999px;
-  background: rgba(12, 18, 34, 0.85);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(52, 211, 153, 0.6);
-  color: #6ee7b7;
-  font-family: "Segoe UI", Roboto, Arial, sans-serif;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  opacity: 0.82;
-  transition: all 0.18s ease;
-  pointer-events: auto;
-  user-select: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
-}
-
-*:hover > .vie-quick-sub-toggle,
-.vie-quick-sub-toggle:hover {
-  opacity: 1;
-  transform: scale(1.04);
-  background: rgba(15, 23, 42, 0.95);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.55);
-}
-
-.vie-quick-sub-toggle.vie-sub-off {
-  border-color: rgba(248, 113, 113, 0.65);
-  color: #fca5a5;
-  background: rgba(30, 15, 24, 0.85);
 }
 
 /* Ẩn phụ đề gốc trên các trình phát phổ biến khi VIE-Translate đang hoạt động nhưng vẫn giữ DOM để đọc */
@@ -236,9 +187,7 @@
 .vie-player-active .bpx-player-subtitle-panel-wrap,
 .vie-player-active .art-subtitle,
 .vie-player-active .dplayer-subtitle,
-.vie-player-active .mejs__captions-layer,
-.vie-player-active div[class*="closed-captions"],
-.vie-player-active div[data-testid="captionText"] {
+.vie-player-active .mejs__captions-layer {
   opacity: 0 !important;
   pointer-events: none !important;
 }
@@ -251,22 +200,12 @@
   transition: background 0.12s ease, color 0.12s ease;
 }
 
-.vie-overlay .vie-word {
-  display: inline-block;
-  padding: 1px 3px;
-  margin: 0 1px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
 .vie-overlay .vie-word:hover,
 .vie-overlay .vie-word.vie-word-active {
-  background: rgba(251, 191, 36, 0.35);
-  color: #fffbeb;
-  box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
-  transform: translateY(-1.5px) scale(1.05);
-  text-decoration: none;
+  background: rgba(251, 191, 36, 0.28);
+  color: #fef08a;
+  text-decoration: underline;
+  text-decoration-color: rgba(251, 191, 36, 0.85);
 }
 
 /* Thẻ từ điển nổi ngay trên phụ đề */
@@ -926,38 +865,4 @@
   font-size: 13.5px;
   font-weight: 600;
   color: #fef08a;
-}
-
-/* Thông báo hết lượt AI */
-.vie-quota-toast {
-  position: absolute;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 2147483647;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  max-width: 90%;
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: rgba(20, 20, 24, 0.92);
-  border: 1px solid rgba(250, 204, 21, 0.5);
-  color: #f1f5f9;
-  font: 500 13px/1.35 "Segoe UI", Roboto, Arial, sans-serif;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-}
-.vie-quota-toast button {
-  border: 0;
-  border-radius: 7px;
-  padding: 5px 10px;
-  font: 600 12px "Segoe UI", Roboto, Arial, sans-serif;
-  cursor: pointer;
-  background: #facc15;
-  color: #1a1a1a;
-}
-.vie-quota-toast button.vie-quota-close {
-  background: transparent;
-  color: #94a3b8;
-  padding: 2px 6px;
 }

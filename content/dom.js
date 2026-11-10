@@ -24,7 +24,7 @@
     return "vie-pos-other";
   }
 
-  function formatSubtitleDecorations(origText, viText, isLyricsTrack = false) {
+  function formatSubtitleDecorations(origText, viText, isMusicOrLyrics = false) {
     let finalOrig = (origText || "")
       .replace(/^(?:\*{1,2})?(?:ORIG(?:INAL)?|GỐC|TRANS(?:LATION)?|DỊCH)\s*:\s*(?:\*{1,2})?/i, "")
       .replace(/^(?:ORIG|GỐC|ORIGINAL)\b[:\s-]*/i, "")
@@ -35,20 +35,8 @@
       .trim();
     if (!finalVi && !finalOrig) return { formattedOrig: finalOrig, formattedVi: finalVi };
 
-    // Phát hiện xem có phải là lời thoại nói chuyện / đối thoại bình thường không
-    const isSpokenDialogue =
-      /^\[?(?:intro|outro|dialogue|spoken|speech|nói|thoại|phỏng vấn|mc|bình luận|narrat)/i.test(finalOrig) ||
-      /^["“].+["”]$/.test(finalOrig) ||
-      /^[A-Z][a-z]+:\s+/.test(finalOrig);
-
-    // CHỈ THÊM NỐT NHẠC NẾU:
-    // 1. Phụ đề gốc hoặc dịch có sẵn ký hiệu nốt nhạc (YouTube CC thường gắn ♪ khi nhân vật hát)
-    // 2. HOẶC là bài hát có lời đồng bộ từ LRCLIB (isLyricsTrack = true) và KHÔNG PHẢI là đoạn nói chuyện
-    // TUYỆT ĐỐI KHÔNG thêm nốt nhạc vào lời người đang nói chuyện bình thường!
-    const hasExplicitMusicSymbol = /[♪♫♬♩♯]/.test(finalOrig) || /[♪♫♬♩♯]/.test(finalVi);
-    const shouldAddMusicNote = hasExplicitMusicSymbol || (isLyricsTrack && !isSpokenDialogue);
-
-    if (shouldAddMusicNote) {
+    const hasMusicNote = /[♪♫♬]/.test(finalOrig) || /[♪♫♬]/.test(finalVi) || isMusicOrLyrics;
+    if (hasMusicNote) {
       if (finalOrig && !finalOrig.startsWith("♪") && !finalOrig.startsWith("♫")) finalOrig = `♪ ${finalOrig}`;
       if (finalOrig && !finalOrig.endsWith("♪") && !finalOrig.endsWith("♫")) finalOrig = `${finalOrig} ♪`;
       if (finalVi && !finalVi.startsWith("♪") && !finalVi.startsWith("♫")) finalVi = `♪ ${finalVi}`;
@@ -59,11 +47,11 @@
     const cleanVi = finalVi.replace(/^[♪♫♬\s]+|[♪♫♬\s]+$/g, "").trim();
     if (finalVi) {
       if (/\?$/.test(cleanOrig) && !/\?$/.test(cleanVi)) {
-        finalVi = shouldAddMusicNote ? finalVi.replace(/\s*♪$/, "? ♪") : `${finalVi}?`;
+        finalVi = hasMusicNote ? finalVi.replace(/\s*♪$/, "? ♪") : `${finalVi}?`;
       } else if (/!$/.test(cleanOrig) && !/[!?]$/.test(cleanVi)) {
-        finalVi = shouldAddMusicNote ? finalVi.replace(/\s*♪$/, "! ♪") : `${finalVi}!`;
+        finalVi = hasMusicNote ? finalVi.replace(/\s*♪$/, "! ♪") : `${finalVi}!`;
       } else if (/(\.{3}|…)$/.test(cleanOrig) && !/(\.{3}|…)$/.test(cleanVi)) {
-        finalVi = shouldAddMusicNote ? finalVi.replace(/\s*♪$/, "... ♪") : `${finalVi}...`;
+        finalVi = hasMusicNote ? finalVi.replace(/\s*♪$/, "... ♪") : `${finalVi}...`;
       }
     }
     return { formattedOrig: finalOrig, formattedVi: finalVi };
@@ -95,67 +83,6 @@
     const prefix = bcpLang.split("-")[0].toLowerCase();
     const prefixVoices = voices.filter((v) => v.lang && v.lang.toLowerCase().startsWith(prefix));
     return prefixVoices[0] || null;
-  }
-
-  let uiAudioCtx = null;
-  function playUiSound(type = "pop") {
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      uiAudioCtx = uiAudioCtx || new AudioCtx();
-      if (uiAudioCtx.state === "suspended") uiAudioCtx.resume().catch(() => {});
-      const now = uiAudioCtx.currentTime;
-      const osc = uiAudioCtx.createOscillator();
-      const gain = uiAudioCtx.createGain();
-      osc.connect(gain);
-      gain.connect(uiAudioCtx.destination);
-
-      if (type === "pop" || type === "word") {
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(450, now);
-        osc.frequency.exponentialRampToValueAtTime(850, now + 0.05);
-        gain.gain.setValueAtTime(0.001, now);
-        gain.gain.linearRampToValueAtTime(0.045, now + 0.008);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
-        osc.start(now);
-        osc.stop(now + 0.065);
-      } else if (type === "toggle_on") {
-        osc.type = "triangle";
-        osc.frequency.setValueAtTime(460, now);
-        osc.frequency.exponentialRampToValueAtTime(760, now + 0.07);
-        gain.gain.setValueAtTime(0.001, now);
-        gain.gain.linearRampToValueAtTime(0.04, now + 0.012);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
-        osc.start(now);
-        osc.stop(now + 0.085);
-      } else if (type === "toggle_off") {
-        osc.type = "triangle";
-        osc.frequency.setValueAtTime(720, now);
-        osc.frequency.exponentialRampToValueAtTime(420, now + 0.07);
-        gain.gain.setValueAtTime(0.001, now);
-        gain.gain.linearRampToValueAtTime(0.035, now + 0.012);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
-        osc.start(now);
-        osc.stop(now + 0.085);
-      } else if (type === "tick") {
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(950, now);
-        gain.gain.setValueAtTime(0.001, now);
-        gain.gain.linearRampToValueAtTime(0.03, now + 0.004);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.03);
-        osc.start(now);
-        osc.stop(now + 0.035);
-      } else if (type === "chime") {
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(587.33, now);
-        osc.frequency.setValueAtTime(880, now + 0.06);
-        gain.gain.setValueAtTime(0.001, now);
-        gain.gain.linearRampToValueAtTime(0.04, now + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
-        osc.start(now);
-        osc.stop(now + 0.17);
-      }
-    } catch {}
   }
 
   function speakWord(word, langHint = "") {
@@ -248,63 +175,18 @@
     ".bpx-player-video-area",
     ".watch-video",
     ".art-video-player",
-    ".dplayer",
-    // Facebook Video Containers (Feed, Watch, Reels, Modal Dialog)
-    "div[data-video-id]",
-    "div[data-pagelet*='Video']",
-    "div[role='dialog']",
-    "div[data-visualcompletion='video-renderer']",
-    "div.x1y1aw1k",
-    // Twitter / X
-    "div[data-testid='videoPlayer']",
-    "div[data-testid='videoComponent']",
-    // TikTok & Instagram
-    "div[data-e2e='feed-video']",
-    "div[class*='DivVideoContainer']",
-    "div[class*='video-player-container']",
-    // Classic Cinema & Streaming Wrappers (Easter Egg Support: rổ phim & phim mới)
-    "#box-player",
-    ".watch-player",
-    "article"
+    ".dplayer"
   ].join(", ");
 
   function getContainer(video) {
-    if (!video) return document.body;
     const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
     if (fsEl && fsEl !== video && fsEl.contains(video)) {
       return fsEl;
     }
     const knownPlayer = video.closest(PLAYER_WRAPPER_SELECTORS);
-    if (knownPlayer && knownPlayer !== document.body) {
-      if (window.getComputedStyle(knownPlayer).position === "static") {
-        knownPlayer.style.position = "relative";
-      }
-      return knownPlayer;
-    }
-
-    // Tự động leo ngược DOM tìm wrapper cha có kích thước ôm sát video
-    let parent = video.parentElement;
-    let candidate = parent;
-    let depth = 0;
-    while (parent && parent !== document.body && depth < 4) {
-      const pRect = parent.getBoundingClientRect();
-      const vRect = video.getBoundingClientRect();
-      if (pRect.width > 0 && Math.abs(pRect.width - vRect.width) < 80 && Math.abs(pRect.height - vRect.height) < 100) {
-        candidate = parent;
-        break;
-      }
-      parent = parent.parentElement;
-      depth++;
-    }
-
-    const finalContainer = candidate || video.parentElement || document.body;
-    if (finalContainer && finalContainer !== document.body && window.getComputedStyle(finalContainer).position === "static") {
-      finalContainer.style.position = "relative";
-    }
-    return finalContainer;
+    if (knownPlayer) return knownPlayer;
+    return video.parentElement || document.body;
   }
-
-  const findBestVideoContainer = getContainer;
 
   function applySettingsToDOM(settings) {
     const isEnabled = Boolean(settings?.enabled);
@@ -361,7 +243,7 @@
     } else {
       overlay =
         container.querySelector(":scope > .vie-overlay") ||
-        (getContainer(video)?.querySelector(".vie-overlay") || null);
+        (video.closest(PLAYER_WRAPPER_SELECTORS)?.querySelector(".vie-overlay") || null);
 
       if (overlay) {
         if (overlay.parentElement !== container) {
@@ -385,10 +267,7 @@
         learnBar.className = "vie-learn-bar";
         learnBar.innerHTML = `
           <button type="button" class="vie-learn-btn vie-learn-scene-btn" title="Xem giải thích ngữ cảnh, phân tích câu & cách dùng thực tế">
-            🎓 Xem thêm: Ngữ cảnh
-          </button>
-          <button type="button" class="vie-learn-btn vie-learn-ocr-btn" title="Quét chữ trên màn hình (Visual OCR) & dịch bối cảnh phim (biển hiệu, tin nhắn, tài liệu...)">
-            🔍 Quét chữ màn hình (OCR)
+            🎓 Xem thêm: Ngữ cảnh &amp; Cách dùng thực tế
           </button>
           <button type="button" class="vie-learn-btn vie-learn-speak-all-btn" title="Nghe phát âm cả câu">
             🔊 Nghe câu
@@ -401,7 +280,7 @@
             <button type="button" class="vie-sync-btn vie-sync-auto" title="Tự động đối chiếu âm thanh thực tế và lời bài hát để căn chuẩn nhịp">🎯 Căn tự động</button>
             <button type="button" class="vie-sync-btn vie-sync-reset" title="Đặt lại độ lệch về 0s" style="display:none;">↺</button>
           </div>
-          <span class="vie-learn-tip" title="Vietsub mượt như hồi còn cày phim mới đêm khuya, nhặt trọn vào rổ phim của bạn 🍿">💡 Bấm từ bất kỳ để tra từ điển</span>
+          <span class="vie-learn-tip">💡 Bấm từ bất kỳ để tra từ điển</span>
         `;
 
         overlay.appendChild(origLine);
@@ -443,7 +322,7 @@
 
   function hideOverlay(video) {
     const container = getContainer(video);
-    const overlay = video._vieOverlay || container?.querySelector(".vie-overlay") || video.parentElement?.querySelector(".vie-overlay");
+    const overlay = video._vieOverlay || container.querySelector(".vie-overlay");
     if (overlay && !overlay.classList.contains("vie-dict-open") && !overlay._isDictPinned) {
       overlay.classList.add("vie-hidden");
     }
@@ -477,7 +356,6 @@
       const sentence = origEl.dataset.rawText || origEl.textContent.trim();
       const viText = viEl.textContent.trim();
       if (!word) return;
-      playUiSound("word");
       speakWord(word);
       openWordLookup(video, overlay, dictCard, word, sentence, viText, wordSpan);
     });
@@ -487,7 +365,6 @@
       e.preventDefault();
       const sentence = origEl.dataset.rawText || origEl.textContent.trim();
       const viText = viEl.textContent.trim();
-      playUiSound("pop");
       openSceneExplanation(video, overlay, dictCard, sentence, viText, "");
     });
 
@@ -501,166 +378,25 @@
     learnBar.querySelector(".vie-sync-minus")?.addEventListener("click", (e) => {
       e.stopPropagation();
       e.preventDefault();
-      playUiSound("tick");
       root.VieCaptions?.adjustSubSyncOffset(video, -0.5, e.shiftKey);
     });
 
     learnBar.querySelector(".vie-sync-plus")?.addEventListener("click", (e) => {
       e.stopPropagation();
       e.preventDefault();
-      playUiSound("tick");
       root.VieCaptions?.adjustSubSyncOffset(video, +0.5, e.shiftKey);
     });
 
     learnBar.querySelector(".vie-sync-auto")?.addEventListener("click", (e) => {
       e.stopPropagation();
       e.preventDefault();
-      playUiSound("chime");
       root.VieCaptions?.autoAlignSubtitleWithAudio(video);
-    });
-
-    learnBar.querySelector(".vie-learn-ocr-btn")?.addEventListener("click", (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      playUiSound("pop");
-      triggerVisualSceneOCR(video, overlay);
     });
 
     learnBar.querySelector(".vie-sync-reset")?.addEventListener("click", (e) => {
       e.stopPropagation();
       e.preventDefault();
-      playUiSound("tick");
       root.VieCaptions?.resetSubSyncOffset(video);
-    });
-  }
-
-  async function triggerVisualSceneOCR(video, overlay) {
-    if (!overlay) overlay = video?._vieOverlay;
-    if (!overlay) return;
-    const dictCard = overlay.querySelector(".vie-dict-card");
-    if (!dictCard) return;
-
-    overlay._isDictPinned = true;
-    overlay.classList.add("vie-dict-open");
-    dictCard.classList.remove("vie-dict-hidden");
-    dictCard.classList.add("vie-scene-expanded");
-    dictCard.innerHTML = `
-      <div class="vie-dict-header">
-        <div class="vie-dict-title">
-          <span class="vie-dict-word">🔍 Đang quét chữ trên màn hình (Visual OCR)...</span>
-          <span class="vie-dict-loading">🤖 AI đang phân tích bối cảnh &amp; dịch đa hướng...</span>
-        </div>
-        <button type="button" class="vie-dict-close" title="Đóng">✕</button>
-      </div>
-    `;
-
-    dictCard.querySelector(".vie-dict-close")?.addEventListener("click", () => {
-      closeDictAndCoach(video, overlay, dictCard, false);
-    });
-
-    let imageBase64 = "";
-    // 1. Vẽ canvas trực tiếp từ video element
-    try {
-      const w = Math.min(video.videoWidth || 960, 960);
-      const h = Math.min(video.videoHeight || 540, 540);
-      if (w > 0 && h > 0) {
-        const canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(video, 0, 0, w, h);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.72);
-        imageBase64 = dataUrl.replace(/^data:image\/jpeg;base64,/, "");
-      }
-    } catch {
-      // CORS tainted canvas
-    }
-
-    // 2. Dự phòng chụp tab nếu canvas bị CORS
-    if (!imageBase64) {
-      try {
-        const tabRes = await new Promise((resolve) => {
-          chrome.runtime.sendMessage({ type: "CAPTURE_VISIBLE_TAB" }, resolve);
-        });
-        if (tabRes?.ok && tabRes.imageBase64) {
-          imageBase64 = tabRes.imageBase64;
-        }
-      } catch {}
-    }
-
-    if (!imageBase64) {
-      dictCard.innerHTML = `
-        <div class="vie-dict-header">
-          <span class="vie-dict-word">⚠️ Không thể chụp ảnh màn hình</span>
-          <button type="button" class="vie-dict-close">✕</button>
-        </div>
-        <div class="vie-dict-meaning">Vui lòng đảm bảo video đang mở trên tab và thử lại nhé!</div>
-      `;
-      dictCard.querySelector(".vie-dict-close")?.addEventListener("click", () => closeDictAndCoach(video, overlay, dictCard, false));
-      return;
-    }
-
-    const videoTitle = root.VieCaptions?.getVideoTitle?.() || "";
-    chrome.runtime.sendMessage({
-      type: "SCAN_SCREEN_TEXT",
-      imageBase64,
-      videoTitle
-    }, (res) => {
-      if (chrome.runtime.lastError || !res?.ok) {
-        const errText = res?.message || res?.error || "Không thể phân tích chữ trên khung hình lúc này.";
-        dictCard.innerHTML = `
-          <div class="vie-dict-header">
-            <span class="vie-dict-word">⚠️ Quét chữ màn hình</span>
-            <button type="button" class="vie-dict-close">✕</button>
-          </div>
-          <div class="vie-dict-meaning">${escapeHtml(errText)}</div>
-        `;
-        dictCard.querySelector(".vie-dict-close")?.addEventListener("click", () => closeDictAndCoach(video, overlay, dictCard, false));
-        return;
-      }
-
-      if (!res.hasText) {
-        dictCard.innerHTML = `
-          <div class="vie-dict-header">
-            <span class="vie-dict-word">🔍 Kết quả quét thị giác</span>
-            <button type="button" class="vie-dict-close">✕</button>
-          </div>
-          <div class="vie-dict-meaning" style="color: #cbd5e1; font-style: italic;">
-            Không phát hiện thấy chữ, biển hiệu hay văn bản nào đáng kể trên khung hình hiện tại. Hãy thử lại ở cảnh có biển báo, tin nhắn điện thoại hoặc chữ chạy nhé!
-          </div>
-        `;
-        dictCard.querySelector(".vie-dict-close")?.addEventListener("click", () => closeDictAndCoach(video, overlay, dictCard, false));
-        return;
-      }
-
-      dictCard.innerHTML = `
-        <div class="vie-dict-header">
-          <div class="vie-dict-title">
-            <span class="vie-dict-word">🖼️ ${escapeHtml(res.sceneType || "Chữ trên màn hình")}</span>
-            <button type="button" class="vie-dict-speak" title="Nghe phát âm chữ gốc">🔊</button>
-          </div>
-          <button type="button" class="vie-dict-close" title="Đóng">✕</button>
-        </div>
-        <div class="vie-dict-meaning" style="font-size: 15px; margin-bottom: 8px;">
-          <strong style="color: #93c5fd;">Gốc:</strong> "${escapeHtml(res.orig || "")}"
-        </div>
-        <div class="vie-dict-meaning" style="font-size: 16px; color: #fef08a; font-weight: 600; margin-bottom: 8px;">
-          <strong style="color: #86efac;">Dịch:</strong> ${escapeHtml(res.vi || "")}
-        </div>
-        ${res.nuance ? `
-          <div class="vie-coach-box" style="margin-top: 10px; border-left: 3px solid #38bdf8; background: rgba(56, 189, 248, 0.1);">
-            <div class="vie-coach-label" style="color: #38bdf8;">🎬 Bối Cảnh Phim &amp; Ý Nghĩa:</div>
-            <div class="vie-coach-val">${escapeHtml(res.nuance)}</div>
-          </div>
-        ` : ""}
-      `;
-
-      dictCard.querySelector(".vie-dict-speak")?.addEventListener("click", () => {
-        if (res.orig) speakWord(res.orig);
-      });
-      dictCard.querySelector(".vie-dict-close")?.addEventListener("click", () => {
-        closeDictAndCoach(video, overlay, dictCard, false);
-      });
     });
   }
 
@@ -991,8 +727,6 @@
   }
 
   root.VieDOM = {
-    playUiSound,
-    findBestVideoContainer,
     escapeHtml,
     getPosClass,
     formatSubtitleDecorations,
@@ -1007,7 +741,6 @@
     hideOverlay,
     openWordLookup,
     openSceneExplanation,
-    triggerVisualSceneOCR,
     closeDictAndCoach,
     showSelectionBubble,
     hideSelectionBubble,

@@ -56,12 +56,23 @@ document.addEventListener("DOMContentLoaded", async () => {
   const vocabCountBadge = document.getElementById("vocabCountBadge");
   const exportVocabBtn = document.getElementById("exportVocabBtn");
   const clearVocabBtn = document.getElementById("clearVocabBtn");
+  const subnavVocabBtn = document.getElementById("subnavVocabBtn");
+  const subnavGlossaryBtn = document.getElementById("subnavGlossaryBtn");
+  const paneVocabSub = document.getElementById("paneVocabSub");
+  const paneGlossarySub = document.getElementById("paneGlossarySub");
+  const glossarySrcInput = document.getElementById("glossarySrcInput");
+  const glossaryTargetInput = document.getElementById("glossaryTargetInput");
+  const addGlossaryBtn = document.getElementById("addGlossaryBtn");
+  const glossaryListEl = document.getElementById("glossaryList");
+  const glossaryCountBadge = document.getElementById("glossaryCountBadge");
 
   // Ngôn ngữ, Xưng hô & Phong cách
   const targetLangSelect = document.getElementById("targetLang");
   const secondaryLangSelect = document.getElementById("secondaryLang");
   const pronounStyleSelect = document.getElementById("pronounStyle");
   const translationStyleSelect = document.getElementById("translationStyle");
+  const autoPersonaInput = document.getElementById("autoPersona");
+  const smartMergeCaptionsInput = document.getElementById("smartMergeCaptions");
 
   // Tùy chỉnh giao diện phụ đề
   const previewStage = document.getElementById("previewStage");
@@ -100,31 +111,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, 1350);
   }
 
-  const SUBTLE_EASTER_EGGS = [
-    "🎬 Vietsub mượt đến mức cứ ngỡ đang cày bộ phim mới lúc nửa đêm...",
-    "🍿 Chất lượng phụ đề nét căng chuẩn rạp, hội mê rổ phim nhìn là ưng bụng liền!",
-    "🐸 Đổi bao nhiêu tên miền đi nữa thì Cóc vẫn ở đây dịch phim mới cho bạn!",
-    "✨ Góc nhỏ cho dân sành phim: Nhặt trọn từng câu thoại vào chiếc rổ kỷ niệm!"
-  ];
-  let easterEggIdx = 0;
-
   function triggerToadHop() {
     if (!toadAvatarWrap) return;
     toadAvatarWrap.classList.remove("toad-hop");
     void toadAvatarWrap.offsetWidth;
     toadAvatarWrap.classList.add("toad-hop");
-  }
-
-  if (toadAvatarWrap) {
-    toadAvatarWrap.style.cursor = "pointer";
-    toadAvatarWrap.title = "Bấm vào Cóc để nghe tâm sự điện ảnh 🐸🍿";
-    toadAvatarWrap.addEventListener("click", () => {
-      triggerToadHop();
-      const quote = SUBTLE_EASTER_EGGS[easterEggIdx % SUBTLE_EASTER_EGGS.length];
-      easterEggIdx++;
-      setToadSay(quote);
-      triggerMicroToast("🍿 Easter Egg Điện Ảnh!");
-    });
   }
 
   function flashPreviewStage() {
@@ -188,10 +179,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     previewOrig.style.display = showDual ? "block" : "none";
     previewOrig.textContent = SAMPLE_SENTENCES[sLang] || SAMPLE_SENTENCES.orig;
 
-    const tStyle = translationStyleSelect ? translationStyleSelect.value : "natural";
-    if (tStyle === "unhinged") {
-      previewVi.textContent = "💀 Quả rizz này skibidi vãi chưởng, múa quạt như Khá Bảnh ở Ohio luôn lil bro! 🐶🔥";
-    } else if (tLang === "vi") {
+    if (tLang === "vi") {
       if (pStyle === "toi_ban") previewVi.textContent = SAMPLE_SENTENCES.vi_toi;
       else if (pStyle === "anh_em") previewVi.textContent = SAMPLE_SENTENCES.vi_anh;
       else previewVi.textContent = SAMPLE_SENTENCES.vi_minh;
@@ -363,7 +351,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     dualSub: true,
     provider: "gemini",
     apiKey: "",
-    backupKeys: "",
     groqApiKey: "",
     geminiApiKey: "",
     model: "auto",
@@ -371,10 +358,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     availableModels: [],
     verifiedKey: "",
     fallbackToFree: true,
-    autoAudioNoCC: true,
+    autoAudioNoCC: false,
     softenProfanity: true,
     hoverPauseDict: true,
     savedVocab: [],
+    customGlossary: [],
+    autoPersona: true,
+    smartMergeCaptions: true,
     targetLang: "vi",
     secondaryLang: "orig",
     pronounStyle: "auto",
@@ -397,12 +387,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     keysByProvider[stored.provider === "gemini" ? "gemini" : "groq"] = stored.apiKey;
   }
 
-  const backupKeysEl = document.getElementById("backupKeys");
-  if (backupKeysEl) {
-    backupKeysEl.value = stored.backupKeys || "";
-    backupKeysEl.addEventListener("change", () => chrome.storage.local.set({ backupKeys: backupKeysEl.value.trim() }));
-  }
-
   enabledInput.checked = Boolean(stored.enabled);
   dualSubInput.checked = Boolean(stored.dualSub);
   providerSelect.value = stored.provider || "gemini";
@@ -410,6 +394,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   autoAudioNoCCInput.checked = Boolean(stored.autoAudioNoCC);
   if (softenProfanityInput) softenProfanityInput.checked = stored.softenProfanity !== false;
   if (hoverPauseDictInput) hoverPauseDictInput.checked = stored.hoverPauseDict !== false;
+  if (autoPersonaInput) autoPersonaInput.checked = stored.autoPersona !== false;
+  if (smartMergeCaptionsInput) smartMergeCaptionsInput.checked = stored.smartMergeCaptions !== false;
 
   targetLangSelect.value = stored.targetLang || "vi";
   secondaryLangSelect.value = stored.secondaryLang || "orig";
@@ -543,6 +529,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       autoAudioNoCC: autoAudioNoCCInput.checked,
       softenProfanity: softenProfanityInput ? softenProfanityInput.checked : true,
       hoverPauseDict: hoverPauseDictInput ? hoverPauseDictInput.checked : true,
+      autoPersona: autoPersonaInput ? autoPersonaInput.checked : true,
+      smartMergeCaptions: smartMergeCaptionsInput ? smartMergeCaptionsInput.checked : true,
       targetLang: targetLangSelect.value,
       secondaryLang: secondaryLangSelect.value,
       pronounStyle: pronounStyleSelect ? pronounStyleSelect.value : "auto",
@@ -565,7 +553,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     [dualSubInput, "Song ngữ 2 dòng"],
     [fallbackInput, "Dự phòng Google Translate"],
     [autoAudioNoCCInput, "AI Nghe & Dịch"],
-    [softenProfanityInput, "Chế độ thân thiện"]
+    [softenProfanityInput, "Chế độ thân thiện"],
+    [autoPersonaInput, "Nhận diện Persona"],
+    [smartMergeCaptionsInput, "Ghép câu thông minh"]
   ];
   checkboxConfigs.forEach(([el, label]) => {
     if (!el) return;
@@ -764,7 +754,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     await chrome.storage.local.set({
       provider: p,
       apiKey: key,
-      backupKeys: (document.getElementById("backupKeys")?.value || "").trim(),
       groqApiKey: keysByProvider.groq,
       geminiApiKey: keysByProvider.gemini,
       model: modelValue
@@ -772,13 +761,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (!silent) {
       triggerToadHop();
-      triggerMicroToast("Đã lưu");
-      setToadSay("Đã lưu rồi nhé!");
+      triggerMicroToast("💾 Đã lưu cài đặt!");
+      setToadSay("Ộp ộp! Đã lưu mọi tùy chỉnh phụ đề của bạn! 🐸💛");
       showStatus("✓ Đã lưu toàn bộ cài đặt thành công!", "ok");
       if (saveBtn) {
         const origText = saveBtn.textContent;
         saveBtn.classList.add("btn-saved-anim");
-        saveBtn.textContent = "Đã lưu";
+        saveBtn.textContent = "✨ Đã lưu thành công!";
         setTimeout(() => {
           saveBtn.classList.remove("btn-saved-anim");
           saveBtn.textContent = origText;
@@ -849,21 +838,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
 
         triggerToadHop();
-        if (res.isQuotaExceeded) {
-          triggerMicroToast(`🐸 Đã lưu Key (Tự động kích hoạt Dự phòng Miễn phí)`);
-          setToadSay(`Key chuẩn rồi! Cóc tự động kích hoạt Dự phòng Không Giới Hạn khi Google hết Quota nhé! 🐸🛡️`);
-          showStatus(
-            `✓ API Key hợp lệ! Đã lưu thành công.\n🛡️ Lưu ý: Google đang tạm giới hạn lượt gọi ngày của Project này (${res.modelUsed}).\n✨ VIE-Translate đã TỰ ĐỘNG KÍCH HOẠT chế độ Dự phòng Google Translate Không Giới Hạn để bạn xem video ngay tức thì mà không cần chờ đợi!`,
-            "ok"
-          );
-        } else {
-          triggerMicroToast(`🐸 Kết nối: ${res.modelUsed}`);
-          setToadSay(`Tuyệt vời! Cóc đang dịch bằng [${res.modelUsed}] 🐸🎧`);
-          showStatus(
-            `✓ API Key hợp lệ! Tìm thấy ${(res.availableModels || []).length} model. Đang dùng [${res.modelUsed}] (Tự động chuyển model khác nếu hết Quota).\nDịch thử: "${res.sample}"`,
-            "ok"
-          );
-        }
+        triggerMicroToast(`🐸 Kết nối: ${res.modelUsed}`);
+        setToadSay(`Tuyệt vời! Cóc đang dịch bằng [${res.modelUsed}] 🐸🎧`);
+        showStatus(
+          `✓ API Key hợp lệ! Tìm thấy ${(res.availableModels || []).length} model. Đang dùng [${res.modelUsed}] (Tự động chuyển model khác nếu hết Quota).\nDịch thử: "${res.sample}"`,
+          "ok"
+        );
       }
     );
   }
@@ -1218,4 +1198,118 @@ document.addEventListener("DOMContentLoaded", async () => {
       showStatus("✓ Đã xóa sạch Sổ từ vựng.", "ok");
     });
   }
+
+  // SUBNAV CHUYỂN ĐỔI: SỔ TỪ VỰNG <-> KHÓA THUẬT NGỮ (GLOSSARY)
+  if (subnavVocabBtn && subnavGlossaryBtn) {
+    subnavVocabBtn.addEventListener("click", () => {
+      subnavVocabBtn.classList.add("active");
+      subnavGlossaryBtn.classList.remove("active");
+      if (paneVocabSub) paneVocabSub.style.display = "block";
+      if (paneGlossarySub) paneGlossarySub.style.display = "none";
+      triggerToadHop();
+    });
+
+    subnavGlossaryBtn.addEventListener("click", () => {
+      subnavGlossaryBtn.classList.add("active");
+      subnavVocabBtn.classList.remove("active");
+      if (paneVocabSub) paneVocabSub.style.display = "none";
+      if (paneGlossarySub) paneGlossarySub.style.display = "block";
+      triggerToadHop();
+      if (glossarySrcInput) glossarySrcInput.focus();
+    });
+  }
+
+  // QUẢN LÝ KHÓA THUẬT NGỮ (CUSTOM GLOSSARY)
+  function renderGlossaryList(list) {
+    if (!glossaryListEl) return;
+    const items = Array.isArray(list) ? list : [];
+    if (glossaryCountBadge) {
+      glossaryCountBadge.textContent = items.length ? `(${items.length})` : "";
+    }
+
+    if (items.length === 0) {
+      glossaryListEl.innerHTML = `
+        <div class="vocab-empty" style="padding: 14px 10px;">
+          🏷️ Chưa có thuật ngữ nào được khóa.<br>
+          <span style="font-size: 11px; color: #94a3b8;">Nhập từ gốc và nghĩa tiếng Việt ở trên rồi bấm <b>+ Thêm</b> để AI luôn dịch chuẩn theo ý bạn!</span>
+        </div>`;
+      return;
+    }
+
+    glossaryListEl.innerHTML = "";
+    items.forEach((item, idx) => {
+      const el = document.createElement("div");
+      el.className = "glossary-item";
+      el.innerHTML = `
+        <div class="glossary-item-text">
+          <span class="glossary-src" title="${escapeHtml(item.src || "")}">${escapeHtml(item.src || "")}</span>
+          <span class="glossary-arrow">➔</span>
+          <span class="glossary-target" title="${escapeHtml(item.target || "")}">${escapeHtml(item.target || "")}</span>
+        </div>
+        <button type="button" class="glossary-del-btn" data-idx="${idx}" title="Xóa thuật ngữ này">✕</button>
+      `;
+
+      el.querySelector(".glossary-del-btn")?.addEventListener("click", async () => {
+        const s = await chrome.storage.local.get({ customGlossary: [] });
+        const curList = Array.isArray(s.customGlossary) ? s.customGlossary : [];
+        const next = curList.filter((_, i) => i !== idx);
+        await chrome.storage.local.set({ customGlossary: next });
+        renderGlossaryList(next);
+        chrome.runtime.sendMessage({ type: "CLEAR_CACHE" }, () => void chrome.runtime.lastError);
+        triggerMicroToast("🗑️ Đã gỡ thuật ngữ!");
+      });
+
+      glossaryListEl.appendChild(el);
+    });
+  }
+
+  async function handleAddGlossary() {
+    if (!glossarySrcInput || !glossaryTargetInput) return;
+    const src = (glossarySrcInput.value || "").trim();
+    const target = (glossaryTargetInput.value || "").trim();
+    if (!src) {
+      showStatus("⚠ Vui lòng nhập từ hoặc cụm từ gốc cần khóa!", "err");
+      glossarySrcInput.focus();
+      return;
+    }
+    const s = await chrome.storage.local.get({ customGlossary: [] });
+    const list = Array.isArray(s.customGlossary) ? s.customGlossary : [];
+    const existingIdx = list.findIndex(
+      (item) => (item.src || "").toLowerCase() === src.toLowerCase()
+    );
+    if (existingIdx >= 0) {
+      list[existingIdx].target = target;
+    } else {
+      list.unshift({ src, target });
+    }
+    await chrome.storage.local.set({ customGlossary: list });
+    glossarySrcInput.value = "";
+    glossaryTargetInput.value = "";
+    renderGlossaryList(list);
+    chrome.runtime.sendMessage({ type: "CLEAR_CACHE" }, () => void chrome.runtime.lastError);
+    triggerToadHop();
+    triggerMicroToast(`🏷️ Đã khóa: "${src}" ➔ "${target}"`);
+    showStatus(`✓ Đã khóa thuật ngữ [${src} ➔ ${target}]! Cóc sẽ luôn tuân thủ quy tắc này.`, "ok");
+  }
+
+  if (addGlossaryBtn) {
+    addGlossaryBtn.addEventListener("click", handleAddGlossary);
+  }
+
+  if (glossaryTargetInput) {
+    glossaryTargetInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleAddGlossary();
+      }
+    });
+  }
+
+  renderGlossaryList(stored.customGlossary || []);
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.customGlossary) {
+      renderGlossaryList(changes.customGlossary.newValue || []);
+    }
+  });
 });

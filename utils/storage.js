@@ -33,8 +33,7 @@
     cinema: "Phong cách phụ đề điện ảnh / Netflix chuyên nghiệp: câu từ cô đọng, súc tích, giàu cảm xúc và nhịp điệu, chuyển tải trọn vẹn mạch tư duy và thần thái nhân vật. Tuyệt đối không dịch thô ngữ pháp ngoại lai.",
     academic: "Phong cách học thuật & chuyên ngành: dịch chuẩn xác thuật ngữ khoa học, kỹ thuật, lập trình, y sinh, kinh tế; diễn đạt mạch lạc, liên kết lập luận chặt chẽ giữa các câu.",
     genz: "Phong cách trẻ trung, hài hước, năng động (GenZ / Vlog / Gaming): dùng từ ngữ tự nhiên, bắt trend hợp ngữ cảnh nhưng diễn đạt thuần Việt liền mạch, giữ chuẩn ý câu gốc.",
-    literal: "Phong cách dịch đối chiếu song ngữ nhưng vẫn giữ câu cú tiếng Việt tự nhiên, không cụt lủn hay tối nghĩa.",
-    unhinged: "PHONG CÁCH UNHINGED, LÁO XƯƠNG & CHÂM BIẾM FAMILY GUY (Brainrot Meme Edition 💀): Ngôn từ siêu láo xược, châm biếm đen tối (dark humor), bựa bẩn không kiêng nể, cà khịa cực gắt đúng phong cách Peter Griffin / Stewie trong Family Guy. Sử dụng triệt để từ lóng brainrot đỉnh nóc kịch trần (skibidi, rizz chúa, mewing, ohio, sigma, fanum tax, cook luôn, ảo tưởng, sủi luôn, gà mờ). Lồng ghép khéo léo các meme nổi tiếng (IShowSpeed sủa gâu gâu/quậy tanh bành, Khá Bảnh múa quạt/đạo lý giang hồ mạng, Charlie Kirk tranh luận/mặt giọt nước, Lapeace, Gigachad, Homelander). Phá vỡ bức tường thứ 4, châm chọc nhân vật chính, đối đáp đanh đá cay độc nhưng VẪN PHẢI bám sát tình tiết cốt truyện để người xem hiểu phim. Giữ độ láo xược và unhinged tối đa 100%!"
+    literal: "Phong cách dịch đối chiếu song ngữ nhưng vẫn giữ câu cú tiếng Việt tự nhiên, không cụt lủn hay tối nghĩa."
   };
 
   const PRONOUN_INSTRUCTIONS = {
@@ -42,6 +41,14 @@
     minh_ban: "NGÔI XƯNG CỐ ĐỊNH (Mình – Bạn / Các bạn): BẮT BUỘC dịch ngôi thứ nhất (I/me/my) là 'mình', số nhiều là 'chúng mình' / 'tụi mình', ngôi thứ hai (you) là 'bạn' / 'các bạn'.",
     toi_ban: "NGÔI XƯNG CỐ ĐỊNH (Tôi – Bạn / Các bạn): BẮT BUỘC dịch ngôi thứ nhất (I/me/my) là 'tôi', số nhiều là 'chúng tôi' / 'chúng ta', ngôi thứ hai (you) là 'bạn' / 'các bạn'.",
     anh_em: "NGÔI XƯNG CỐ ĐỊNH (Phim / Hội thoại Anh – Em / Cậu – Tớ): Dựa vào ngữ cảnh để xưng hô tự nhiên ('anh - em', 'chị - em', 'tớ - cậu') và KHÓA CỐ ĐỊNH cặp xưng hô đó."
+  };
+
+  const PERSONA_INSTRUCTIONS = {
+    gaming_vlog: "VIBE: Gaming / Streamer / Vlog vui nhộn. Dịch tếu táo, dí dỏm, dùng tiếng lóng tự nhiên của giới trẻ Việt (ví dụ: 'ông bạn', 'toang', 'gank', 'out trình', 'bá đạo'), xưng hô thân mật, gần gũi, tràn đầy năng lượng.",
+    science_tech: "VIBE: Khoa học / Công nghệ / Giáo dục (như TED, Veritasium, Kurzgesagt). Dịch chuẩn xác, gãy gọn, học thuật, dùng đúng thuật ngữ chuyên ngành (kỹ thuật, vật lý, toán, y sinh, AI), lập luận logic và câu văn mạch lạc.",
+    drama_movie: "VIBE: Điện ảnh / Phim ảnh kịch tính. Dịch giàu cảm xúc, chuyển tải trọn vẹn thần thái và tâm lý nhân vật, lời đối đáp tự nhiên, cuốn hút như phụ đề rạp chiếu phim.",
+    music_lyrics: "VIBE: Âm nhạc / Lời bài hát. Dịch giàu vần điệu, hình ảnh thơ ca, bay bổng, gieo vần hài hòa và giữ trọn hồn bài hát.",
+    podcast_interview: "VIBE: Podcast / Phỏng vấn / Đàm thoại sâu. Dịch tự nhiên, ấm áp, nhã nhặn, đối đáp trôi chảy và xưng hô tôn trọng, chân thành."
   };
 
   const DEFAULT_SETTINGS = {
@@ -60,6 +67,9 @@
     secondaryLang: "orig",
     translationStyle: "natural",
     pronounStyle: "auto",
+    autoPersona: true,
+    smartMergeCaptions: true,
+    customGlossary: [],
     subFont: "default",
     subSize: "100",
     subColor: "#fef08a",
@@ -69,7 +79,7 @@
     overlayWidth: 72,
     overlayScale: 100,
     overlayBottom: 12,
-    autoAudioNoCC: true,
+    autoAudioNoCC: false,
     softenProfanity: true,
     hoverPauseDict: true,
     selectionTranslate: true,
@@ -81,6 +91,7 @@
     LANGUAGE_NAMES,
     STYLE_INSTRUCTIONS,
     PRONOUN_INSTRUCTIONS,
+    PERSONA_INSTRUCTIONS,
     DEFAULT_SETTINGS,
 
     getSettings() {
@@ -120,35 +131,6 @@
       if (k.startsWith("gsk_")) return "groq";
       if (k.startsWith("AQ.") || k.startsWith("AIza")) return "gemini";
       return "";
-    },
-
-    isAiMetaOrPromptLeak(text) {
-      if (!text) return false;
-      const s = String(text).trim();
-      const lower = s.toLowerCase();
-      if (
-        lower.includes("listen to this audio") ||
-        lower.includes("transcribe the spoken speech") ||
-        lower.includes("format json only") ||
-        lower.includes("exact spoken speech") ||
-        lower.includes("translation in vi") ||
-        lower.includes("lời nói chính xác bằng ngôn ngữ") ||
-        lower.includes("bản dịch sang tiếng việt") ||
-        lower.includes("đoạn âm thanh này và phiên âm") ||
-        lower.includes("format json")
-      ) {
-        return true;
-      }
-      if (
-        /^(?:tôi đang dịch|đang dịch\b|dưới đây là bản dịch|đây là bản dịch|bản dịch là:|bản dịch của tôi)/i.test(s) ||
-        lower.includes("tôi đang dịch") ||
-        lower.includes("tôi là mô hình ai") ||
-        lower.includes("tôi là một ai") ||
-        lower.includes("dưới đây là bản dịch")
-      ) {
-        return true;
-      }
-      return false;
     }
   };
 
