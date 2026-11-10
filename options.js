@@ -944,11 +944,54 @@ document.addEventListener("DOMContentLoaded", async () => {
     return "";
   }
 
+  function categorizeVocabPos(posText) {
+    const p = (posText || "").toLowerCase();
+    if (/động từ|\bverb\b/.test(p) && !/thành ngữ|idiom/.test(p)) return "verb";
+    if (/danh từ|\bnoun\b/.test(p)) return "noun";
+    if (/tính từ|\badjective\b|\badj\b/.test(p)) return "adj";
+    if (/thành ngữ|idiom|lóng|slang|phrasal|cụm/.test(p)) return "idiom";
+    return "other";
+  }
+
+  let currentPosFilter = "all";
+  let cachedVocabList = [];
+
   function renderVocabNotebook(vocabArr) {
     const list = Array.isArray(vocabArr) ? vocabArr : [];
+    cachedVocabList = list;
     if (vocabCountBadge) {
       vocabCountBadge.textContent = list.length > 0 ? `(${list.length})` : "";
     }
+
+    const countAllEl = document.getElementById("countAll");
+    const countVerbEl = document.getElementById("countVerb");
+    const countNounEl = document.getElementById("countNoun");
+    const countAdjEl = document.getElementById("countAdj");
+    const countIdiomEl = document.getElementById("countIdiom");
+    const countOtherEl = document.getElementById("countOther");
+
+    if (countAllEl) countAllEl.textContent = list.length ? `(${list.length})` : "";
+    if (countVerbEl) {
+      const c = list.filter((x) => categorizeVocabPos(x.posCategory || x.pos) === "verb").length;
+      countVerbEl.textContent = c ? `(${c})` : "";
+    }
+    if (countNounEl) {
+      const c = list.filter((x) => categorizeVocabPos(x.posCategory || x.pos) === "noun").length;
+      countNounEl.textContent = c ? `(${c})` : "";
+    }
+    if (countAdjEl) {
+      const c = list.filter((x) => categorizeVocabPos(x.posCategory || x.pos) === "adj").length;
+      countAdjEl.textContent = c ? `(${c})` : "";
+    }
+    if (countIdiomEl) {
+      const c = list.filter((x) => categorizeVocabPos(x.posCategory || x.pos) === "idiom").length;
+      countIdiomEl.textContent = c ? `(${c})` : "";
+    }
+    if (countOtherEl) {
+      const c = list.filter((x) => categorizeVocabPos(x.posCategory || x.pos) === "other").length;
+      countOtherEl.textContent = c ? `(${c})` : "";
+    }
+
     if (!vocabListEl) return;
 
     if (list.length === 0) {
@@ -961,11 +1004,28 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
+    const filteredList =
+      currentPosFilter === "all"
+        ? list.map((item, originalIdx) => ({ item, originalIdx }))
+        : list
+            .map((item, originalIdx) => ({ item, originalIdx }))
+            .filter(({ item }) => categorizeVocabPos(item.posCategory || item.pos) === currentPosFilter);
+
+    if (filteredList.length === 0) {
+      vocabListEl.innerHTML = `
+        <div class="vocab-empty">
+          Chưa có từ vựng nào thuộc nhóm này trong Sổ từ. Hãy chọn mục khác hoặc chạm vào từ trên video để thêm nhé!
+        </div>
+      `;
+      return;
+    }
+
     vocabListEl.innerHTML = "";
-    list.forEach((item, idx) => {
+    filteredList.forEach(({ item, originalIdx }) => {
       const card = document.createElement("div");
       card.className = "vocab-item";
       const posClass = getVocabPosClass(item.pos);
+      const posVariants = Array.isArray(item.posVariants) ? item.posVariants : [];
       const examplesList = Array.isArray(item.examples) ? item.examples : [];
       const synonymList = Array.isArray(item.synonyms)
         ? item.synonyms
@@ -978,10 +1038,27 @@ document.addEventListener("DOMContentLoaded", async () => {
             ${item.pron ? `<span class="vocab-pron">/${escapeHtml(item.pron.replace(/^\/|\/$/g, ""))}/</span>` : ""}
             ${item.pos ? `<span class="vocab-pos ${posClass}">${escapeHtml(item.pos)}</span>` : ""}
           </div>
-          <button type="button" class="btn-toggle-key vocab-del-btn" data-idx="${idx}" style="padding:2px 6px;font-size:10.5px;" title="Xóa từ này">✕</button>
+          <button type="button" class="btn-toggle-key vocab-del-btn" data-idx="${originalIdx}" style="padding:2px 6px;font-size:10.5px;" title="Xóa từ này">✕</button>
         </div>
         <div class="vocab-meaning">🎯 ${escapeHtml(item.meaning || "")}</div>
         ${item.sentence ? `<div class="vocab-ctx">🎬 Ngữ cảnh phim: "${escapeHtml(item.sentence)}"</div>` : ""}
+        ${
+          posVariants.length > 0
+            ? `
+        <div class="vocab-multipos-box">
+          <div class="vocab-section-heading">🔄 So sánh khi dùng ở các từ loại khác nhau:</div>
+          ${posVariants
+            .map(
+              (v) => `
+            <div class="vocab-multipos-row">
+              <span class="vocab-pos ${getVocabPosClass(v.pos)}" style="font-size:9.5px;padding:0.5px 5px;">${escapeHtml(v.pos)}</span>
+              <span class="vocab-multipos-text">${escapeHtml(v.desc)}</span>
+            </div>`
+            )
+            .join("")}
+        </div>`
+            : ""
+        }
         ${
           examplesList.length > 0
             ? `
@@ -1023,7 +1100,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
 
       card.querySelector(".vocab-del-btn")?.addEventListener("click", async () => {
-        const next = list.filter((_, i) => i !== idx);
+        const next = list.filter((_, i) => i !== originalIdx);
         await chrome.storage.local.set({ savedVocab: next });
         renderVocabNotebook(next);
       });
@@ -1031,6 +1108,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       vocabListEl.appendChild(card);
     });
   }
+
+  const filterChips = document.querySelectorAll(".vocab-filter-chip");
+  filterChips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      filterChips.forEach((c) => c.classList.remove("active"));
+      chip.classList.add("active");
+      currentPosFilter = chip.dataset.pos || "all";
+      renderVocabNotebook(cachedVocabList);
+    });
+  });
 
   renderVocabNotebook(stored.savedVocab || []);
 
@@ -1051,9 +1138,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       const lines = list.map((v, i) => {
         const parts = [
           `${i + 1}. ${v.word} ${v.pron ? `(/${v.pron}/)` : ""} [${v.pos || "Từ vựng"}]`,
-          `   • Nghĩa: ${v.meaning}`
+          `   • Nghĩa trong ngữ cảnh: ${v.meaning}`
         ];
         if (v.sentence) parts.push(`   • Ngữ cảnh phim: "${v.sentence}"`);
+        if (Array.isArray(v.posVariants) && v.posVariants.length) {
+          parts.push(`   • So sánh khi dùng ở các từ loại khác nhau:`);
+          v.posVariants.forEach((pv) => {
+            parts.push(`     - [${pv.pos}]: ${pv.desc}`);
+          });
+        }
         if (Array.isArray(v.examples) && v.examples.length) {
           parts.push(`   • Ví dụ thực tế ngoài đời:`);
           v.examples.forEach((ex) => {

@@ -52,7 +52,11 @@
 
 ## 🚀 Lịch Sử Cập Nhật & Các Cơ Chế Mới (Changelog)
 
-### 🌟 Phiên bản `v0.6.6` (Mới nhất) — *Học Từ Vựng Đa Chiều Đặc Sắc: Từ Loại (POS), Ví Dụ Đời Thường, Fact Thú Vị & Collocations*
+### 🌟 Phiên bản `v0.6.6` (Mới nhất) — *Học Từ Vựng Đa Chiều Đặc Sắc: Phân Biệt Đa Từ Loại (Multi-POS), So Sánh Ngữ Nghĩa/Cách Dùng & Bộ Lọc Noun/Verb/Adj*
+- **Cơ chế Phân Tách & So Sánh Đa Từ Loại (`Multi-POS Breakdown & Contrast`)**:
+  - Đối với các từ thuộc **NHIỀU từ loại khác nhau** (ví dụ vừa là Verb vừa là Noun hay Adj như *record*, *present*, *lead*, *run*, *close*...), AI tự động chỉ rõ **sự khác nhau về ngữ nghĩa, phát âm/trọng âm và cách dùng** giữa từng từ loại đó trên cả thẻ tra từ nổi trên video và Sổ từ vựng.
+- **Bộ Lọc Phân Loại Từ Vựng Trực Quan (`POS Category Filter Chips`)**:
+  - Bổ sung thanh công cụ phân loại từ vựng trong tab **`📚 Học Từ`**: `Tất cả` • `🟢 Verb` • `🔵 Noun` • `🟣 Adj` • `🟡 Cụm / Idiom` • `⚪ Khác` kèm số lượng thống kê tự động cho từng nhóm, giúp người học chia nhóm và ôn luyện có hệ thống.
 - **Huy hiệu từ loại song ngữ trực quan (`Bilingual POS Badges`)**:
   - Tự động nhận diện và gán màu sắc trực quan cho từng từ loại: **Danh từ (Noun)** xanh lam, **Động từ (Verb)** xanh ngọc, **Tính từ (Adjective)** tím, **Trạng từ (Adverb)** đỏ hồng, **Cụm động từ (Phrasal Verb)** / **Thành ngữ (Idiom)** / **Tiếng lóng (Slang)** vàng hổ phách.
 - **Ví dụ thực tế khác ngoài đời (`Real-World Usage Examples`) kèm phát âm giọng bản xứ**:
@@ -62,7 +66,7 @@
 - **Cụm từ hay đi kèm & Từ đồng nghĩa (`Collocations & Synonyms`)**:
   - Liệt kê các từ đồng nghĩa và cụm kết hợp từ tự nhiên người bản xứ hay dùng.
 - **Nâng cấp Sổ Từ Vựng (`📚 Học Từ`) & Xuất file `.txt`**:
-  - Toàn bộ từ loại, ví dụ thực tế, fact thú vị và collocations được lưu trữ đồng bộ trong Sổ từ vựng, có nút bấm nghe từng câu ví dụ và xuất ra file `.txt` chuẩn chỉnh như một giáo trình học từ vựng cá nhân.
+  - Toàn bộ từ loại, biến thể đa từ loại, ví dụ thực tế, fact thú vị và collocations được lưu trữ đồng bộ trong Sổ từ vựng, có nút bấm nghe từng câu ví dụ và xuất ra file `.txt` chuẩn chỉnh như một giáo trình học từ vựng cá nhân.
 
 ### ⏱️ Phiên bản `v0.6.5` — *Cân Chỉnh Lệch Sub/Nhạc, Nốt Nhạc Biểu Cảm & Đọc Giọng Bản Xứ*
 - **Cơ chế mới — Tự Động Bù Lệch Intro & Bộ Chỉnh Sub Sync Tức Thì (`Sub Sync Calibration`)**:
@@ -142,7 +146,11 @@
 
 ## 📋 Version History & New Mechanisms (Changelog)
 
-### 🌟 `v0.6.6` (Latest) — *Multi-Dimensional Vocabulary Engine (POS Badges, Real-World Examples, Fun Facts & Collocations)*
+### 🌟 `v0.6.6` (Latest) — *Multi-Dimensional Vocabulary Engine (Multi-POS Breakdown, Real-World Examples, Fun Facts & POS Filter Chips)*
+- **New Mechanism — Multi-POS Breakdown & Usage Contrast (`posVariants`)**:
+  - For words belonging to **multiple parts of speech** (e.g., both Verb and Noun/Adjective such as *record*, *present*, *lead*, *run*, *close*...), AI explicitly contrasts the differences in meaning, pronunciation/stress, and usage between those parts of speech on both the on-video popup card and the Vocabulary Notebook.
+- **New Mechanism — POS Category Filter Chips**:
+  - Adds interactive category filters in the `📚 Học Từ` tab: `All` • `🟢 Verb` • `🔵 Noun` • `🟣 Adj` • `🟡 Phrasal / Idiom` • `⚪ Other` with real-time counters, allowing learners to organize and study words by grammatical category.
 - **New Mechanism — Visual Bilingual Part-of-Speech Badges (`POS Badges`)**:
   - Distinguishes Noun, Verb, Adjective, Adverb, Phrasal Verb, Idiom, and Slang with dedicated styling.
 - **New Mechanism — Real-World Example Sentences & Audio Playback**:
@@ -152,7 +160,7 @@
 - **New Mechanism — Synonyms & Collocations**:
   - Displays natural word pairings.
 - **New Mechanism — Comprehensive Vocabulary Notebook (`📚 Học Từ`) & Rich `.txt` Export**:
-  - Displays and exports all POS, examples, and fun facts in a clean format.
+  - Displays and exports all POS, multi-POS comparisons, examples, and fun facts in a clean format.
 
 ### ⏱️ `v0.6.5` — *Live Sub Sync Calibration, Expressive Musical Notes & Native Voice Synthesis*
 - **New Mechanism — Live Sub Sync Calibration & Auto Intro Offset**:

@@ -384,6 +384,16 @@ function speakWord(word, langHint = "") {
   }
 }
 
+function categorizePos(posText) {
+  const p = (posText || "").toLowerCase();
+  if (/động từ|\bverb\b/.test(p) && !/thành ngữ|idiom/.test(p)) return "verb";
+  if (/danh từ|\bnoun\b/.test(p)) return "noun";
+  if (/tính từ|\badjective\b|\badj\b/.test(p)) return "adj";
+  if (/trạng từ|\badverb\b|\badv\b/.test(p)) return "adv";
+  if (/thành ngữ|idiom|lóng|slang|phrasal|cụm/.test(p)) return "idiom";
+  return "other";
+}
+
 async function saveWordToVocab(item, saveBtnEl) {
   try {
     const stored = await chrome.storage.local.get({ savedVocab: [] });
@@ -395,7 +405,9 @@ async function saveWordToVocab(item, saveBtnEl) {
       word: item.word,
       pron: item.pron || "",
       pos: item.pos || "",
+      posCategory: categorizePos(item.pos),
       meaning: item.meaning || "",
+      posVariants: Array.isArray(item.posVariants) ? item.posVariants : [],
       examples: Array.isArray(item.examples)
         ? item.examples
         : (item.examples ? [item.examples] : []),
@@ -654,6 +666,7 @@ function openWordLookup(video, overlay, dictCard, word, sentence, viText, wordSp
       }
 
       const posClass = getPosClass(res.pos);
+      const posVariants = Array.isArray(res.posVariants) ? res.posVariants : [];
       const examplesList = Array.isArray(res.examples) ? res.examples : [];
       const synonymList = Array.isArray(res.synonyms)
         ? res.synonyms
@@ -677,6 +690,26 @@ function openWordLookup(video, overlay, dictCard, word, sentence, viText, wordSp
           <div class="vie-dict-meaning-label">🎯 Nghĩa trong ngữ cảnh câu này:</div>
           <div class="vie-dict-meaning">${escapeHtml(res.meaning || "")}</div>
         </div>
+
+        ${
+          posVariants.length > 0
+            ? `
+        <div class="vie-dict-multipos-box">
+          <div class="vie-dict-multipos-title">🔄 Phân biệt khi dùng ở các Từ Loại khác nhau:</div>
+          <div class="vie-dict-multipos-list">
+            ${posVariants
+              .map(
+                (v) => `
+              <div class="vie-dict-multipos-item">
+                <span class="vie-dict-pos-mini ${getPosClass(v.pos)}">${escapeHtml(v.pos)}</span>
+                <span class="vie-dict-multipos-desc">${escapeHtml(v.desc)}</span>
+              </div>`
+              )
+              .join("")}
+          </div>
+        </div>`
+            : ""
+        }
 
         ${
           examplesList.length > 0
