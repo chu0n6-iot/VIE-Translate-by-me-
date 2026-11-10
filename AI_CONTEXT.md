@@ -18,6 +18,7 @@
 - [popup/popup.html](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/popup/popup.html): Cấu trúc HTML giao diện cài đặt popup & options (đã tách riêng CSS).
 - [popup/popup.css](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/popup/popup.css): Phong cách giao diện cài đặt (dark theme, glassmorphism, micro-animations).
 - [popup/popup.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/popup/popup.js): Điều khiển cài đặt API Key, ngôn ngữ, xưng hô, test kết nối & sổ từ vựng.
+- [popup/sfx.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/popup/sfx.js): Âm thanh tương tác nhỏ của popup (WebAudio).
 - [aistudio-helper.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/aistudio-helper.js): Tự động phát hiện và trích xuất Gemini API Key từ tab Google AI Studio.
 - [aistudio-page-hook.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/aistudio-page-hook.js): Hook clipboard trong MAIN world trên AI Studio để bắt Key tức thì.
 
@@ -28,3 +29,4 @@
 1. **Luôn đọc `AI_CONTEXT.md` đầu tiên** để định vị chính xác file cần sửa theo đúng nhiệm vụ.
 2. **TUYỆT ĐỐI KHÔNG đọc toàn bộ codebase** nếu chỉ cần sửa một module riêng biệt.
 3. Không tái tạo "God file"; duy trì tính độc lập và kích thước nhỏ gọn của từng module.
+4. Ghi chú kiến trúc mới (v0.7.x): `background.js` có key pool (`withKeyPool`, `keyCooldown`, `backupKeys`) + `limitTranslationLength`; `captions.js` có `resetForNewVideo` (reset khi đổi video), `getVideoContext`; `content.js` có toast hết key (`showQuotaToast`) và gợi ý F5 (`startNoSubWatchdog`).
