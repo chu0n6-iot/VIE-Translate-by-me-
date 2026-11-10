@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="#-tiếng-việt-bản-hướng-dẫn-đầy-đủ-từ-a-z">🇻🇳 Bản Tiếng Việt (A–Z)</a> •
-  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.6.8`)</a> •
+  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.6.9`)</a> •
   <a href="#-english-complete-a-to-z-guide">🇬🇧 English Version (A–Z)</a> •
   <a href="#-version-history--new-mechanisms-changelog">📋 English Changelog</a>
 </p>
@@ -19,14 +19,14 @@
 ---
 
 > ⚡ **LƯU Ý DÀNH CHO CỘNG TÁC VIÊN / COLLABORATORS (TỐI ƯU HÓA AI INDEXING)**:
-> Codebase của dự án đã được đại tu và module hóa toàn diện (`v0.6.8`), loại bỏ hoàn toàn các God file cồng kềnh nhằm giúp các công cụ lập trình AI (Antigravity IDE, Cursor, GitHub Copilot...) đọc hiểu cực nhanh và tiết kiệm tối đa token.
+> Codebase của dự án đã được đại tu và module hóa toàn diện (`v0.6.9`), loại bỏ hoàn toàn các God file cồng kềnh nhằm giúp các công cụ lập trình AI (Antigravity IDE, Cursor, GitHub Copilot...) đọc hiểu cực nhanh và tiết kiệm tối đa token.
 > **Mẹo quan trọng:** Trước khi yêu cầu AI sửa lỗi hoặc phát triển tính năng mới, bạn **chỉ cần gõ kèm `@AI_CONTEXT.md` ở đầu câu lệnh**. AI sẽ lập tức nắm toàn bộ bản đồ kiến trúc mà **không cần quét lại toàn bộ codebase**, giúp tốc độ phản hồi tăng vọt!
 
 # 🇻🇳 TIẾNG VIỆT (Bản Hướng Dẫn Đầy Đủ Từ A–Z)
 
-**VIE-Translate (Translate Toad AI `v0.6.8`)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)**, kết hợp **Trợ Lý Học Ngoại Ngữ Chuyên Sâu (`Từ Loại POS • Ví Dụ Thực Tế • Fact Thú Vị & Mẹo Nhớ • Cụm Đi Kèm • Sổ Từ Vựng`)**, **Cân Chỉnh Độ Lệch Sub/Nhạc Tức Thì (`Sub Sync Calibration`)** và **Đọc Phát Âm Chuẩn Giọng Bản Xứ** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles (hỗ trợ Facebook, TikTok, Twitter/X & web HTML5 bất kỳ)**.
+**VIE-Translate (Translate Toad AI `v0.6.9`)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)**, kết hợp **Trợ Lý Học Ngoại Ngữ Chuyên Sâu (`Từ Loại POS • Ví Dụ Thực Tế • Fact Thú Vị & Mẹo Nhớ • Cụm Đi Kèm • Sổ Từ Vựng`)**, **Cân Chỉnh Độ Lệch Sub/Nhạc Tức Thì (`Sub Sync Calibration`)** và **Đọc Phát Âm Chuẩn Giọng Bản Xứ** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles (hỗ trợ Facebook, TikTok, Twitter/X & web HTML5 bất kỳ)**.
 
-## ✨ Tính Năng Nổi Bật (`v0.6.8`)
+## ✨ Tính Năng Nổi Bật (`v0.6.9`)
 
 1. **📚 Phần Học Từ Vựng Đa Chiều Đặc Sắc (Rich Vocabulary Engine)**:
    - **Huy hiệu từ loại song ngữ trực quan (POS Badges)**: Tự động phân loại Động từ (Verb), Danh từ (Noun), Tính từ (Adjective), Trạng từ (Adverb), Cụm động từ (Phrasal Verb), Thành ngữ (Idiom), Tiếng lóng (Slang) với màu sắc bắt mắt.
@@ -56,7 +56,28 @@
 
 ## 🚀 Lịch Sử Cập Nhật & Các Cơ Chế Mới (Changelog)
 
-### 🌟 Phiên bản `v0.6.8` (Mới nhất) — *Khắc Phục Lỗi Nút Dịch Tự Tắt & Mở Rộng Facebook, TikTok, Twitter/X, HTML5 Toàn Diện*
+### 🌟 Phiên bản `v0.6.9` (Mới nhất) — *Cứu Hộ Quota API Key 429 Tự Động, Tự Bật Phụ Đề YouTube & Tối Ưu Hóa 0-Token*
+- **🛡️ Cơ chế Cứu hộ Quota API Key 429 & Tự động Kích hoạt Dự phòng Miễn phí (`Automated Quota Recovery & Free Backup`)**:
+  - **Bản chất lỗi Quota 429 trên Google AI Studio**: Các model thử nghiệm/preview (`gemini-3.8-flash`...) bị Google áp giới hạn nghiêm ngặt chỉ **20 lượt gọi/ngày (20 RPD)** trên Free Tier. Khi một dự án chạm mốc này, mọi API Key mới tạo trong cùng dự án đó đều bị Google từ chối với mã lỗi `429: Generate content requests per day limit exceeded... Please retry in 6h49m...`.
+  - **Tự động ưu tiên Model hạn ngạch cao 1,500 RPD**: Hệ thống tự động đẩy các model nhẹ có hạn ngạch lớn gấp 75 lần (`gemini-2.5-flash-lite`, `gemini-2.0-flash-lite`, `gemini-2.0-flash` với 1,500 lượt/ngày) lên đầu danh sách ưu tiên (+2500 điểm), chấm dứt việc tự ý gọi model preview gây lãng phí quota.
+  - **Tự động cứu hộ — Không làm phiền người dùng**: Khi người dùng dán API Key mới và Google phản hồi lỗi 429 do cạn lượt ngày của Project:
+    - VIE-Translate **xác thực đây là Key xịn/chuẩn, tự động lưu ngay lập tức** (không còn văng thông báo lỗi đỏ chối từ).
+    - **TỰ ĐỘNG KÍCH HOẠT CHẾ ĐỘ DỰ PHÒNG GOOGLE TRANSLATE MIỄN PHÍ KHÔNG GIỚI HẠN (`VieGTX`)**: Video dịch trơn tru tức thì 100%, người dùng không cần bấm thêm nút nào hay đợi hết 6–7 tiếng.
+    - Tự động đặt thời gian chờ (1h Cooldown) cho model chạm hạn ngạch để khi Google hồi phục quota, tiện ích tự động kết nối lại AI mượt mà.
+- **▶️ Tự Động Bật Phụ Đề & Đồng Bộ Nút CC Trên YouTube (`YouTube CC Auto-Start & Auto-Display`)**:
+  - **Khắc phục lỗi video YouTube không tự hiện phụ đề**: Loại bỏ điều kiện cũ từng ẩn khung phụ đề `.vie-overlay` khi nút CC của YouTube đang tắt (`aria-pressed === "false"`).
+  - **Tự động kích hoạt nút CC (`autoEnsureYouTubeCC`)**: Khi mở video hoặc bắt đầu phát (`play`), VIE-Translate tự động mô phỏng bật nút CC của YouTube để lấy luồng phụ đề gốc mà không làm phiền người xem; đồng thời dùng CSS ẩn triệt để phụ đề mặc định của YouTube (`opacity: 0 !important`) để chỉ hiển thị phụ đề dịch thẩm mỹ của VIE-Translate.
+  - **Đồng bộ chuyển trang ngầm YouTube SPA**: Lắng nghe sự kiện `yt-navigate-finish` và `yt-page-data-updated` để tự động khởi tạo phụ đề và CC ngay khi người dùng bấm chuyển video mới trên YouTube.
+  - **Cơ chế nạp lại cues với 12 lần thử (Smart Retry)**: Khắc phục trường hợp YouTube Player đang khởi tạo `movie_player.getPlayerResponse()` trễ, giúp phụ đề tự động lên hình ngay khi video bắt đầu phát.
+- **⚡ Chiến Lược Tối Ưu Hóa Token Tối Đa & Bảo Toàn Ngữ Pháp Câu (`Token Conservation & Full Grammar Integrity`)**:
+  - **Tầng 1 (0 tokens — Tiết kiệm tuyệt đối)**: Tự động tra cứu lời bài hát chuẩn xác từ LRCLIB (0 tokens, khớp nhịp từng câu).
+  - **Tầng 2 (0 audio tokens)**: Trích xuất trực tiếp phụ đề gốc văn bản từ YouTube CC / `movie_player.getPlayerResponse()` chỉ trong 1ms (tiết kiệm 100% token âm thanh đa phương thức).
+  - **Tầng 3 (Gom câu ngữ pháp hoàn chỉnh)**: Thuật toán `mergeEventsIntoSentences` tự động ghép các từ vựng ngắt quãng của phụ đề tự động (ASR) thành câu hoàn chỉnh theo dấu chấm câu `[.?!…]` và khoảng lặng âm thanh (>0.8s), tránh việc dịch vụn vặt từng từ làm sai lệch ngữ pháp.
+  - **Tầng 4 (Dịch mạch lạc liên kết 2 chiều)**: Truyền kèm `nextText` (câu kế tiếp) và 6 lượt `history` giúp AI diễn đạt thuần Việt đúng văn cảnh, bảo toàn chủ ngữ - vị ngữ.
+  - **Tầng 5 (Bộ nhớ đệm 0 token)**: `localCache` lưu trữ hàng trăm câu đã dịch, tua lại hoặc xem lại video tốn đúng 0 token.
+  - **Tầng 6 (Dự phòng âm thanh)**: Chỉ sử dụng AI nghe âm thanh từ loa khi video thực sự KHÔNG có lyrics và KHÔNG có nút CC.
+
+### 🌟 Phiên bản `v0.6.8` — *Khắc Phục Lỗi Nút Dịch Tự Tắt & Mở Rộng Facebook, TikTok, Twitter/X, HTML5 Toàn Diện*
 - **🛠️ Khắc phục triệt để lỗi nút "AI Nghe & Dịch" tự bật rồi tắt ngay lập tức (`Fix Toad Button Auto-Revert Glitch`)**:
   - **Tách biệt ý muốn thu âm với việc tải lyrics**: Trước đây, khi bấm nút "AI Nghe & Dịch", nếu video đã có lời bài hát (hoặc tải thành công từ LRCLIB), hàm thu âm tự động gọi `userWantsAudioCapture = false` và chuyển nút về `idle` sau 100ms khiến người dùng thấy nút tự động nảy ngược trở lại. Nay hệ thống tách biệt hoàn toàn: việc tìm kiếm lyrics chạy nền không bao giờ huỷ trạng thái lắng nghe của người dùng; nút luôn duy trì ở trạng thái `🎙️ Đang nghe & dịch...` ổn định cho đến khi người dùng bấm tắt.
   - **Chống nhấp đúp (Click Debouncing)**: Thêm cơ chế chặn nhấp chuột dồn dập (400ms debounce), tránh hiện tượng nhấp đúp làm nút bật và tắt ngay trong nháy mắt.
@@ -182,7 +203,28 @@
 
 ## 📋 Version History & New Mechanisms (Changelog)
 
-### 🌟 `v0.6.8` (Latest) — *Fix Button Auto-Revert Glitch & Universal Facebook, TikTok, Twitter/X HTML5 Support*
+### 🌟 `v0.6.9` (Latest) — *Automated Quota 429 Recovery, YouTube Subtitle Auto-Start & Token Optimization*
+- **🛡️ Automated API Quota 429 Recovery & Unlimited Free Fallback (`Automated Quota Recovery`)**:
+  - **Root Cause of Error 429 on Google AI Studio**: Google strictly enforces a 20 request-per-day (RPD) limit on experimental/preview models (`gemini-3.8-flash`) on the Free Tier. When this threshold is crossed, all subsequent requests in the same project fail with HTTP 429 (`limit: 20, model: gemini-3.8-flash, description: Generate content requests per day limit exceeded...`).
+  - **Automated High-Quota Prioritization**: Re-prioritized model discovery to promote high-quota lightweight models (`gemini-2.5-flash-lite`, `gemini-2.0-flash-lite`, `gemini-2.0-flash` with 1,500 RPD) with +2500 weights, preventing preview models from consuming project quotas.
+  - **Zero User Burden on Quota Exceeded**: When testing or validating new keys:
+    - VIE-Translate **validates the key as authentic and saves it immediately** instead of failing with an error.
+    - **AUTOMATICALLY ACTIVATES UNLIMITED FREE GOOGLE TRANSLATE BACKUP (`VieGTX`)**: Users enjoy uninterrupted real-time video translation instantly with zero waiting time and zero manual toggles.
+    - Applies an automated 1-hour cooldown to exhausted models, seamlessly reconnecting AI endpoints when the daily quota resets.
+- **▶️ YouTube Subtitles Auto-Start & Native CC Auto-Sync (`YouTube CC Auto-Start`)**:
+  - **Fixed Subtitles Not Auto-Starting**: Removed outdated condition that hid the `.vie-overlay` when YouTube's native CC button was in `aria-pressed === "false"`.
+  - **Automated CC Trigger (`autoEnsureYouTubeCC`)**: Automatically activates YouTube's native caption button upon video play to receive raw subtitle tracks, while visually suppressing YouTube's default captions via CSS (`opacity: 0 !important`) so only VIE-Translate's styled subtitles render.
+  - **YouTube SPA Navigation Hooking**: Listens to `yt-navigate-finish` and `yt-page-data-updated` to re-synchronize captions and CC when navigating between videos without a full page reload.
+  - **12-Attempt Smart Retry**: Overcomes asynchronous initialization delays in `movie_player.getPlayerResponse()`.
+- **⚡ Maximum Token Optimization & Full Sentence Grammar Cohesion (`Token Conservation Engine`)**:
+  - **Tier 1 (0 tokens)**: High-accuracy synced song lyrics via LRCLIB (0 tokens).
+  - **Tier 2 (0 audio tokens)**: Direct extraction of native YouTube CC text (0 multimodal audio tokens).
+  - **Tier 3 (Complete Sentence Merging)**: The `mergeEventsIntoSentences` algorithm stitches fragmented ASR speech cues into grammatically complete clauses bordered by punctuation marks `[.?!…]` and natural speech pauses.
+  - **Tier 4 (Bidirectional Context Translation)**: Lookahead `nextText` and recent `history` feed contextual markers to the AI for fluid Vietnamese syntax.
+  - **Tier 5 (0-Token Local Cache)**: In-memory LRU caching preserves translations during seeks and re-plays.
+  - **Tier 6 (Audio Last-Resort)**: Real-time speaker audio transcription activates only when a video has neither lyrics nor CC.
+
+### 🌟 `v0.6.8` — *Fix Button Auto-Revert Glitch & Universal Facebook, TikTok, Twitter/X HTML5 Support*
 - **🛠️ Fix Instant Revert of "AI Nghe & Dịch" Button (`Fix Toad Button Auto-Revert Glitch`)**:
   - **Decoupled User Intent from Lyrics Presence**: Previously, clicking "AI Nghe & Dịch" checked for song lyrics; if lyrics were already cached or found on LRCLIB, the function explicitly called `userWantsAudioCapture = false` and reverted the button back to `idle` within 100ms. In `v0.6.8`, lyrics detection runs quietly in the background without canceling the user's audio capture. The button stays active in `🎙️ Đang nghe & dịch...` until the user deliberately toggles it off.
   - **Click Debouncing**: Added a 400ms debounce guard to prevent rapid double-clicks from toggling audio capture on and off instantly.

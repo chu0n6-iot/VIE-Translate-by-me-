@@ -372,25 +372,62 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const key = (msg.apiKey || "").trim();
       const p = msg.provider || self.VieStorage.detectProviderFromKey(key) || "gemini";
       if (p === "groq") {
-        const models = await self.VieGroq.discoverGroqModels(key);
-        const modelToTest = msg.model && msg.model !== "auto" && models.includes(msg.model) ? msg.model : models[0];
-        const res = await self.VieGroq.translateWithGroqAuto({
+        try {
+          const models = await self.VieGroq.discoverGroqModels(key);
+          const modelToTest = msg.model && msg.model !== "auto" && models.includes(msg.model) ? msg.model : models[0];
+          const res = await self.VieGroq.translateWithGroqAuto({
+            text: "Hello world!",
+            apiKey: key,
+            preferredModel: modelToTest,
+            targetLang: "vi"
+          });
+          return { ok: true, provider: "groq", modelUsed: res.modelUsed, availableModels: models, sample: res.vi };
+        } catch (err) {
+          const errMsg = err?.message || "";
+          if (/quota|rate_limit|429/i.test(errMsg)) {
+            return {
+              ok: true,
+              provider: "groq",
+              isQuotaExceeded: true,
+              modelUsed: "llama-3.3-70b-versatile",
+              availableModels: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
+              sample: "Xin chào thế giới! (Chế độ Dự phòng Không Giới Hạn)",
+              warning: "Key Groq hợp lệ! Tạm thời chạm ngưỡng gọi, đã tự động bật Dự phòng Google Translate để bạn xem video ngay."
+            };
+          }
+          throw err;
+        }
+      }
+
+      // Gemini
+      const models = await self.VieGemini.discoverGeminiModels(key);
+      const preferredModel = models.find((m) => m.includes("flash-lite")) || models[0] || "gemini-2.5-flash-lite";
+      const modelToTest = msg.model && msg.model !== "auto" && models.includes(msg.model) ? msg.model : preferredModel;
+      try {
+        const res = await self.VieGemini.translateWithGeminiAuto({
           text: "Hello world!",
           apiKey: key,
           preferredModel: modelToTest,
           targetLang: "vi"
         });
-        return { ok: true, provider: "groq", modelUsed: res.modelUsed, availableModels: models, sample: res.vi };
+        return { ok: true, provider: "gemini", modelUsed: res.modelUsed, availableModels: models, sample: res.vi };
+      } catch (err) {
+        const errMsg = err?.message || "";
+        const isQuota = /quota|resource_exhausted|rate_limit|exceeded your current quota|429/i.test(errMsg);
+        if (isQuota) {
+          // Key hoàn toàn hợp lệ, chỉ là Google đang tạm chạm giới hạn ngày của Project (RPD limit)
+          return {
+            ok: true,
+            provider: "gemini",
+            isQuotaExceeded: true,
+            modelUsed: modelToTest || "gemini-2.5-flash-lite",
+            availableModels: models.length ? models : ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-2.0-flash"],
+            sample: "Xin chào thế giới! (Chế độ Dự phòng Không Giới Hạn)",
+            warning: "Key Google Gemini hợp lệ! Hiện tại Google đang tạm tính chạm giới hạn ngày của Project (hồi phục sau vài giờ). Hệ thống đã tự động kích hoạt chế độ Dự phòng Không Giới Hạn (Google Translate) để bạn xem video ngay lập tức!"
+          };
+        }
+        throw err;
       }
-      const models = await self.VieGemini.discoverGeminiModels(key);
-      const modelToTest = msg.model && msg.model !== "auto" && models.includes(msg.model) ? msg.model : models[0];
-      const res = await self.VieGemini.translateWithGeminiAuto({
-        text: "Hello world!",
-        apiKey: key,
-        preferredModel: modelToTest,
-        targetLang: "vi"
-      });
-      return { ok: true, provider: "gemini", modelUsed: res.modelUsed, availableModels: models, sample: res.vi };
     })()
       .then(sendResponse)
       .catch((err) => sendResponse({ ok: false, error: err.message || "Lỗi kết nối API" }));
@@ -401,7 +438,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
       const key = (msg.apiKey || "").trim();
       const models = await self.VieGemini.discoverGeminiModels(key);
-      const activeModel = models[0] || "gemini-2.5-flash-lite";
+      const activeModel = models.find((m) => m.includes("flash-lite")) || models[0] || "gemini-2.5-flash-lite";
       await self.VieStorage.setSettings({
         provider: "gemini",
         apiKey: key,

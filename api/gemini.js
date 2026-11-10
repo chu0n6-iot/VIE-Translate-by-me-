@@ -8,9 +8,9 @@
 
   const FALLBACK_GEMINI_MODELS = [
     "gemini-2.5-flash-lite",
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-2.5-flash",
     "gemini-flash-lite-latest",
     "gemini-flash-latest",
     "gemma-3-27b-it",
@@ -56,15 +56,17 @@
     if (m.includes("gemini-1.5") || m.includes("gemini-1.0") || m.includes("vision") || m.includes("embedding")) {
       return -9999;
     }
-    let score = 0;
-    if (m.includes("2.5-flash-lite")) score += 2000;
+    let score = 100;
+    // Ưu tiên cao nhất các model flash-lite có quota 1500 RPD (tránh các model bị Google giới hạn 20 RPD)
+    if (m.includes("2.5-flash-lite")) score += 2500;
+    else if (m.includes("2.0-flash-lite")) score += 2400;
+    else if (m.includes("flash-lite-latest")) score += 2300;
+    else if (m.includes("2.0-flash")) score += 2000;
     else if (m.includes("2.5-flash")) score += 1900;
-    else if (m.includes("2.0-flash-lite")) score += 1800;
-    else if (m.includes("2.0-flash")) score += 1700;
-    else if (m.includes("flash-lite-latest")) score += 1600;
-    else if (m.includes("flash-latest")) score += 1500;
-    else if (m.includes("gemma-3-27b")) score += 1300;
-    else if (m.includes("gemma-3-12b")) score += 1200;
+    else if (m.includes("flash-latest")) score += 1800;
+    else if (m.includes("gemma-3-27b")) score += 1500;
+    else if (m.includes("gemma-3-12b")) score += 1400;
+    else if (m.includes("flash")) score += 1000;
     return score;
   }
 
@@ -137,7 +139,10 @@
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
           const errMsg = errData?.error?.message || `Gemini HTTP ${res.status}`;
-          throw new Error(errMsg);
+          const err = new Error(errMsg);
+          err.status = res.status;
+          err.isQuotaExceeded = res.status === 429 || /quota|resource_exhausted|rate_limit|exceeded your current quota/i.test(errMsg);
+          throw err;
         }
         const data = await res.json();
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
@@ -233,7 +238,8 @@
         return { vi: out, modelUsed: m };
       } catch (err) {
         lastErr = err;
-        markModelCooldown(apiKey, m, 120000);
+        const isQuota = err.isQuotaExceeded || err.status === 429 || /quota|resource_exhausted|429/i.test(err.message || "");
+        markModelCooldown(apiKey, m, isQuota ? 3600000 : 120000);
       }
     }
     throw lastErr || new Error("All Gemini models failed.");

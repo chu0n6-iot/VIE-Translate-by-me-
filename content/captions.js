@@ -467,6 +467,36 @@
     });
   }
 
+  let lastCcAutoClickAt = 0;
+  function autoEnsureYouTubeCC(video) {
+    if (!location.hostname.includes("youtube.com")) return;
+    const now = Date.now();
+    if (now - lastCcAutoClickAt < 1800) return;
+    const ccBtn = document.querySelector(".ytp-subtitles-button");
+    if (!ccBtn || ccBtn.style.display === "none" || ccBtn.hasAttribute("disabled")) return;
+    if (ccBtn.getAttribute("aria-pressed") === "false") {
+      lastCcAutoClickAt = now;
+      try {
+        ccBtn.click();
+      } catch {}
+    }
+  }
+
+  function getYouTubePlayerCaptionTracks() {
+    try {
+      const mp = document.getElementById("movie_player");
+      const pr = mp?.getPlayerResponse ? mp.getPlayerResponse() : null;
+      const tracks = pr?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+      if (Array.isArray(tracks) && tracks.length > 0) return tracks;
+    } catch {}
+    try {
+      const pr = window.ytInitialPlayerResponse;
+      const tracks = pr?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+      if (Array.isArray(tracks) && tracks.length > 0) return tracks;
+    } catch {}
+    return null;
+  }
+
   async function loadYouTubeCues(video) {
     if (!location.hostname.includes("youtube.com")) return;
     const vid = new URL(location.href).searchParams.get("v");
@@ -481,12 +511,20 @@
       return;
     }
 
-    if (ytCueState.vid === vid) return;
-    ytCueState.vid = vid;
-    ytCueState.cues = [];
-    ytCueState.refEvents = [];
-    ytCueState.isLyrics = false;
-    ytCueState.sent = new Set();
+    if (ytCueState.vid === vid && ytCueState.cues.length > 0) return;
+    if (ytCueState.loading && ytCueState.vid === vid) return;
+
+    if (ytCueState.vid !== vid) {
+      ytCueState.vid = vid;
+      ytCueState.cues = [];
+      ytCueState.refEvents = [];
+      ytCueState.isLyrics = false;
+      ytCueState.sent = new Set();
+      ytCueState.attempts = 0;
+    } else {
+      ytCueState.attempts = (ytCueState.attempts || 0) + 1;
+      if (ytCueState.attempts > 12) return;
+    }
 
     const st = getVideoState(video);
     st.subSyncOffset = 0;
@@ -496,17 +534,35 @@
     st.autoSyncedWithLiveAudio = false;
     updateOverlaySyncUI(video);
 
+    // 1. Tự động bật CC YouTube để lấy phụ đề gốc và tiết kiệm token
+    autoEnsureYouTubeCC(video);
+
+    // 2. Kiểm tra nhanh xem bài hát có lời trên LRCLIB không (0 tokens, chuẩn xác từng câu)
+    const fastTitle = getVideoTitle();
+    const isProbableMusic = looksLikeMusicVideo(fastTitle, "", video?.duration || 0);
+    if (isProbableMusic) {
+      tryLoadSongLyricsForVideo(video, vid).catch(() => {});
+    }
+
     try {
-      const html = await (await fetch(`/watch?v=${vid}`, { credentials: "include" })).text();
-      const htmlMeta = extractYouTubeMetaFromHtml(html);
-      const title = htmlMeta.title || getVideoTitle();
-      const duration = htmlMeta.duration || video?.duration || 0;
-      const isMusic = looksLikeMusicVideo(title, html, duration);
-      const m = html.match(/"captionTracks":(\[\{.*?\}\]),"/);
+      ytCueState.loading = true;
+      let tracks = getYouTubePlayerCaptionTracks();
+      let htmlMeta = null;
+      if (!tracks) {
+        const html = await (await fetch(`/watch?v=${vid}`, { credentials: "include" })).text();
+        htmlMeta = extractYouTubeMetaFromHtml(html);
+        const m = html.match(/"captionTracks":(\[\{.*?\}\]),"/);
+        if (m) {
+          try { tracks = JSON.parse(m[1]); } catch {}
+        }
+      }
+
+      const title = htmlMeta?.title || getVideoTitle();
+      const duration = htmlMeta?.duration || video?.duration || 0;
+      const isMusic = isProbableMusic || looksLikeMusicVideo(title, "", duration);
 
       let manualTrack = null, asrTrack = null;
-      if (m) {
-        const tracks = JSON.parse(m[1]);
+      if (Array.isArray(tracks)) {
         manualTrack = tracks.find((t) => t.kind !== "asr") || null;
         asrTrack = tracks.find((t) => t.kind === "asr") || tracks[0] || null;
       }
@@ -541,19 +597,18 @@
           if (video) renderYouTubeByTime(video);
         }
       }
-    } catch {}
+    } catch {} finally {
+      ytCueState.loading = false;
+    }
   }
 
   function renderYouTubeByTime(video) {
     const cues = ytCueState.cues;
     if (!cues.length) return false;
 
-    if (!ytCueState.isLyrics && !userWantsAudioCapture) {
-      const ccBtn = document.querySelector(".ytp-subtitles-button");
-      if (ccBtn && ccBtn.getAttribute("aria-pressed") === "false") {
-        root.VieDOM?.hideOverlay(video);
-        return true;
-      }
+    // Tự động đảm bảo CC được kích hoạt để nhận text liên tục
+    if (!ytCueState.isLyrics) {
+      autoEnsureYouTubeCC(video);
     }
 
     const state = getVideoState(video);
@@ -900,6 +955,7 @@
 
     observePlatformCaptions(video, onCaption);
     startYouTubePrefetch(video);
+    autoEnsureYouTubeCC(video);
     ensureToadAudioButton(video);
 
     if (video.textTracks) {
@@ -908,6 +964,19 @@
         if (e.track) bindTextTrack(video, e.track, onCaption);
       });
     }
+
+    video.addEventListener("play", () => {
+      autoEnsureYouTubeCC(video);
+      renderYouTubeByTime(video);
+    });
+    video.addEventListener("playing", () => {
+      autoEnsureYouTubeCC(video);
+      renderYouTubeByTime(video);
+    });
+    video.addEventListener("loadeddata", () => {
+      autoEnsureYouTubeCC(video);
+      startYouTubePrefetch(video);
+    });
 
     video.addEventListener("timeupdate", () => renderYouTubeByTime(video));
   }
@@ -919,6 +988,9 @@
     normalizeSubtitleText,
     watchVideo,
     getVideoState,
+    autoEnsureYouTubeCC,
+    loadYouTubeCues,
+    renderYouTubeByTime,
     ensureToadAudioButton,
     updateToadButtonUI,
     updateOverlaySyncUI,

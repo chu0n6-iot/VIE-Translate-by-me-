@@ -187,6 +187,19 @@
       observer.observe(document.documentElement, { childList: true, subtree: true });
     }
 
+    // Lắng nghe sự kiện chuyển trang ngầm (SPA) của YouTube để kích hoạt ngay phụ đề và CC
+    const onYouTubePageChange = () => {
+      if (!location.hostname.includes("youtube.com")) return;
+      document.querySelectorAll("video").forEach((v) => {
+        root.VieCaptions?.autoEnsureYouTubeCC?.(v);
+        root.VieCaptions?.watchVideo?.(v, onCaptionReceived);
+      });
+      scanAndWatchVideos();
+    };
+    window.addEventListener("yt-navigate-finish", onYouTubePageChange);
+    document.addEventListener("yt-navigate-finish", onYouTubePageChange);
+    window.addEventListener("yt-page-data-updated", onYouTubePageChange);
+
     // Interval to ensure dynamic SPA video players (YouTube SPA nav, etc.) are always watched and have styles applied
     setInterval(scanAndWatchVideos, 1200);
   }

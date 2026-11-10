@@ -818,12 +818,21 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
 
         triggerToadHop();
-        triggerMicroToast(`🐸 Kết nối: ${res.modelUsed}`);
-        setToadSay(`Tuyệt vời! Cóc đang dịch bằng [${res.modelUsed}] 🐸🎧`);
-        showStatus(
-          `✓ API Key hợp lệ! Tìm thấy ${(res.availableModels || []).length} model. Đang dùng [${res.modelUsed}] (Tự động chuyển model khác nếu hết Quota).\nDịch thử: "${res.sample}"`,
-          "ok"
-        );
+        if (res.isQuotaExceeded) {
+          triggerMicroToast(`🐸 Đã lưu Key (Tự động kích hoạt Dự phòng Miễn phí)`);
+          setToadSay(`Key chuẩn rồi! Cóc tự động kích hoạt Dự phòng Không Giới Hạn khi Google hết Quota nhé! 🐸🛡️`);
+          showStatus(
+            `✓ API Key hợp lệ! Đã lưu thành công.\n🛡️ Lưu ý: Google đang tạm giới hạn lượt gọi ngày của Project này (${res.modelUsed}).\n✨ VIE-Translate đã TỰ ĐỘNG KÍCH HOẠT chế độ Dự phòng Google Translate Không Giới Hạn để bạn xem video ngay tức thì mà không cần chờ đợi!`,
+            "ok"
+          );
+        } else {
+          triggerMicroToast(`🐸 Kết nối: ${res.modelUsed}`);
+          setToadSay(`Tuyệt vời! Cóc đang dịch bằng [${res.modelUsed}] 🐸🎧`);
+          showStatus(
+            `✓ API Key hợp lệ! Tìm thấy ${(res.availableModels || []).length} model. Đang dùng [${res.modelUsed}] (Tự động chuyển model khác nếu hết Quota).\nDịch thử: "${res.sample}"`,
+            "ok"
+          );
+        }
       }
     );
   }
