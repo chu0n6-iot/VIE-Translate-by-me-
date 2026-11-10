@@ -97,6 +97,67 @@
     return prefixVoices[0] || null;
   }
 
+  let uiAudioCtx = null;
+  function playUiSound(type = "pop") {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      uiAudioCtx = uiAudioCtx || new AudioCtx();
+      if (uiAudioCtx.state === "suspended") uiAudioCtx.resume().catch(() => {});
+      const now = uiAudioCtx.currentTime;
+      const osc = uiAudioCtx.createOscillator();
+      const gain = uiAudioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(uiAudioCtx.destination);
+
+      if (type === "pop" || type === "word") {
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(450, now);
+        osc.frequency.exponentialRampToValueAtTime(850, now + 0.05);
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.045, now + 0.008);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+        osc.start(now);
+        osc.stop(now + 0.065);
+      } else if (type === "toggle_on") {
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(460, now);
+        osc.frequency.exponentialRampToValueAtTime(760, now + 0.07);
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.04, now + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+        osc.start(now);
+        osc.stop(now + 0.085);
+      } else if (type === "toggle_off") {
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(720, now);
+        osc.frequency.exponentialRampToValueAtTime(420, now + 0.07);
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.035, now + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+        osc.start(now);
+        osc.stop(now + 0.085);
+      } else if (type === "tick") {
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(950, now);
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.03, now + 0.004);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.03);
+        osc.start(now);
+        osc.stop(now + 0.035);
+      } else if (type === "chime") {
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(587.33, now);
+        osc.frequency.setValueAtTime(880, now + 0.06);
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.04, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+        osc.start(now);
+        osc.stop(now + 0.17);
+      }
+    } catch {}
+  }
+
   function speakWord(word, langHint = "") {
     try {
       if (!("speechSynthesis" in window)) return;
@@ -416,6 +477,7 @@
       const sentence = origEl.dataset.rawText || origEl.textContent.trim();
       const viText = viEl.textContent.trim();
       if (!word) return;
+      playUiSound("word");
       speakWord(word);
       openWordLookup(video, overlay, dictCard, word, sentence, viText, wordSpan);
     });
@@ -425,6 +487,7 @@
       e.preventDefault();
       const sentence = origEl.dataset.rawText || origEl.textContent.trim();
       const viText = viEl.textContent.trim();
+      playUiSound("pop");
       openSceneExplanation(video, overlay, dictCard, sentence, viText, "");
     });
 
@@ -438,30 +501,35 @@
     learnBar.querySelector(".vie-sync-minus")?.addEventListener("click", (e) => {
       e.stopPropagation();
       e.preventDefault();
+      playUiSound("tick");
       root.VieCaptions?.adjustSubSyncOffset(video, -0.5, e.shiftKey);
     });
 
     learnBar.querySelector(".vie-sync-plus")?.addEventListener("click", (e) => {
       e.stopPropagation();
       e.preventDefault();
+      playUiSound("tick");
       root.VieCaptions?.adjustSubSyncOffset(video, +0.5, e.shiftKey);
     });
 
     learnBar.querySelector(".vie-sync-auto")?.addEventListener("click", (e) => {
       e.stopPropagation();
       e.preventDefault();
+      playUiSound("chime");
       root.VieCaptions?.autoAlignSubtitleWithAudio(video);
     });
 
     learnBar.querySelector(".vie-learn-ocr-btn")?.addEventListener("click", (e) => {
       e.stopPropagation();
       e.preventDefault();
+      playUiSound("pop");
       triggerVisualSceneOCR(video, overlay);
     });
 
     learnBar.querySelector(".vie-sync-reset")?.addEventListener("click", (e) => {
       e.stopPropagation();
       e.preventDefault();
+      playUiSound("tick");
       root.VieCaptions?.resetSubSyncOffset(video);
     });
   }
@@ -923,6 +991,7 @@
   }
 
   root.VieDOM = {
+    playUiSound,
     findBestVideoContainer,
     escapeHtml,
     getPosClass,

@@ -998,11 +998,13 @@
           if (ov) ov._subMuted = st.subMuted;
 
           if (st.subMuted) {
+            root.VieDOM?.playUiSound?.("toggle_off");
             toggleBtn.classList.add("vie-sub-off");
             toggleBtn.innerHTML = `<span>🙈 Sub: TẮT</span>`;
             root.VieDOM?.hideOverlay(video);
             showSyncToast(video, "🙈 Đã tạm ẩn phụ đề trên video");
           } else {
+            root.VieDOM?.playUiSound?.("toggle_on");
             toggleBtn.classList.remove("vie-sub-off");
             toggleBtn.innerHTML = `<span>👁️ Sub: BẬT</span>`;
             st.lastCueText = "";

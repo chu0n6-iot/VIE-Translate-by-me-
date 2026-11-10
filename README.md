@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="#-tiếng-việt-bản-hướng-dẫn-đầy-đủ-từ-a-z">🇻🇳 Bản Tiếng Việt (A–Z)</a> •
-  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.7.2`)</a> •
+  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.7.4`)</a> •
   <a href="#-english-complete-a-to-z-guide">🇬🇧 English Version (A–Z)</a> •
   <a href="#-version-history--new-mechanisms-changelog">📋 English Changelog</a>
 </p>
@@ -19,14 +19,14 @@
 ---
 
 > ⚡ **LƯU Ý DÀNH CHO CỘNG TÁC VIÊN / COLLABORATORS (TỐI ƯU HÓA AI INDEXING)**:
-> Codebase của dự án đã được đại tu và module hóa toàn diện (`v0.7.2`), loại bỏ hoàn toàn các God file cồng kềnh nhằm giúp các công cụ lập trình AI (Antigravity IDE, Cursor, GitHub Copilot...) đọc hiểu cực nhanh và tiết kiệm tối đa token.
+> Codebase của dự án đã được đại tu và module hóa toàn diện (`v0.7.4`), loại bỏ hoàn toàn các God file cồng kềnh nhằm giúp các công cụ lập trình AI (Antigravity IDE, Cursor, GitHub Copilot...) đọc hiểu cực nhanh và tiết kiệm tối đa token.
 > **Mẹo quan trọng:** Trước khi yêu cầu AI sửa lỗi hoặc phát triển tính năng mới, bạn **chỉ cần gõ kèm `@AI_CONTEXT.md` ở đầu câu lệnh**. AI sẽ lập tức nắm toàn bộ bản đồ kiến trúc mà **không cần quét lại toàn bộ codebase**, giúp tốc độ phản hồi tăng vọt!
 
 # 🇻🇳 TIẾNG VIỆT (Bản Hướng Dẫn Đầy Đủ Từ A–Z)
 
-**VIE-Translate (Translate Toad AI `v0.7.2`)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)**, kết hợp **Trợ Lý Học Ngoại Ngữ Chuyên Sâu (`Từ Loại POS • Ví Dụ Thực Tế • Fact Thú Vị & Mẹo Nhớ • Cụm Đi Kèm • Sổ Từ Vựng`)**, **Cân Chỉnh Độ Lệch Sub/Nhạc Tức Thì (`Sub Sync Calibration`)** và **Đọc Phát Âm Chuẩn Giọng Bản Xứ** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles (hỗ trợ Facebook, TikTok, Twitter/X & web HTML5 bất kỳ)**.
+**VIE-Translate (Translate Toad AI `v0.7.4`)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)**, kết hợp **Trợ Lý Học Ngoại Ngữ Chuyên Sâu (`Từ Loại POS • Ví Dụ Thực Tế • Fact Thú Vị & Mẹo Nhớ • Cụm Đi Kèm • Sổ Từ Vựng`)**, **Cân Chỉnh Độ Lệch Sub/Nhạc Tức Thì (`Sub Sync Calibration`)** và **Đọc Phát Âm Chuẩn Giọng Bản Xứ** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles (hỗ trợ Facebook, TikTok, Twitter/X & web HTML5 bất kỳ)**.
 
-## ✨ Tính Năng Nổi Bật (`v0.7.2`)
+## ✨ Tính Năng Nổi Bật (`v0.7.4`)
 
 1. **📚 Phần Học Từ Vựng Đa Chiều Đặc Sắc (Rich Vocabulary Engine)**:
    - **Huy hiệu từ loại song ngữ trực quan (POS Badges)**: Tự động phân loại Động từ (Verb), Danh từ (Noun), Tính từ (Adjective), Trạng từ (Adverb), Cụm động từ (Phrasal Verb), Thành ngữ (Idiom), Tiếng lóng (Slang) với màu sắc bắt mắt.
@@ -56,7 +56,18 @@
 
 ## 🚀 Lịch Sử Cập Nhật & Các Cơ Chế Mới (Changelog)
 
-### 🌟 Phiên bản `v0.7.2` (Mới nhất) — *Gọn Sub, Cảnh Báo Hết Key, Key Dự Phòng, Popup Dễ Dùng*
+### 🌟 Phiên bản `v0.7.4` (Mới nhất) — *Layout Đặc Sắc, Âm Thanh Tương Tác WebAudio & Kiểm Tra Toàn Diện 11 Bài Test*
+- 🎨 **Giao diện đặc sắc hơn**: Thanh điều hướng 4 Tab cân đối hoàn hảo, hiệu ứng viền phát sáng Toad Hero, thanh trượt vàng dạ quang, thẻ từ nổi bật khi rê chuột.
+- 🔊 **Âm thanh tương tác vui tai (WebAudio thuần 0ms)**: Tiếng ộp ộp của Cóc, tiếng nổ bong bóng nước khi bấm nút, arpeggio 4 nốt khi lưu, tiếng tick nhẹ trên thanh trượt và tiếng switch khi bật/tắt sub trên video.
+- 🧪 **Kiểm tra tự động 11 bài test (Đạt 100%)**:
+  1. AI Translate & Gemini/Groq hoạt động chuẩn xác theo ngữ cảnh & xưng hô.
+  2. Tự nhận diện và sử dụng API keys (Gemini `AIza...`/`AQ...`, Groq `gsk_...`).
+  3. Xoay vòng Key dự phòng tự động khi Key chính chạm Quota 429.
+  4. Google Translate (GTX) lập tức cứu trợ khi hết Model hoặc không có Key (kiểm tra mạng thực tế trực tuyến).
+  5. Bộ lọc chống tràn chữ (Length Guard) ngăn hoàn toàn lỗi gộp sub thành cả đoạn văn dài.
+  6. Dọn sạch phụ đề cũ khi chuyển video, giữ nguyên tua video và chống dính chữ.
+
+### 🌟 Phiên bản `v0.7.3` — *Gọn Sub, Cảnh Báo Hết Key, Key Dự Phòng, Popup Dễ Dùng*
 - Chặn bản dịch AI bị dài/gộp nhiều câu (tự dùng Google Translate), giới hạn sub 3 dòng.
 - Nhiều key: ô "Key dự phòng" (Gemini/Groq), tự đổi key khi hết lượt; hiện thông báo "Thêm key" ngay trên video.
 - Popup rút gọn chữ, bớt emoji; thêm âm thanh tương tác nhỏ (tắt/bật bằng nút loa).
@@ -245,7 +256,18 @@
 
 ## 📋 Version History & New Mechanisms (Changelog)
 
-### 🌟 `v0.7.2` (Latest) — *Tidy Subs, Out-of-Key Alert, Backup Keys, Simpler Popup*
+### 🌟 `v0.7.4` (Latest) — *Polished Layout, WebAudio Interaction Sound Effects & 11 Comprehensive Verification Tests*
+- 🎨 **Polished Layout**: Balanced 4-tab bar layout, glowing Toad Hero border, luminous gold range slider thumbs, interactive word hover capsules.
+- 🔊 **Rich WebAudio Sound Effects**: Cute frog croak, bubbly water drops on button clicks, 4-note major arpeggio upon saving, slider tick feedback, and in-video subtitle switch sounds.
+- 🧪 **11 Automated E2E Tests (100% Passed)**:
+  1. AI translation context and pronoun consistency verified.
+  2. Gemini/Groq API key format detection & automatic usage.
+  3. Backup key pool rotation upon 429 Quota Exceeded.
+  4. Instant Google Translate (GTX) zero-loss fallback verified against live Google servers.
+  5. Length guard prevents long stacked subtitle paragraphs.
+  6. Clean video-switch state reset, seeking persistence, and glued-word normalization.
+
+### 🌟 `v0.7.3` — *Tidy Subs, Out-of-Key Alert, Backup Keys, Simpler Popup*
 - Over-long/merged AI translations are rejected (GTX fallback); subtitle clamped to 3 lines.
 - Backup key pool (Gemini/Groq) with automatic rotation and an in-video "Add key" alert.
 - Shorter popup copy, fewer emojis, small interaction sounds (speaker toggle).

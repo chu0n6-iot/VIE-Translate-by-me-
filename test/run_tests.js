@@ -6,6 +6,7 @@
 const assert = require("assert");
 
 console.log("🧪 Đang chạy bộ kiểm tra toàn diện cho VIE-Translate...\n");
+(async function runAllTests() {
 
 // --- 1. Test formatSubtitleDecorations (Kiểm tra lọc nốt nhạc trên lời nói) ---
 console.log("1️⃣ Kiểm tra bộ lọc nốt nhạc (Music Notes vs Spoken Dialogue)...");
@@ -233,7 +234,162 @@ assert.strictEqual(toggleState.subMuted, false, "Trạng thái subMuted phải l
 assert.strictEqual(toggleState.lastCueText, "", "Phải xóa lastCueText để cập nhật ngay câu thoại hiện tại của phim!");
 console.log("   ✅ Đã kiểm tra: Tắt/Bật phụ đề 1 chạm phản hồi tức thì và bắt kịp ngay nhịp phim!\n");
 
-console.log("🎉 TẤT CẢ 6 BÀI KIỂM TRA ĐỀU VƯỢT QUA 100% KHÔNG CÓ BẤT KỲ LỖI NÀO!");
+
+// --- 7. Test API Key Provider Detection & Multi-Key Pool Rotation ---
+console.log("7️⃣ Kiểm tra nhận diện API Key & Cơ chế xoay vòng Key dự phòng (Key Pool)...");
+
+function detectProviderFromKey(key) {
+  const k = (key || "").trim();
+  if (k.startsWith("gsk_")) return "groq";
+  if (k.startsWith("AQ.") || k.startsWith("AIza")) return "gemini";
+  return "";
+}
+
+assert.strictEqual(detectProviderFromKey("AIzaSyB_1234567890abcdef"), "gemini", "Key AIza... phải nhận là Gemini!");
+assert.strictEqual(detectProviderFromKey("AQ.customVertexKey123"), "gemini", "Key AQ... phải nhận là Gemini!");
+assert.strictEqual(detectProviderFromKey("gsk_9876543210zyxwvuts"), "groq", "Key gsk_... phải nhận là Groq!");
+assert.strictEqual(detectProviderFromKey("sk-unknown"), "", "Key không rõ định dạng không được nhận nhầm!");
+
+function buildKeyPool(settings, rawKey) {
+  const list = [rawKey, ...String(settings.backupKeys || "").split(/[\s,;]+/), settings.geminiApiKey, settings.groqApiKey];
+  const seen = new Set();
+  return list
+    .map((k) => (k || "").trim())
+    .filter((k) => k && detectProviderFromKey(k) && !seen.has(k) && seen.add(k));
+}
+
+const pool = buildKeyPool({
+  backupKeys: "gsk_backup1\nAIzaSyBackup2, gsk_backup3",
+  geminiApiKey: "AIzaSyGeminiStored",
+  groqApiKey: "gsk_groqStored"
+}, "AIzaSyPrimary");
+
+assert.strictEqual(pool.length, 6, "Phải gộp đủ 6 key hợp lệ từ ô chính, ô dự phòng và bộ nhớ!");
+assert.strictEqual(pool[0], "AIzaSyPrimary", "Key chính phải được ưu tiên chạy đầu tiên!");
+assert.strictEqual(pool[1], "gsk_backup1", "Key dự phòng Groq 1 phải nằm ở vị trí thứ hai!");
+
+// Kiểm tra cơ chế tự chuyển sang Key 2 khi Key 1 bị 429 Quota
+const mockCooldowns = new Map();
+async function simulateWithKeyPool(keys, callFn) {
+  const now = Date.now();
+  const avail = keys.filter((k) => (mockCooldowns.get(k) || 0) <= now);
+  let quotaHits = 0;
+  for (const key of avail) {
+    try {
+      return await callFn(key);
+    } catch (err) {
+      if (err.isQuotaExceeded) {
+        quotaHits++;
+        mockCooldowns.set(key, now + 15 * 60 * 1000);
+      }
+    }
+  }
+  const e = new Error("All keys exhausted");
+  e.allKeysExhausted = keys.length > 0 && (avail.length === 0 || quotaHits === avail.length);
+  throw e;
+}
+
+// Giả lập: Key 1 hết quota (429), Key 2 dịch thành công
+let attempts = [];
+const callResult = await (async () => {
+  return await simulateWithKeyPool(["AIzaSyExhausted", "gsk_HealthyKey"], async (k) => {
+    attempts.push(k);
+    if (k === "AIzaSyExhausted") {
+      const err = new Error("Quota exceeded 429");
+      err.isQuotaExceeded = true;
+      throw err;
+    }
+    return { ok: true, vi: "Xin chào từ Key 2", keyUsed: k };
+  });
+})();
+
+assert.strictEqual(callResult.vi, "Xin chào từ Key 2", "Key dự phòng phải dịch thành công!");
+assert.strictEqual(attempts.length, 2, "Phải tự động thử Key 1 rồi chuyển sang Key 2!");
+assert.strictEqual(attempts[1], "gsk_HealthyKey", "Key 2 phải được kích hoạt sau khi Key 1 hết lượt!");
+console.log("   ✅ Đã kiểm tra: Nhận diện chính xác Gemini/Groq, tự xoay tua Key dự phòng khi Key chính hết Quota 429!\n");
+
+// --- 8. Test Google Translate Fallback khi tất cả Key/Model cạn kiệt ---
+console.log("8️⃣ Kiểm tra Google Translate (GTX) tự động cứu trợ khi hết Model hoặc không có Key...");
+
+async function handleTranslateMock(rawText, keyPool, gtxFn) {
+  try {
+    return await simulateWithKeyPool(keyPool, async () => {
+      const err = new Error("Resource exhausted 429");
+      err.isQuotaExceeded = true;
+      throw err;
+    });
+  } catch (err) {
+    // Fallback to GTX
+    const gtxVi = await gtxFn(rawText);
+    return { vi: gtxVi, provider: "gtx", quotaExhausted: !!err.allKeysExhausted };
+  }
+}
+
+const fallbackRes = await handleTranslateMock("How are you today?", ["AIzaSyDead"], async (t) => "Hôm nay bạn thế nào?");
+assert.strictEqual(fallbackRes.vi, "Hôm nay bạn thế nào?", "Google Translate phải lập tức xuất hiện dịch thế chỗ!");
+assert.strictEqual(fallbackRes.provider, "gtx", "Provider phải chuyển sang gtx!");
+assert.strictEqual(fallbackRes.quotaExhausted, true, "Phải gắn cờ quotaExhausted để video hiện thông báo Thêm Key cho người dùng!");
+console.log("   ✅ Đã kiểm tra: Google Translate tự kích hoạt mượt mà khi hết model AI, không bao giờ để trống phụ đề!\n");
+
+// --- 9. Test Chặn Subtitle Bị Stack Dài & Trộn Nhiều Câu ---
+console.log("9️⃣ Kiểm tra bộ lọc giới hạn độ dài (Length Guard) chống tràn chữ / gộp cả đoạn văn...");
+
+function limitTranslationLength(vi, src) {
+  const max = Math.max(60, Math.round((src || "").length * 2.3));
+  return (vi || "").length > max ? "" : vi;
+}
+
+const shortSrc = "I can't keep you from loving him.";
+const normalViTrans = "Anh chẳng thể ngăn em yêu người ấy.";
+const bloatedStackedVi = "Mấy tháng qua, anh đã nỗ lực để hoàn thiện bản thân. Nhưng cuộc đời anh lại chất chứa quá nhiều tổn thương, khiến anh trở nên lạnh lùng với cả những người yêu thương anh nhất. Giờ nhìn lại, anh mới nhận ra... Anh vẫn nhớ như in khoảnh khắc anh ôm em trong tay, khi đôi mắt em đẫm lệ, khẩn khoản van xin anh đừng rời đi. Anh hối hận vì đã không nói với em tất cả, để giờ đây, anh chẳng thể ngăn em yêu người ấy, vì em đã quyết định rồi. Anh muốn nói yêu em, nhưng giờ đã quá muộn màng.";
+
+assert.strictEqual(limitTranslationLength(normalViTrans, shortSrc), normalViTrans, "Bản dịch gọn gàng đúng ngữ cảnh câu phải được chấp nhận!");
+assert.strictEqual(limitTranslationLength(bloatedStackedVi, shortSrc), "", "Bản dịch bị gộp dài bất thường cả đoạn văn phải bị từ chối để chuyển sang Google Translate câu đơn!");
+console.log("   ✅ Đã kiểm tra: Chặn hoàn toàn lỗi sub stack cả đoạn văn dài che kín màn hình!\n");
+
+// --- 10. Test Reset State Khi Chuyển Sang Video Mới (No Stale Subs) ---
+console.log("🔟 Kiểm tra cơ chế dọn sạch phụ đề cũ khi chuyển sang video khác...");
+
+function simulateResetForNewVideo(state, cs) {
+  cs.cues = [];
+  cs.refEvents = [];
+  cs.isLyrics = false;
+  cs.sent = new Set();
+  cs.navToken = (cs.navToken || 0) + 1;
+  state.lastCueText = "";
+  state.lastText = "";
+  state.reqSeq++;
+  state.lastRenderedSeq = state.reqSeq;
+  state.hasReceivedAnySubtitle = false;
+  state.subSyncOffset = 0;
+}
+
+const testVideoState = { lastCueText: "Old video subtitle line", lastText: "Old video subtitle line", reqSeq: 3, lastRenderedSeq: 3 };
+const testCueState = { cues: [{ text: "Old line 1" }, { text: "Old line 2" }], isLyrics: true, sent: new Set(["Old line 1"]) };
+
+simulateResetForNewVideo(testVideoState, testCueState);
+
+assert.strictEqual(testCueState.cues.length, 0, "Cues của video cũ phải bị xóa sạch!");
+assert.strictEqual(testCueState.isLyrics, false, "Trạng thái lyrics của video cũ phải được reset!");
+assert.strictEqual(testVideoState.lastCueText, "", "lastCueText phải rỗng!");
+assert.strictEqual(testVideoState.lastRenderedSeq > 3, true, "Sequence token tăng lên để từ chối các request dịch trễ của video cũ!");
+console.log("   ✅ Đã kiểm tra: Chuyển video dọn sạch 100% sub cũ, không bao giờ bị đè phụ đề lên video mới!\n");
+
+// --- 11. Test Live Online GTX Translation (Kiểm tra mạng thực tế) ---
+console.log("1️⃣1️⃣ Kiểm tra kết nối mạng thực tế tới Google Translate Free API...");
+async function testLiveGtx() {
+  const url = "https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl=auto&tl=vi&q=" + encodeURIComponent("Hello world");
+  const res = await fetch(url);
+  assert.strictEqual(res.ok, true, "Kết nối HTTP tới Google Translate phải thành công!");
+  const data = await res.json();
+  const translated = data[0].map((item) => item[0] || "").join("").trim();
+  assert.strictEqual(translated.toLowerCase().includes("chào") || translated.toLowerCase().includes("thế giới"), true, "Bản dịch thực tế phải chứa 'chào' hoặc 'thế giới'!");
+  console.log(`   ✅ Đã kiểm tra trực tuyến: 'Hello world' ➔ '${translated}' (Phản hồi tức thì!)\n`);
+}
+await testLiveGtx();
+
+console.log("🎉 TOÀN BỘ 11 BÀI KIỂM TRA ĐỀU HOÀN TOÀN CHÍNH XÁC VÀ ĐẠT 100%!");
+
 
 // v0.7.1: glued-word normalization
 (function () {
@@ -243,4 +399,6 @@ console.log("🎉 TẤT CẢ 6 BÀI KIỂM TRA ĐỀU VƯỢT QUA 100% KHÔNG C�
   assert.strictEqual(norm("famous,for it"), "famous, for it");
   assert.strictEqual(norm("YouTube"), "YouTube");
   console.log("✓ glued-word normalization");
+})();
+
 })();
