@@ -11,7 +11,8 @@
   "permissions": [
     "storage",
     "clipboardRead",
-    "contextMenus"
+    "contextMenus",
+    "activeTab"
   ],
   "host_permissions": [
     "https://generativelanguage.googleapis.com/*",
@@ -38,7 +39,8 @@
     {
       "resources": [
         "assets/translate-toad.png",
-        "assets/icon48.png"
+        "assets/icon48.png",
+        "test/test_bench.html"
       ],
       "matches": ["<all_urls>"]
     }

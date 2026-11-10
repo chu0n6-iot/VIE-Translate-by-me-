@@ -23,8 +23,8 @@
       .replace(/^(?:ORIG|GỐC|ORIGINAL)\b[:\s-]*/i, "")
       .trim();
 
-    const isMusic = root.VieCaptions?.ytCueState?.isLyrics || root.VieCaptions?.looksLikeMusicVideo(root.VieCaptions.getVideoTitle());
-    const { formattedOrig, formattedVi } = root.VieDOM.formatSubtitleDecorations(cleanOrigRaw, cleanViRaw, isMusic);
+    const isLyrics = Boolean(root.VieCaptions?.ytCueState?.isLyrics);
+    const { formattedOrig, formattedVi } = root.VieDOM.formatSubtitleDecorations(cleanOrigRaw, cleanViRaw, isLyrics);
 
     const origEl = overlay.querySelector(".vie-orig");
     const viEl = overlay.querySelector(".vie-vi");
@@ -180,6 +180,30 @@
       },
       true
     );
+
+    // Xử lý tua video (seek) trên mọi trang web: xóa ngay cache text cũ để phụ đề hiển thị tức thì không bị mất
+    const handleGlobalSeek = (e) => {
+      if (e.target && e.target.tagName === "VIDEO") {
+        const v = e.target;
+        const state = root.VieCaptions?.getVideoState?.(v);
+        if (state) {
+          state.lastCueText = "";
+          state.lastText = "";
+          state.lastRenderedSeq = 0;
+          if (state.hideTimer) {
+            clearTimeout(state.hideTimer);
+            state.hideTimer = null;
+          }
+          if (state.throttleTimer) {
+            clearTimeout(state.throttleTimer);
+            state.throttleTimer = null;
+          }
+        }
+        root.VieCaptions?.renderYouTubeByTime?.(v);
+      }
+    };
+    window.addEventListener("seeking", handleGlobalSeek, true);
+    window.addEventListener("seeked", handleGlobalSeek, true);
 
     // DOM Observer cho các video được chèn động vào trang
     const observer = new MutationObserver(() => scanAndWatchVideos());

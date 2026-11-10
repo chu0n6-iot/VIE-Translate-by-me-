@@ -50,6 +50,7 @@
     let state = videoStateMap.get(video);
     if (!state) {
       state = {
+        lastCueText: "",
         lastText: "",
         reqSeq: 0,
         lastRenderedSeq: 0,
@@ -267,7 +268,11 @@
 
     let bestCue = null;
     let bestScore = 0;
+    // BẮT BUỘC chỉ tìm trong vùng phụ đề gần thời điểm phát hiện tại [audioTime - 8s, audioTime + 8s]
+    // Tuyệt đối không quét cả video 4-5 phút vì từ ngữ thông thường ("I", "you", "know", "yeah")
+    // sẽ ăn khớp với câu ở phút thứ 1 làm lệch sub hàng trăm giây và đứng hình sub!
     for (const c of cues) {
+      if (Math.abs(c.start - audioTime) > 8.0) continue;
       const cueTokens = extractWordTokens(c.text);
       if (!cueTokens.length) continue;
       let common = 0;
@@ -275,22 +280,23 @@
         if (cueTokens.includes(tok)) common++;
       }
       const score = common / Math.max(speechTokens.length, cueTokens.length);
-      if (common >= 2 && score > bestScore && score >= 0.45) {
+      if (common >= 2 && score > bestScore && score >= 0.5) {
         bestScore = score;
         bestCue = c;
       }
     }
 
-    if (bestCue && bestScore >= 0.45) {
+    if (bestCue && bestScore >= 0.5) {
       const delta = Math.round((audioTime - bestCue.start) * 10) / 10;
-      if (Math.abs(delta) <= 120) {
+      if (Math.abs(delta) <= 5.0) {
         state.subSyncOffset = delta;
         state.autoSynced = true;
         state.autoSyncedWithLiveAudio = true;
+        state.lastCueText = "";
         state.lastText = "";
         updateOverlaySyncUI(video);
         renderYouTubeByTime(video);
-        showSyncToast(video, `🎯 Đã tự khớp phụ đề (${delta >= 0 ? "+" : ""}${delta}s) theo giọng hát thực tế!`);
+        showSyncToast(video, `🎯 Đã tự khớp phụ đề (${delta >= 0 ? "+" : ""}${delta}s) theo giọng thực tế!`);
       }
     }
   }
@@ -356,14 +362,16 @@
 
   function autoAlignSubtitleWithAudio(video) {
     const state = getVideoState(video);
-    showSyncToast(video, "🎯 Đang tự động đối chiếu âm thanh & lời...");
+    showSyncToast(video, "🎯 Đang tự động đối chiếu âm thanh & phụ đề...");
 
+    // 1. So khớp token giữa lời bài hát/phụ đề với track phụ đề gốc YouTube (ASR/Manual)
     if (ytCueState.refEvents && ytCueState.refEvents.length >= 3 && ytCueState.cues.length >= 3) {
       const delta = correlateCuesWithReferenceTracks(ytCueState.cues, ytCueState.refEvents);
-      if (delta !== null) {
+      if (delta !== null && Math.abs(delta) <= 6.0) {
         state.subSyncOffset = delta;
         state.autoSynced = true;
         state.autoSyncSource = "refTrack";
+        state.lastCueText = "";
         state.lastText = "";
         updateOverlaySyncUI(video);
         renderYouTubeByTime(video);
@@ -372,24 +380,21 @@
       }
     }
 
-    if (ytCueState.lyricsDuration && video.duration && Math.abs(video.duration - ytCueState.lyricsDuration) >= 2.0) {
-      const delta = Math.round((video.duration - ytCueState.lyricsDuration) * 10) / 10;
-      if (delta > 0 && delta <= 120) {
-        state.subSyncOffset = delta;
-        state.autoSynced = true;
-        state.autoSyncSource = "duration";
-        state.lastText = "";
-        updateOverlaySyncUI(video);
-        renderYouTubeByTime(video);
-        showSyncToast(video, `🎯 Tự căn theo đoạn mở đầu MV (+${delta}s)!`);
-        return;
-      }
+    // 2. Nếu đã có độ lệch cũ bị lệch hoặc người dùng muốn căn lại chuẩn:
+    // Đặt lại về 0.0s chuẩn mượt mà để tránh đứng hình phụ đề
+    if (Math.abs(state.subSyncOffset) > 0) {
+      state.subSyncOffset = 0;
+      state.autoSynced = false;
+      state.autoSyncSource = "";
+      state.lastCueText = "";
+      state.lastText = "";
+      updateOverlaySyncUI(video);
+      renderYouTubeByTime(video);
+      showSyncToast(video, "↺ Đã đặt lại nhịp chuẩn gốc (0.0s) mượt mà!");
+      return;
     }
 
-    showSyncToast(video, "🎙️ Đang nghe giọng thực tế để tự khóa nhịp...");
-    if (!state.audioCaptureActive) {
-      startVideoAudioCapture(video);
-    }
+    showSyncToast(video, "✨ Phụ đề đang khớp chuẩn theo thời gian thực (0.0s)");
   }
 
   async function tryLoadSongLyricsForVideo(video, expectedVid = "", metaOverride = null, refEventsOverride = null) {
@@ -626,7 +631,8 @@
 
     const cue = idx >= 0 && t <= cues[idx].end ? cues[idx] : null;
     if (!cue) {
-      if (!state.audioCaptureActive && state.lastText) {
+      if (!state.audioCaptureActive && state.lastCueText) {
+        state.lastCueText = "";
         state.lastText = "";
         state.reqSeq++;
         root.VieDOM?.hideOverlay(video);
@@ -634,8 +640,8 @@
       return true;
     }
 
-    if (cue.text !== state.lastText) {
-      state.lastText = cue.text;
+    if (cue.text !== state.lastCueText) {
+      state.lastCueText = cue.text;
       state.hasReceivedAnySubtitle = true;
       const nextCue = cues[idx + 1];
       const nextText = nextCue ? nextCue.text : "";
@@ -896,6 +902,9 @@
     if (mode === "listening" || userWantsAudioCapture || state.audioCaptureActive) {
       btn.classList.add("vie-audio-active");
       span.textContent = "🎙️ Đang nghe & dịch...";
+    } else if (ytCueState.cues.length > 0 || state.hasReceivedAnySubtitle) {
+      btn.classList.remove("vie-audio-active");
+      span.textContent = ytCueState.isLyrics ? "🎵 Lời bài hát (0 Token)" : "✨ Tự động dịch (CC)";
     } else {
       btn.classList.remove("vie-audio-active");
       span.textContent = "AI Nghe & Dịch";
@@ -965,14 +974,48 @@
       });
     }
 
-    video.addEventListener("play", () => {
+    const handleSeek = () => {
+      const state = getVideoState(video);
+      state.lastCueText = "";
+      state.lastText = "";
+      state.lastRenderedSeq = 0;
+      if (state.hideTimer) {
+        clearTimeout(state.hideTimer);
+        state.hideTimer = null;
+      }
+      if (state.throttleTimer) {
+        clearTimeout(state.throttleTimer);
+        state.throttleTimer = null;
+      }
+      renderYouTubeByTime(video);
+    };
+
+    video.addEventListener("seeking", handleSeek);
+    video.addEventListener("seeked", handleSeek);
+
+    let autoAudioTimer = null;
+    const checkAutoTranslate = async () => {
       autoEnsureYouTubeCC(video);
       renderYouTubeByTime(video);
-    });
-    video.addEventListener("playing", () => {
-      autoEnsureYouTubeCC(video);
-      renderYouTubeByTime(video);
-    });
+      updateToadButtonUI(video);
+
+      // Nếu sau 1.8s phát mà video không có phụ đề CC và không có lyrics (Facebook, TikTok, HTML5)
+      // Tự động kích hoạt nghe & dịch để người dùng xem video rảnh tay 100%
+      if (autoAudioTimer) clearTimeout(autoAudioTimer);
+      autoAudioTimer = setTimeout(async () => {
+        const st = getVideoState(video);
+        if (video.paused || video.ended || st.hasReceivedAnySubtitle || ytCueState.cues.length > 0 || st.audioCaptureActive) {
+          return;
+        }
+        const s = await root.VieStorage?.getSettings?.();
+        if (s?.enabled !== false && s?.autoAudioNoCC !== false && !userWantsAudioCapture) {
+          startVideoAudioCapture(video);
+        }
+      }, 1800);
+    };
+
+    video.addEventListener("play", checkAutoTranslate);
+    video.addEventListener("playing", checkAutoTranslate);
     video.addEventListener("loadeddata", () => {
       autoEnsureYouTubeCC(video);
       startYouTubePrefetch(video);
