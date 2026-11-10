@@ -163,15 +163,76 @@
     viEl.textContent = text;
   }
 
+  const PLAYER_WRAPPER_SELECTORS = [
+    ".html5-video-player",
+    ".video-js",
+    ".jwplayer",
+    ".plyr",
+    ".shaka-video-container",
+    ".vp-video-wrapper",
+    "[data-purpose='video-player']",
+    ".rc-VideoMiniPlayer",
+    ".bpx-player-video-area",
+    ".watch-video",
+    ".art-video-player",
+    ".dplayer"
+  ].join(", ");
+
+  function getContainer(video) {
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    if (fsEl && fsEl !== video && fsEl.contains(video)) {
+      return fsEl;
+    }
+    const knownPlayer = video.closest(PLAYER_WRAPPER_SELECTORS);
+    if (knownPlayer) return knownPlayer;
+    return video.parentElement || document.body;
+  }
+
+  function applySettingsToDOM(settings) {
+    const isEnabled = Boolean(settings?.enabled);
+
+    document.querySelectorAll(PLAYER_WRAPPER_SELECTORS).forEach((player) => {
+      player.classList.toggle("vie-player-active", isEnabled);
+      player.classList.toggle("vie-yt-active", isEnabled);
+    });
+
+    document.querySelectorAll("video").forEach((video) => {
+      const container = getContainer(video);
+      if (container) {
+        container.classList.toggle("vie-player-active", isEnabled);
+        container.classList.toggle("vie-yt-active", isEnabled);
+      }
+      if (video.textTracks) {
+        for (const track of video.textTracks) {
+          if (track.kind !== "subtitles" && track.kind !== "captions") continue;
+          if (!isEnabled && track._vieWasShowing && track.mode === "hidden") {
+            track.mode = "showing";
+          } else if (isEnabled && track.mode === "showing") {
+            track._vieWasShowing = true;
+            track.mode = "hidden";
+          }
+        }
+      }
+    });
+
+    document.querySelectorAll(".vie-overlay").forEach((overlay) => {
+      if (!isEnabled) {
+        overlay.classList.add("vie-hidden");
+      }
+      applyOverlayVisualStyle(overlay, settings);
+    });
+  }
+
   function getOrCreateOverlay(video, settings) {
-    const container =
-      video.closest(
-        ".html5-video-player, .video-js, .jwplayer, .plyr, .shaka-video-container, .vp-video-wrapper, [data-purpose='video-player'], .watch-video"
-      ) ||
-      video.parentElement ||
-      document.body;
+    const container = getContainer(video);
     if (window.getComputedStyle(container).position === "static") {
       container.style.position = "relative";
+    }
+
+    if (settings?.enabled) {
+      container.classList.add("vie-player-active", "vie-yt-active");
+      const player = video.closest(PLAYER_WRAPPER_SELECTORS);
+      if (player) player.classList.add("vie-player-active", "vie-yt-active");
     }
 
     let overlay = video._vieOverlay;
@@ -182,7 +243,7 @@
     } else {
       overlay =
         container.querySelector(":scope > .vie-overlay") ||
-        (video.closest(".html5-video-player, .video-js, .jwplayer, .plyr")?.querySelector(".vie-overlay") || null);
+        (video.closest(PLAYER_WRAPPER_SELECTORS)?.querySelector(".vie-overlay") || null);
 
       if (overlay) {
         if (overlay.parentElement !== container) {
@@ -260,7 +321,8 @@
   }
 
   function hideOverlay(video) {
-    const overlay = video._vieOverlay || video.closest(".html5-video-player, .video-js")?.querySelector(".vie-overlay") || video.parentElement?.querySelector(".vie-overlay");
+    const container = getContainer(video);
+    const overlay = video._vieOverlay || container.querySelector(".vie-overlay");
     if (overlay && !overlay.classList.contains("vie-dict-open") && !overlay._isDictPinned) {
       overlay.classList.add("vie-hidden");
     }
@@ -682,6 +744,9 @@
     closeDictAndCoach,
     showSelectionBubble,
     hideSelectionBubble,
-    showQuickTranslatePopup
+    showQuickTranslatePopup,
+    PLAYER_WRAPPER_SELECTORS,
+    getContainer,
+    applySettingsToDOM
   };
 })(typeof self !== "undefined" ? self : this);

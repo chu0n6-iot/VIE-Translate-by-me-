@@ -169,7 +169,15 @@
 
 /* Ẩn phụ đề gốc trên các trình phát phổ biến khi VIE-Translate đang hoạt động nhưng vẫn giữ DOM để đọc */
 .html5-video-player.vie-yt-active .ytp-caption-window-container,
+.html5-video-player.vie-yt-active .caption-window,
+.html5-video-player.vie-yt-active .ytp-caption-window-bottom,
+.html5-video-player.vie-yt-active .ytp-caption-window-rollup,
+.html5-video-player.vie-yt-active .ytp-caption-segment,
 .vie-player-active .ytp-caption-window-container,
+.vie-player-active .caption-window,
+.vie-player-active .ytp-caption-window-bottom,
+.vie-player-active .ytp-caption-window-rollup,
+.vie-player-active .ytp-caption-segment,
 .vie-player-active .vjs-text-track-display,
 .vie-player-active .jw-captions,
 .vie-player-active .plyr__captions,
