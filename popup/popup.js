@@ -73,6 +73,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const translationStyleSelect = document.getElementById("translationStyle");
   const autoPersonaInput = document.getElementById("autoPersona");
   const smartMergeCaptionsInput = document.getElementById("smartMergeCaptions");
+  const multiSpeakerSplitInput = document.getElementById("multiSpeakerSplit");
 
   // Tùy chỉnh giao diện phụ đề
   const previewStage = document.getElementById("previewStage");
@@ -365,6 +366,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     customGlossary: [],
     autoPersona: true,
     smartMergeCaptions: true,
+    multiSpeakerSplit: true,
     targetLang: "vi",
     secondaryLang: "orig",
     pronounStyle: "auto",
@@ -396,6 +398,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (hoverPauseDictInput) hoverPauseDictInput.checked = stored.hoverPauseDict !== false;
   if (autoPersonaInput) autoPersonaInput.checked = stored.autoPersona !== false;
   if (smartMergeCaptionsInput) smartMergeCaptionsInput.checked = stored.smartMergeCaptions !== false;
+  if (multiSpeakerSplitInput) multiSpeakerSplitInput.checked = stored.multiSpeakerSplit !== false;
 
   targetLangSelect.value = stored.targetLang || "vi";
   secondaryLangSelect.value = stored.secondaryLang || "orig";
@@ -531,6 +534,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       hoverPauseDict: hoverPauseDictInput ? hoverPauseDictInput.checked : true,
       autoPersona: autoPersonaInput ? autoPersonaInput.checked : true,
       smartMergeCaptions: smartMergeCaptionsInput ? smartMergeCaptionsInput.checked : true,
+      multiSpeakerSplit: multiSpeakerSplitInput ? multiSpeakerSplitInput.checked : true,
       targetLang: targetLangSelect.value,
       secondaryLang: secondaryLangSelect.value,
       pronounStyle: pronounStyleSelect ? pronounStyleSelect.value : "auto",
@@ -555,7 +559,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     [autoAudioNoCCInput, "AI Nghe & Dịch"],
     [softenProfanityInput, "Chế độ thân thiện"],
     [autoPersonaInput, "Nhận diện Persona"],
-    [smartMergeCaptionsInput, "Ghép câu thông minh"]
+    [smartMergeCaptionsInput, "Ghép câu thông minh"],
+    [multiSpeakerSplitInput, "Tách giọng đối thoại"]
   ];
   checkboxConfigs.forEach(([el, label]) => {
     if (!el) return;

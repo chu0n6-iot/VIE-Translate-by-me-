@@ -138,6 +138,12 @@ function pushTabContext(tabId, videoTitle, src, vi) {
 
 function harmonizeVietnamesePronouns(viText, pronounStyle = "auto", lockedFirstPerson = "") {
   if (!viText || typeof viText !== "string") return viText;
+  if (viText.includes("\n")) {
+    return viText
+      .split("\n")
+      .map((line) => harmonizeVietnamesePronouns(line, pronounStyle, lockedFirstPerson))
+      .join("\n");
+  }
   let targetFirst = lockedFirstPerson || "";
   if (!targetFirst) {
     if (pronounStyle === "minh_ban") targetFirst = "mình";
@@ -169,7 +175,9 @@ async function resolveSecondaryTranslation(cleanText, secondaryLang, targetLang)
 }
 
 async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = false, nextText = "") {
-  const cleanText = (rawText || "").replace(/\s+/g, " ").trim();
+  const cleanText = self.VieStorage?.formatMultiSpeakerDialogue
+    ? self.VieStorage.formatMultiSpeakerDialogue(rawText)
+    : (rawText || "").trim();
   if (!cleanText) return { vi: "" };
 
   const settings = await self.VieStorage.getSettings();
@@ -198,8 +206,17 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
       const persona = settings.autoPersona !== false ? ctx.persona : "";
 
       if (targetProvider === "gtx" || !rawKey) {
-        const [rawVi, sub2] = await Promise.all([self.VieGTX.translate(cleanText, targetLang), sub2Promise]);
+        let rawVi = "";
+        if (cleanText.includes("\n")) {
+          const parts = cleanText.split("\n");
+          const transParts = await Promise.all(parts.map((p) => self.VieGTX.translate(p, targetLang)));
+          rawVi = transParts.join("\n");
+        } else {
+          rawVi = await self.VieGTX.translate(cleanText, targetLang);
+        }
+        const [, sub2] = await Promise.all([Promise.resolve(rawVi), sub2Promise]);
         let vi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson) : rawVi;
+        if (self.VieStorage?.formatMultiSpeakerDialogue) vi = self.VieStorage.formatMultiSpeakerDialogue(vi);
         vi = applyGlossaryOverrides(vi, glossaryList, cleanText);
         if (vi) setCached(cacheKey, vi);
         return { vi, sub2, provider: "gtx" };
@@ -243,6 +260,7 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
 
         const rawVi = result.vi || "";
         let finalVi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson) : rawVi;
+        if (self.VieStorage?.formatMultiSpeakerDialogue) finalVi = self.VieStorage.formatMultiSpeakerDialogue(finalVi);
         finalVi = applyGlossaryOverrides(finalVi, glossaryList, cleanText);
         if (finalVi) {
           setCached(cacheKey, finalVi);
@@ -251,8 +269,17 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
         return { vi: finalVi, sub2, provider: targetProvider, modelUsed: result.modelUsed };
       } catch (err) {
         // Fallback to GTX on API error
-        const [rawVi, sub2] = await Promise.all([self.VieGTX.translate(cleanText, targetLang), sub2Promise]);
+        let rawVi = "";
+        if (cleanText.includes("\n")) {
+          const parts = cleanText.split("\n");
+          const transParts = await Promise.all(parts.map((p) => self.VieGTX.translate(p, targetLang)));
+          rawVi = transParts.join("\n");
+        } else {
+          rawVi = await self.VieGTX.translate(cleanText, targetLang);
+        }
+        const [, sub2] = await Promise.all([Promise.resolve(rawVi), sub2Promise]);
         let vi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson) : rawVi;
+        if (self.VieStorage?.formatMultiSpeakerDialogue) vi = self.VieStorage.formatMultiSpeakerDialogue(vi);
         vi = applyGlossaryOverrides(vi, glossaryList, cleanText);
         if (vi) setCached(`gtx:${self.VieStorage.getCacheKey(cleanText, settings)}`, vi);
         return { vi, sub2, provider: "gtx" };

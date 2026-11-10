@@ -69,6 +69,7 @@
     pronounStyle: "auto",
     autoPersona: true,
     smartMergeCaptions: true,
+    multiSpeakerSplit: true,
     customGlossary: [],
     subFont: "default",
     subSize: "100",
@@ -86,6 +87,76 @@
     savedVocab: []
   };
 
+  function formatMultiSpeakerDialogue(rawText) {
+    if (!rawText) return "";
+    let text = String(rawText)
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\{[^}]+\}/g, " ")
+      .trim();
+
+    // 1. YouTube / Broadcast CC chevrons: ">>" or ">>>"
+    if (/>>+/.test(text)) {
+      const parts = text
+        .split(/>>+/)
+        .map((p) => p.replace(/\s+/g, " ").trim())
+        .filter(Boolean);
+      if (parts.length >= 2) {
+        return parts.map((p) => (p.startsWith("-") ? p : `- ${p}`)).join("\n");
+      }
+    }
+
+    // 2. Already has linebreaks:
+    if (text.includes("\n")) {
+      const lines = text
+        .split("\n")
+        .map((l) => l.replace(/[^\S\r\n]+/g, " ").trim())
+        .filter(Boolean);
+      if (lines.length >= 2) {
+        const hasDash = lines.some((l) => l.startsWith("-") || l.startsWith("–") || l.startsWith("—"));
+        if (hasDash || lines.length === 2) {
+          return lines
+            .map((l) => {
+              const cleanL = l.replace(/^[-–—]\s*/, "").trim();
+              return `- ${cleanL}`;
+            })
+            .join("\n");
+        }
+      }
+    }
+
+    // 3. Dual dialogue on single line separated by " - " or " – " or " — "
+    const dashDialogueMatch = text.match(/^([-–—]\s*)?(.+?[.?!…”"'])\s+[-–—]\s+(.+)$/);
+    if (dashDialogueMatch) {
+      const part1 = dashDialogueMatch[2].replace(/^[-–—]\s*/, "").trim();
+      const part2 = dashDialogueMatch[3].replace(/^[-–—]\s*/, "").trim();
+      if (part1 && part2) {
+        return `- ${part1}\n- ${part2}`;
+      }
+    }
+
+    // 4. Bracketed speakers like "[John] Hello! [Mary] Hi!" or "John: Hello! Mary: Hi!"
+    const speakerTagMatch = text.match(
+      /^(?:\[([^\]]+)\]|([A-Z][a-zA-Z0-9_\s]{1,12}):)\s*([^\[]+?)\s+(?:\[([^\]]+)\]|([A-Z][a-zA-Z0-9_\s]{1,12}):)\s*(.+)$/
+    );
+    if (speakerTagMatch) {
+      const spk1 = speakerTagMatch[1] || speakerTagMatch[2] || "";
+      const txt1 = (speakerTagMatch[3] || "").trim();
+      const spk2 = speakerTagMatch[4] || speakerTagMatch[5] || "";
+      const txt2 = (speakerTagMatch[6] || "").trim();
+      if (txt1 && txt2) {
+        return `- ${spk1 ? `${spk1}: ` : ""}${txt1}\n- ${spk2 ? `${spk2}: ` : ""}${txt2}`;
+      }
+    }
+
+    return text.replace(/\s+/g, " ").trim();
+  }
+
+  function isMultiSpeakerDialogue(text) {
+    if (!text || typeof text !== "string") return false;
+    const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+    return lines.length >= 2 && lines.some((l) => l.startsWith("-") || l.startsWith("–") || l.startsWith("—"));
+  }
+
   const VieStorage = {
     FONT_FAMILY_MAP,
     LANGUAGE_NAMES,
@@ -93,6 +164,8 @@
     PRONOUN_INSTRUCTIONS,
     PERSONA_INSTRUCTIONS,
     DEFAULT_SETTINGS,
+    formatMultiSpeakerDialogue,
+    isMultiSpeakerDialogue,
 
     getSettings() {
       return new Promise((resolve) => {

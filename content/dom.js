@@ -25,11 +25,18 @@
   }
 
   function formatSubtitleDecorations(origText, viText, isMusicOrLyrics = false) {
-    let finalOrig = (origText || "")
+    let finalOrig = root.VieStorage?.formatMultiSpeakerDialogue
+      ? root.VieStorage.formatMultiSpeakerDialogue(origText)
+      : (origText || "").trim();
+    let finalVi = root.VieStorage?.formatMultiSpeakerDialogue
+      ? root.VieStorage.formatMultiSpeakerDialogue(viText)
+      : (viText || "").trim();
+
+    finalOrig = (finalOrig || "")
       .replace(/^(?:\*{1,2})?(?:ORIG(?:INAL)?|GỐC|TRANS(?:LATION)?|DỊCH)\s*:\s*(?:\*{1,2})?/i, "")
       .replace(/^(?:ORIG|GỐC|ORIGINAL)\b[:\s-]*/i, "")
       .trim();
-    let finalVi = (viText || "")
+    finalVi = (finalVi || "")
       .replace(/^(?:\*{1,2})?(?:TRANS(?:LATION)?|DỊCH|VIETNAMESE|VI|ORIG(?:INAL)?|GỐC)\s*:\s*(?:\*{1,2})?/i, "")
       .replace(/^(?:ORIG|GỐC|ORIGINAL)\b[:\s-]*/i, "")
       .trim();
@@ -45,7 +52,7 @@
 
     const cleanOrig = finalOrig.replace(/^[♪♫♬\s]+|[♪♫♬\s]+$/g, "").trim();
     const cleanVi = finalVi.replace(/^[♪♫♬\s]+|[♪♫♬\s]+$/g, "").trim();
-    if (finalVi) {
+    if (finalVi && !finalVi.includes("\n")) {
       if (/\?$/.test(cleanOrig) && !/\?$/.test(cleanVi)) {
         finalVi = hasMusicNote ? finalVi.replace(/\s*♪$/, "? ♪") : `${finalVi}?`;
       } else if (/!$/.test(cleanOrig) && !/[!?]$/.test(cleanVi)) {
@@ -138,29 +145,88 @@
     origEl.dataset.rawText = text;
     origEl.innerHTML = "";
 
-    const tokens = (text || "").split(/(\s+)/).filter(Boolean);
-    for (const tok of tokens) {
-      if (/^\s+$/.test(tok)) {
-        origEl.appendChild(document.createTextNode(tok));
-        continue;
+    const raw = String(text || "").trim();
+    if (!raw) return;
+
+    const lines = raw.split("\n").map((l) => l.trim()).filter(Boolean);
+    const isMulti = lines.length >= 2 && lines.some((l) => l.startsWith("-") || l.startsWith("–") || l.startsWith("—"));
+
+    if (isMulti) {
+      lines.forEach((line, idx) => {
+        const lineWrap = document.createElement("div");
+        lineWrap.className = `vie-orig-dialogue-turn vie-speaker-${(idx % 2) + 1}`;
+        const dashSpan = document.createElement("span");
+        dashSpan.className = "vie-speaker-bullet";
+        dashSpan.textContent = "- ";
+        lineWrap.appendChild(dashSpan);
+
+        const cleanLine = line.replace(/^[-–—]\s*/, "");
+        const tokens = cleanLine.split(/(\s+)/).filter(Boolean);
+        for (const tok of tokens) {
+          if (/^\s+$/.test(tok)) {
+            lineWrap.appendChild(document.createTextNode(tok));
+            continue;
+          }
+          const cleanWord = tok.replace(/^[.,!?;:"“”'‘’()\[\]{}<>…\-♪♫♬]+|[.,!?;:"“”'‘’()\[\]{}<>…\-♪♫♬]+$/g, "");
+          if (!cleanWord) {
+            lineWrap.appendChild(document.createTextNode(tok));
+            continue;
+          }
+          const span = document.createElement("span");
+          span.className = "vie-word";
+          span.dataset.word = cleanWord;
+          span.textContent = tok;
+          lineWrap.appendChild(span);
+        }
+        origEl.appendChild(lineWrap);
+      });
+    } else {
+      const tokens = raw.split(/(\s+)/).filter(Boolean);
+      for (const tok of tokens) {
+        if (/^\s+$/.test(tok)) {
+          origEl.appendChild(document.createTextNode(tok));
+          continue;
+        }
+        const cleanWord = tok.replace(/^[.,!?;:"“”'‘’()\[\]{}<>…\-♪♫♬]+|[.,!?;:"“”'‘’()\[\]{}<>…\-♪♫♬]+$/g, "");
+        if (!cleanWord) {
+          origEl.appendChild(document.createTextNode(tok));
+          continue;
+        }
+        const span = document.createElement("span");
+        span.className = "vie-word";
+        span.dataset.word = cleanWord;
+        span.textContent = tok;
+        origEl.appendChild(span);
       }
-      const cleanWord = tok.replace(/^[.,!?;:"“”'‘’()\[\]{}<>…\-♪♫♬]+|[.,!?;:"“”'‘’()\[\]{}<>…\-♪♫♬]+$/g, "");
-      if (!cleanWord) {
-        origEl.appendChild(document.createTextNode(tok));
-        continue;
-      }
-      const span = document.createElement("span");
-      span.className = "vie-word";
-      span.dataset.word = cleanWord;
-      span.textContent = tok;
-      origEl.appendChild(span);
     }
   }
 
   function renderStableViText(viEl, text) {
     if (!viEl) return;
-    if (viEl.textContent === text) return;
-    viEl.textContent = text;
+    if (viEl.dataset.rawText === text) return;
+    viEl.dataset.rawText = text;
+
+    const raw = String(text || "").trim();
+    if (!raw) {
+      viEl.textContent = "";
+      return;
+    }
+
+    const lines = raw.split("\n").map((l) => l.trim()).filter(Boolean);
+    const isMulti = lines.length >= 2 && lines.some((l) => l.startsWith("-") || l.startsWith("–") || l.startsWith("—"));
+
+    if (isMulti) {
+      viEl.innerHTML = "";
+      lines.forEach((line, idx) => {
+        const turnDiv = document.createElement("div");
+        turnDiv.className = `vie-dialogue-turn vie-speaker-${(idx % 2) + 1}`;
+        const cleanContent = line.replace(/^[-–—]\s*/, "").trim();
+        turnDiv.innerHTML = `<span class="vie-speaker-bullet" title="Người nói ${idx + 1}">- </span><span class="vie-speaker-content">${escapeHtml(cleanContent)}</span>`;
+        viEl.appendChild(turnDiv);
+      });
+    } else {
+      viEl.textContent = raw;
+    }
   }
 
   const PLAYER_WRAPPER_SELECTORS = [
