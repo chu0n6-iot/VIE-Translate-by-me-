@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="#-tiếng-việt-bản-hướng-dẫn-đầy-đủ-từ-a-z">🇻🇳 Bản Tiếng Việt (A–Z)</a> •
-  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.8.0`)</a> •
+  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.8.1`)</a> •
   <a href="#-english-complete-a-to-z-guide">🇬🇧 English Version (A–Z)</a> •
   <a href="#-version-history--new-mechanisms-changelog">📋 English Changelog</a>
 </p>
@@ -19,16 +19,16 @@
 ---
 
 > ⚡ **LƯU Ý DÀNH CHO CỘNG TÁC VIÊN / COLLABORATORS (TỐI ƯU HÓA AI INDEXING)**:
-> Codebase của dự án đã được đại tu và module hóa toàn diện (`v0.6.7` ➔ `v0.8.0`), loại bỏ hoàn toàn các God file cồng kềnh nhằm giúp các công cụ lập trình AI (Antigravity IDE, Cursor, GitHub Copilot...) đọc hiểu cực nhanh và tiết kiệm tối đa token.
+> Codebase của dự án đã được đại tu và module hóa toàn diện (`v0.6.7` ➔ `v0.8.1`), loại bỏ hoàn toàn các God file cồng kềnh nhằm giúp các công cụ lập trình AI (Antigravity IDE, Cursor, GitHub Copilot...) đọc hiểu cực nhanh và tiết kiệm tối đa token.
 > **Mẹo quan trọng:** Trước khi yêu cầu AI sửa lỗi hoặc phát triển tính năng mới, bạn **chỉ cần gõ kèm `@AI_CONTEXT.md` ở đầu câu lệnh**. AI sẽ lập tức nắm toàn bộ bản đồ kiến trúc mà **không cần quét lại toàn bộ codebase**, giúp tốc độ phản hồi tăng vọt!
 
 # 🇻🇳 TIẾNG VIỆT (Bản Hướng Dẫn Đầy Đủ Từ A–Z)
 
-**VIE-Translate (Translate Toad AI `v0.8.0` — Local AI Edition)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)**, kết hợp **Trợ Lý Học Ngoại Ngữ Chuyên Sâu (`Từ Loại POS • Ví Dụ Thực Tế • Fact Thú Vị & Mẹo Nhớ • Cụm Đi Kèm • Sổ Từ Vựng`)**, **Cân Chỉnh Độ Lệch Sub/Nhạc Tức Thì (`Sub Sync Calibration`)** và **Đọc Phát Âm Chuẩn Giọng Bản Xứ** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles**.
+**VIE-Translate (Translate Toad AI `v0.8.1` — Local AI Edition)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)**, kết hợp **Trợ Lý Học Ngoại Ngữ Chuyên Sâu (`Từ Loại POS • Ví Dụ Thực Tế • Fact Thú Vị & Mẹo Nhớ • Cụm Đi Kèm • Sổ Từ Vựng`)**, **Cân Chỉnh Độ Lệch Sub/Nhạc Tức Thì (`Sub Sync Calibration`)** và **Đọc Phát Âm Chuẩn Giọng Bản Xứ** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles**.
 
-## ✨ Tính Năng Nổi Bật (`v0.8.0`)
+## ✨ Tính Năng Nổi Bật (`v0.8.1`)
 
-0. **🏠 MỚI `v0.8.0` — Local AI (chạy bằng phần cứng của bạn, miễn phí, riêng tư, không cần API Key)**:
+0. **🏠 MỚI `v0.8.1` — Local AI (chạy bằng phần cứng của bạn, miễn phí, riêng tư, không cần API Key)**:
    - **Dịch bằng Ollama**: Qwen / Llama / Gemma chạy ngay trên máy, giữ ngữ cảnh phim, vần điệu nhạc, xưng hô, thuật ngữ.
    - **AI Nghe bằng Whisper local**: chọn **Tự động / Song song GPU + CPU / Chỉ GPU / Chỉ CPU**.
    - **Tùy chọn 100%**: không cài thì tự dùng Google Translate miễn phí, không ép phần cứng; local lỗi ➔ tự fallback.
@@ -61,7 +61,15 @@
 
 ## 🚀 Lịch Sử Cập Nhật & Các Cơ Chế Mới (Changelog)
 
-### 🤝 Phiên bản `v0.8.0` (Mới nhất) — *Gộp Bản Local AI Của Collaborator + Khôi Phục Toàn Bộ Tính Năng v0.6.8 → v0.7.4*
+### 🌟 Phiên bản `v0.8.1` (Mới nhất) — *Khắc Phục Triệt Để Lỗi Chuyển Từ Video Nhạc Sang Video Thường Bị Giữ Nguyên Sub Cũ*
+- 🔄 **Khắc phục dứt điểm lỗi đè sub khi đổi video**:
+  1. Xác minh chặt chẽ `videoId` trong `getYouTubePlayerCaptionTracks` & `getVideoTitle`: Tuyệt đối không đọc nhầm track hoặc tiêu đề cũ của video trước.
+  2. Bổ sung bộ lọc từ chối video thường trong `looksLikeMusicVideo`: Các video vlog, cắm trại (camping/solo), bài giảng, review có dấu gạch ngang (` - `) tuyệt đối không bị nhận nhầm thành MV ca nhạc.
+  3. Bỏ cơ chế nạp lyrics trước khi xác minh xong video: Không bao giờ tải lyrics của bài hát cũ vào video đời thường mới.
+  4. Quét đổi URL tức thì (120ms interval + `popstate`): Xóa sạch khung phụ đề cũ khỏi màn hình ngay tại thời điểm người dùng bấm chuyển video.
+- 🧪 **Mở rộng bộ kiểm tra lên 12 bài test tự động (Đạt 100%)**: Bổ sung bài test phân loại chuẩn xác Video Nhạc vs Video Thường.
+
+### 🤝 Phiên bản `v0.8.0` — *Gộp Bản Local AI Của Collaborator + Khôi Phục Toàn Bộ Tính Năng v0.6.8 → v0.7.4*
 - **Local AI (từ collaborator)**: dịch bằng **Ollama** (`api/ollama.js`), AI Nghe bằng **Whisper local** (`api/whisper.js`, `tools/whisper_server.py`) với 4 chế độ GPU/CPU; **Glossary**, **Auto Persona**, **gộp câu thông minh**, **tách lời nhiều người nói**.
 - **Khôi phục**: key dự phòng tự xoay + thông báo "Thêm key", chặn sub dài/stack, reset sub khi đổi video, dùng mô tả YouTube tìm lyrics, gợi ý F5, nút ẩn/hiện sub 1 chạm, phong cách Unhinged 💀, OCR, lọc câu "Tôi đang dịch…", từ điển dự phòng Google Translate, âm thanh tương tác, bộ test.
 - **Sửa xung đột khi gộp**: Ollama dùng chung luồng key pool/fallback; tách người nói chỉ kích hoạt khi có gạch đầu dòng `-`/`>>` (tránh tách nhầm câu CC bị ngắt dòng) và vẫn chống dính chữ; khung sub tối đa 4 dòng để chứa 2 người nói.
@@ -262,9 +270,9 @@
 
 # 🇬🇧 ENGLISH (Complete A-to-Z Guide)
 
-**VIE-Translate (Translate Toad AI `v0.8.0` — Local AI Edition)** is a real-time browser extension that translates video subtitles into **Vietnamese or any custom bilingual pair**, acts as a **Multi-Dimensional Vocabulary & Scene Nuance Coach**, and provides **Instant Subtitle/Lyrics Timing Calibration & Native Voice Speech Synthesis** using **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)**, and **Google Translate**.
+**VIE-Translate (Translate Toad AI `v0.8.1` — Local AI Edition)** is a real-time browser extension that translates video subtitles into **Vietnamese or any custom bilingual pair**, acts as a **Multi-Dimensional Vocabulary & Scene Nuance Coach**, and provides **Instant Subtitle/Lyrics Timing Calibration & Native Voice Speech Synthesis** using **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)**, and **Google Translate**.
 
-## ✨ Key Features (`v0.8.0`)
+## ✨ Key Features (`v0.8.1`)
 
 0. **🏠 NEW in `v0.7.0` — Local AI (your own hardware, free, private, no API key)**:
    - **Ollama translation** (Qwen / Llama / Gemma) with movie context, lyric rhyme, pronoun lock and glossary.
@@ -298,7 +306,15 @@
 
 ## 📋 Version History & New Mechanisms (Changelog)
 
-### 🤝 `v0.8.0` (Latest) — *Merged Collaborator's Local AI Edition + Restored All v0.6.8 → v0.7.4 Features*
+### 🌟 `v0.8.1` (Latest) — *Fix Subtitle Sticking When Switching From Music Video to Normal Video*
+- 🔄 **Bulletproof video switch reset & subtitle clearing**:
+  1. Strict `videoId` matching in `getYouTubePlayerCaptionTracks` and `getVideoTitle`: Never read caption tracks or titles of previous videos.
+  2. Non-music content filter in `looksLikeMusicVideo`: Vlogs, camping, tutorials, reviews with hyphens are never misclassified as music videos.
+  3. Safe lyrics loading: Only search LRCLIB once the current video is verified as a music release.
+  4. Instant URL change detector (120ms + `popstate`): Clears the old overlay from screen immediately upon navigation.
+- 🧪 **12 automated test cases passed (100%)**: Added music video vs normal video classifier verification test.
+
+### 🤝 `v0.8.0` — *Merged Collaborator's Local AI Edition + Restored All v0.6.8 → v0.7.4 Features*
 - **Local AI (collaborator)**: Ollama translation, local Whisper (GPU/CPU modes), Glossary lock, Auto Persona, smart sentence merge, multi-speaker lines.
 - **Restored**: backup-key rotation + "Add key" alert, long/stacked subtitle guard, reset on video switch, YouTube description lyrics lookup, F5 hint, 1-click sub toggle, Unhinged 💀 style, OCR, AI meta-leak filter, dictionary GTX fallback, interaction sounds, test suite.
 - **Merge fixes**: Ollama shares the key-pool/fallback flow; multi-speaker split only on explicit `-`/`>>` markers (no false splits on wrapped CC lines) with de-glue kept; subtitle box clamps to 4 lines.

@@ -31,7 +31,7 @@
 1. **Luôn đọc `AI_CONTEXT.md` đầu tiên** để định vị chính xác file cần sửa theo đúng nhiệm vụ.
 2. **TUYỆT ĐỐI KHÔNG đọc toàn bộ codebase** nếu chỉ cần sửa một module riêng biệt.
 3. Không tái tạo "God file"; duy trì tính độc lập và kích thước nhỏ gọn của từng module.
-4. Ghi chú kiến trúc v0.8.0 (Hợp nhất Local AI & Toàn bộ cơ chế nâng cao):
+4. Ghi chú kiến trúc v0.8.1 (Khắc phục triệt để lỗi chuyển từ video nhạc sang video thường):
 - Local AI qua Ollama (`api/ollama.js`) và Whisper local (`api/whisper.js`, `tools/whisper_server.py`).
 - Multi-Speaker tách dòng (`formatMultiSpeakerDialogue`), Glossary ép thuật ngữ (`applyGlossaryOverrides`), Persona tự nhận diện (`detectVideoPersona`), gộp câu thông minh (`smartMergeCaptions`).
 - Key Pool xoay tua & hồi phục 429 (`withKeyPool`, `keyCooldown`, `backupKeys`), toast hết key (`showQuotaToast`), cảnh báo F5 (`startNoSubWatchdog`).

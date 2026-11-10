@@ -130,7 +130,7 @@
     return d ? d.slice(0, 160) : "";
   }
 
-  function resetForNewVideo(video) {
+  function resetForNewVideo(video, newVid = "") {
     ytCueState.cues = [];
     ytCueState.refEvents = [];
     ytCueState.isLyrics = false;
@@ -140,6 +140,7 @@
     ytCueState.loading = false;
     ytCueState.attempts = 0;
     ytCueState.navToken = (ytCueState.navToken || 0) + 1;
+    if (newVid) ytCueState.vid = newVid;
     const vids = new Set(video ? [video] : []);
     document.querySelectorAll("video").forEach((v) => vids.add(v));
     vids.forEach((v) => {
@@ -155,7 +156,15 @@
       st.autoSyncSource = "";
       if (st.hideTimer) { clearTimeout(st.hideTimer); st.hideTimer = null; }
       if (st.throttleTimer) { clearTimeout(st.throttleTimer); st.throttleTimer = null; }
+      if (st.aiRefineTimer) { clearTimeout(st.aiRefineTimer); st.aiRefineTimer = null; }
       try { root.VieDOM?.hideOverlay(v); } catch {}
+    });
+    document.querySelectorAll(".vie-overlay").forEach((ov) => {
+      const viEl = ov.querySelector(".vie-vi");
+      const origEl = ov.querySelector(".vie-orig");
+      if (viEl) viEl.textContent = "";
+      if (origEl) origEl.textContent = "";
+      ov.classList.add("vie-hidden");
     });
   }
 
@@ -164,7 +173,23 @@
     return document.querySelector("video.html5-main-video") || document.querySelector("video") || fallback;
   }
 
-  function getVideoTitle() {
+  function getVideoTitle(expectedVid = "") {
+    if (!expectedVid && location.hostname.includes("youtube.com")) {
+      expectedVid = new URL(location.href).searchParams.get("v") || "";
+    }
+    try {
+      const mp = document.getElementById("movie_player");
+      const pr = mp?.getPlayerResponse ? mp.getPlayerResponse() : null;
+      if (pr?.videoDetails?.title && (!expectedVid || pr.videoDetails.videoId === expectedVid)) {
+        return pr.videoDetails.title.trim().slice(0, 140);
+      }
+    } catch {}
+    try {
+      const pr = window.ytInitialPlayerResponse;
+      if (pr?.videoDetails?.title && (!expectedVid || pr.videoDetails.videoId === expectedVid)) {
+        return pr.videoDetails.title.trim().slice(0, 140);
+      }
+    } catch {}
     const ytTitle =
       document.querySelector("h1.ytd-watch-metadata yt-formatted-string")?.textContent ||
       document.querySelector(".ytp-title-link")?.textContent ||
@@ -185,10 +210,18 @@
   function looksLikeMusicVideo(title, html = "", duration = 0) {
     if (html && (html.includes('"category":"Music"') || html.includes('"musicVideoType"'))) return true;
     const t = (title || "").toLowerCase();
-    if (/\b(mv|m\/v|official\s*(music\s*)?video|lyrics?|lyric\s*video|official\s*audio|visualizer|ost|soundtrack|cover|remix|karaoke|acoustic|ft\.?|feat\.?|prod\.?|single|album)\b/i.test(t)) {
+    if (/\b(mv|m\/v|official\s*(music\s*)?video|lyrics?|lyric\s*video|official\s*audio|visualizer|soundtrack|remix|karaoke|acoustic|vevo)\b/i.test(t)) {
       return true;
     }
-    if (t.includes(" - ") && (!duration || (duration >= 60 && duration <= 540))) return true;
+    if (/\b(ft\.?|feat\.?|prod\s*by|cover\s*by)\b/i.test(t)) {
+      return true;
+    }
+    if (duration >= 90 && duration <= 450) {
+      if (/^[^\-]+?\s+[-–—]\s+[^\-]+?$/i.test(title || "")) {
+        const isNonMusic = /\b(vlog|camping|solo|survival|review|unboxing|tutorial|guide|course|lecture|podcast|news|interview|reaction|gameplay|walkthrough|episode|part\s*\d|vs\.?|how\s*to|diy|asmr)\b/i.test(t);
+        if (!isNonMusic) return true;
+      }
+    }
     return false;
   }
 
@@ -507,7 +540,15 @@
 
   async function tryLoadSongLyricsForVideo(video, expectedVid = "", metaOverride = null, refEventsOverride = null) {
     return new Promise((resolve) => {
-      const title = (metaOverride?.title || getVideoTitle() || "").trim();
+      if (!expectedVid && location.hostname.includes("youtube.com")) {
+        expectedVid = new URL(location.href).searchParams.get("v") || "";
+      }
+      if (!expectedVid || (ytCueState.vid && ytCueState.vid !== expectedVid)) {
+        return resolve(false);
+      }
+      const token = ytCueState.navToken || 0;
+
+      const title = (metaOverride?.title || getVideoTitle(expectedVid) || "").trim();
       if (!title || title.length < 3) return resolve(false);
 
       const duration = metaOverride?.duration || (Number.isFinite(video?.duration) ? video.duration : 0);
@@ -521,7 +562,9 @@
         descQuery: parseDescriptionSongQuery(getVideoDescription())
       }, (res) => {
         if (chrome.runtime.lastError || !res?.found) return resolve(false);
-        if (expectedVid && ytCueState.vid && ytCueState.vid !== expectedVid) return resolve(false);
+        if (ytCueState.navToken !== token || (ytCueState.vid && ytCueState.vid !== expectedVid)) {
+          return resolve(false);
+        }
 
         if (res.synced && Array.isArray(res.cues) && res.cues.length >= 4) {
           ytCueState.cues = res.cues;
@@ -597,17 +640,28 @@
     }
   }
 
-  function getYouTubePlayerCaptionTracks() {
+  function getYouTubePlayerCaptionTracks(expectedVid = "") {
+    if (!expectedVid && location.hostname.includes("youtube.com")) {
+      expectedVid = new URL(location.href).searchParams.get("v") || "";
+    }
     try {
       const mp = document.getElementById("movie_player");
       const pr = mp?.getPlayerResponse ? mp.getPlayerResponse() : null;
-      const tracks = pr?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-      if (Array.isArray(tracks) && tracks.length > 0) return tracks;
+      if (pr?.videoDetails?.videoId && expectedVid && pr.videoDetails.videoId !== expectedVid) {
+        // Stale playerResponse from previous video!
+      } else {
+        const tracks = pr?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+        if (Array.isArray(tracks) && tracks.length > 0) return tracks;
+      }
     } catch {}
     try {
       const pr = window.ytInitialPlayerResponse;
-      const tracks = pr?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-      if (Array.isArray(tracks) && tracks.length > 0) return tracks;
+      if (pr?.videoDetails?.videoId && expectedVid && pr.videoDetails.videoId !== expectedVid) {
+        // Stale ytInitialPlayerResponse from initial video!
+      } else {
+        const tracks = pr?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+        if (Array.isArray(tracks) && tracks.length > 0) return tracks;
+      }
     } catch {}
     return null;
   }
@@ -617,25 +671,17 @@
     const vid = new URL(location.href).searchParams.get("v");
     if (!vid) {
       if (ytCueState.vid) {
-        ytCueState.vid = "";
-        ytCueState.cues = [];
-        ytCueState.refEvents = [];
-        ytCueState.isLyrics = false;
-        ytCueState.sent.clear();
+        resetForNewVideo(video, "");
       }
       return;
     }
 
-    if (ytCueState.vid !== vid && ytCueState.cues.length > 0) {
-      resetForNewVideo(video);
-      ytCueState.vid = vid;
-    }
-    if (ytCueState.vid === vid && ytCueState.cues.length > 0) return;
-    if (ytCueState.loading && ytCueState.vid === vid) return;
-
     if (ytCueState.vid !== vid) {
-      resetForNewVideo(video);
-      ytCueState.vid = vid;
+      resetForNewVideo(video, vid);
+    } else if (ytCueState.cues.length > 0) {
+      return;
+    } else if (ytCueState.loading) {
+      return;
     } else {
       ytCueState.attempts = (ytCueState.attempts || 0) + 1;
       if (ytCueState.attempts > 12) return;
@@ -652,19 +698,15 @@
     // 1. Tự động bật CC YouTube để lấy phụ đề gốc và tiết kiệm token
     autoEnsureYouTubeCC(video);
 
-    // 2. Kiểm tra nhanh xem bài hát có lời trên LRCLIB không (0 tokens, chuẩn xác từng câu)
-    const fastTitle = getVideoTitle();
-    const isProbableMusic = looksLikeMusicVideo(fastTitle, "", video?.duration || 0);
-    if (isProbableMusic) {
-      tryLoadSongLyricsForVideo(video, vid).catch(() => {});
-    }
+    const token = ytCueState.navToken;
 
     try {
       ytCueState.loading = true;
-      let tracks = getYouTubePlayerCaptionTracks();
+      let tracks = getYouTubePlayerCaptionTracks(vid);
       let htmlMeta = null;
       if (!tracks) {
         const html = await (await fetch(`/watch?v=${vid}`, { credentials: "include" })).text();
+        if (ytCueState.navToken !== token || ytCueState.vid !== vid) return;
         htmlMeta = extractYouTubeMetaFromHtml(html);
         const m = html.match(/"captionTracks":(\[\{.*?\}\]),"/);
         if (m) {
@@ -672,9 +714,11 @@
         }
       }
 
-      const title = htmlMeta?.title || getVideoTitle();
+      if (ytCueState.navToken !== token || ytCueState.vid !== vid) return;
+
+      const title = htmlMeta?.title || getVideoTitle(vid);
       const duration = htmlMeta?.duration || video?.duration || 0;
-      const isMusic = isProbableMusic || looksLikeMusicVideo(title, "", duration);
+      const isMusic = looksLikeMusicVideo(title, htmlMeta ? "hasHtml" : "", duration);
 
       let manualTrack = null, asrTrack = null;
       if (Array.isArray(tracks)) {
@@ -687,33 +731,42 @@
       if (chosenTrack) {
         try {
           const data = await (await fetch(`${chosenTrack.baseUrl}&fmt=json3`, { credentials: "include" })).json();
-          for (const ev of data.events || []) {
-            if (!ev.segs) continue;
-            const text = normalizeSubtitleText(ev.segs.map((sg) => sg.utf8 || "").join(""));
-            if (!text) continue;
-            const start = (ev.tStartMs || 0) / 1000;
-            refEvents.push({ start, end: start + (ev.dDurationMs || 2000) / 1000, text });
+          if (ytCueState.navToken === token && ytCueState.vid === vid) {
+            for (const ev of data.events || []) {
+              if (!ev.segs) continue;
+              const text = normalizeSubtitleText(ev.segs.map((sg) => sg.utf8 || "").join(""));
+              if (!text) continue;
+              const start = (ev.tStartMs || 0) / 1000;
+              refEvents.push({ start, end: start + (ev.dDurationMs || 2000) / 1000, text });
+            }
           }
         } catch {}
       }
+
+      if (ytCueState.navToken !== token || ytCueState.vid !== vid) return;
       ytCueState.refEvents = refEvents;
 
+      // 2. CHỈ thử tìm lyrics NẾU video thực sự là Music Video
       if (isMusic && (!manualTrack || userWantsAudioCapture)) {
         ytCueState.lyricsSearchedTitle = title;
         const foundSynced = await tryLoadSongLyricsForVideo(video, vid, htmlMeta, refEvents);
         if (foundSynced) return;
       }
 
+      // 3. Nếu là video thường (vlog, bài giảng, v.v...) hoặc không tìm thấy lyrics:
+      // Dùng CC/ASR của video mới và đảm bảo isLyrics = false!
       if (chosenTrack && refEvents.length > 0) {
         const cues = chosenTrack.kind === "asr" ? mergeEventsIntoSentences(refEvents) : refEvents;
-        if (ytCueState.vid === vid && cues.length > 0) {
+        if (ytCueState.navToken === token && ytCueState.vid === vid && cues.length > 0) {
           ytCueState.cues = cues;
           ytCueState.isLyrics = false;
           if (video) renderYouTubeByTime(video);
         }
       }
     } catch {} finally {
-      ytCueState.loading = false;
+      if (ytCueState.navToken === token) {
+        ytCueState.loading = false;
+      }
     }
   }
 
@@ -778,9 +831,8 @@
         const cur = getActiveVideo(video);
         if (location.hostname.includes("youtube.com")) {
           const nv = new URL(location.href).searchParams.get("v") || "";
-          if (nv && ytCueState.vid && nv !== ytCueState.vid) {
-            resetForNewVideo(cur);
-            ytCueState.vid = nv;
+          if (nv && nv !== ytCueState.vid) {
+            resetForNewVideo(cur, nv);
             loadYouTubeCues(cur);
             return;
           }
