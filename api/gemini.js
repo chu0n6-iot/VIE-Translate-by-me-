@@ -242,7 +242,10 @@
         markModelCooldown(apiKey, m, isQuota ? 3600000 : 120000);
       }
     }
-    throw lastErr || new Error("All Gemini models failed.");
+    if (lastErr) throw lastErr;
+    const cd = new Error("All Gemini models are cooling down (quota).");
+    cd.isQuotaExceeded = true;
+    throw cd;
   }
 
   function isAiMetaOrPromptLeak(text) {

@@ -58,6 +58,31 @@
     overlay.classList.remove("vie-hidden");
   }
 
+  let lastQuotaToastAt = 0;
+  function showQuotaToast(video) {
+    const now = Date.now();
+    if (now - lastQuotaToastAt < 10 * 60 * 1000) return;
+    lastQuotaToastAt = now;
+    const host = video?.parentElement || document.body;
+    if (host.querySelector(".vie-quota-toast")) return;
+    const el = document.createElement("div");
+    el.className = "vie-quota-toast";
+    el.innerHTML = '<span>Key AI đã hết lượt hôm nay. Đang dùng Google Translate tạm.</span>';
+    const add = document.createElement("button");
+    add.textContent = "Thêm key";
+    add.onclick = () => {
+      chrome.runtime.sendMessage({ type: "OPEN_KEY_SETUP" });
+      el.remove();
+    };
+    const close = document.createElement("button");
+    close.className = "vie-quota-close";
+    close.textContent = "✕";
+    close.onclick = () => el.remove();
+    el.append(add, close);
+    host.appendChild(el);
+    setTimeout(() => el.remove(), 20000);
+  }
+
   function onCaptionReceived(video, rawText, immediate = false, nextText = "") {
     if (!settings.enabled) {
       root.VieDOM?.hideOverlay(video);
@@ -123,6 +148,7 @@
           navToken: root.VieCaptions.ytCueState?.navToken || 0,
         fastPreviewOnly: false
       }, (res) => {
+        if (!chrome.runtime.lastError && res?.quotaExhausted) showQuotaToast(video);
         if (!chrome.runtime.lastError && res?.vi && currentSeq >= state.lastRenderedSeq) {
           localCache.set(ck, { vi: res.vi, sub2: res.sub2 || "" });
           if (localCache.size > 500) {
