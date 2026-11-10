@@ -175,18 +175,60 @@
     ".bpx-player-video-area",
     ".watch-video",
     ".art-video-player",
-    ".dplayer"
+    ".dplayer",
+    // Facebook Video Containers (Feed, Watch, Reels, Modal Dialog)
+    "div[data-video-id]",
+    "div[data-pagelet*='Video']",
+    "div[role='dialog']",
+    "div[data-visualcompletion='video-renderer']",
+    "div.x1y1aw1k",
+    // Twitter / X
+    "div[data-testid='videoPlayer']",
+    "div[data-testid='videoComponent']",
+    // TikTok & Instagram
+    "div[data-e2e='feed-video']",
+    "div[class*='DivVideoContainer']",
+    "div[class*='video-player-container']",
+    "article"
   ].join(", ");
 
   function getContainer(video) {
+    if (!video) return document.body;
     const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
     if (fsEl && fsEl !== video && fsEl.contains(video)) {
       return fsEl;
     }
     const knownPlayer = video.closest(PLAYER_WRAPPER_SELECTORS);
-    if (knownPlayer) return knownPlayer;
-    return video.parentElement || document.body;
+    if (knownPlayer && knownPlayer !== document.body) {
+      if (window.getComputedStyle(knownPlayer).position === "static") {
+        knownPlayer.style.position = "relative";
+      }
+      return knownPlayer;
+    }
+
+    // Tự động leo ngược DOM tìm wrapper cha có kích thước ôm sát video
+    let parent = video.parentElement;
+    let candidate = parent;
+    let depth = 0;
+    while (parent && parent !== document.body && depth < 4) {
+      const pRect = parent.getBoundingClientRect();
+      const vRect = video.getBoundingClientRect();
+      if (pRect.width > 0 && Math.abs(pRect.width - vRect.width) < 80 && Math.abs(pRect.height - vRect.height) < 100) {
+        candidate = parent;
+        break;
+      }
+      parent = parent.parentElement;
+      depth++;
+    }
+
+    const finalContainer = candidate || video.parentElement || document.body;
+    if (finalContainer && finalContainer !== document.body && window.getComputedStyle(finalContainer).position === "static") {
+      finalContainer.style.position = "relative";
+    }
+    return finalContainer;
   }
+
+  const findBestVideoContainer = getContainer;
 
   function applySettingsToDOM(settings) {
     const isEnabled = Boolean(settings?.enabled);
@@ -243,7 +285,7 @@
     } else {
       overlay =
         container.querySelector(":scope > .vie-overlay") ||
-        (video.closest(PLAYER_WRAPPER_SELECTORS)?.querySelector(".vie-overlay") || null);
+        (getContainer(video)?.querySelector(".vie-overlay") || null);
 
       if (overlay) {
         if (overlay.parentElement !== container) {
@@ -322,7 +364,7 @@
 
   function hideOverlay(video) {
     const container = getContainer(video);
-    const overlay = video._vieOverlay || container.querySelector(".vie-overlay");
+    const overlay = video._vieOverlay || container?.querySelector(".vie-overlay") || video.parentElement?.querySelector(".vie-overlay");
     if (overlay && !overlay.classList.contains("vie-dict-open") && !overlay._isDictPinned) {
       overlay.classList.add("vie-hidden");
     }
@@ -727,6 +769,7 @@
   }
 
   root.VieDOM = {
+    findBestVideoContainer,
     escapeHtml,
     getPosClass,
     formatSubtitleDecorations,

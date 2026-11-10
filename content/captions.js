@@ -8,6 +8,9 @@
 
   const PLATFORM_CAPTION_CONFIGS = [
     { name: "youtube", playerSelector: ".html5-video-player", containerSelector: ".ytp-caption-window-container", segmentSelector: ".ytp-caption-segment", isStreaming: true },
+    { name: "facebook", playerSelector: "div[data-video-id], div[data-pagelet*='Video'], div[role='dialog'], div[data-visualcompletion='video-renderer'], div.x1y1aw1k", containerSelector: "div[class*='captions'], div[class*='closed-captions'], [aria-label*='phụ đề' i], [aria-label*='captions' i]" },
+    { name: "tiktok", playerSelector: "div[data-e2e='feed-video'], div[class*='DivVideoContainer'], div[class*='video-player-container']", containerSelector: "div[class*='DivSubtitleWrapper'], div[class*='caption-container'], [data-e2e='subtitle-container']" },
+    { name: "twitter", playerSelector: "div[data-testid='videoPlayer'], div[data-testid='videoComponent']", containerSelector: "div[data-testid='captionText']" },
     { name: "videojs", playerSelector: ".video-js", containerSelector: ".vjs-text-track-display", segmentSelector: ".vjs-text-track-cue" },
     { name: "jwplayer", playerSelector: ".jwplayer", containerSelector: ".jw-captions", segmentSelector: ".jw-text-track-cue" },
     { name: "plyr", playerSelector: ".plyr", containerSelector: ".plyr__captions", segmentSelector: ".plyr__caption" },
@@ -20,7 +23,8 @@
     { name: "ted", playerSelector: "[data-testid='video-player']", containerSelector: "[data-testid='player-captions'], .ted-player-captions" },
     { name: "artplayer", playerSelector: ".art-video-player", containerSelector: ".art-subtitle" },
     { name: "dplayer", playerSelector: ".dplayer", containerSelector: ".dplayer-subtitle" },
-    { name: "mediaelement", playerSelector: ".mejs__container", containerSelector: ".mejs__captions-layer", segmentSelector: ".mejs__captions-text" }
+    { name: "mediaelement", playerSelector: ".mejs__container", containerSelector: ".mejs__captions-layer", segmentSelector: ".mejs__captions-text" },
+    { name: "generic", playerSelector: "div, section, article", containerSelector: "[class*='subtitle' i], [class*='caption' i], [aria-label*='subtitle' i], [aria-label*='caption' i]" }
   ];
 
   const watchedVideos = new WeakSet();
@@ -626,6 +630,61 @@
     updateToadButtonUI(video);
   }
 
+  async function getAudioStreamFromVideo(video) {
+    if (!video) return null;
+
+    // Tầng 1: Native captureStream hoặc mozCaptureStream
+    const captureFn = video.captureStream || video.mozCaptureStream;
+    if (typeof captureFn === "function") {
+      try {
+        const full = captureFn.call(video);
+        if (full) {
+          const audioTracks = full.getAudioTracks().filter((t) => t.readyState !== "ended");
+          if (audioTracks.length) {
+            return new MediaStream(audioTracks);
+          }
+        }
+      } catch (e) {
+        // captureStream may fail on cross-origin media
+      }
+    }
+
+    // Tầng 2: Web Audio API createMediaElementSource (tương thích cao cho Facebook & thẻ video HTML5)
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        if (!video._vieAudioCtx) {
+          const ctx = new AudioCtx();
+          const srcNode = ctx.createMediaElementSource(video);
+          const destNode = ctx.createMediaStreamDestination();
+          srcNode.connect(destNode);
+          srcNode.connect(ctx.destination);
+          video._vieAudioCtx = ctx;
+          video._vieAudioDest = destNode;
+        }
+        if (video._vieAudioCtx.state === "suspended") {
+          await video._vieAudioCtx.resume().catch(() => {});
+        }
+        if (video._vieAudioDest && video._vieAudioDest.stream) {
+          const tracks = video._vieAudioDest.stream.getAudioTracks().filter((t) => t.readyState !== "ended");
+          if (tracks.length) {
+            return new MediaStream(tracks);
+          }
+        }
+      }
+    } catch (e) {
+      // createMediaElementSource fallback
+    }
+
+    // Tầng 3: video.srcObject (WebRTC / live media stream)
+    if (video.srcObject instanceof MediaStream) {
+      const tracks = video.srcObject.getAudioTracks().filter((t) => t.readyState !== "ended");
+      if (tracks.length) return new MediaStream(tracks);
+    }
+
+    return null;
+  }
+
   async function startVideoAudioCapture(video) {
     const state = getVideoState(video);
     if (state.audioCaptureActive || userWantsAudioCapture) {
@@ -634,44 +693,35 @@
     }
 
     userWantsAudioCapture = true;
+    state.audioCaptureActive = true;
     updateToadButtonUI(video, "listening");
 
-    const foundSynced = await tryLoadSongLyricsForVideo(video, ytCueState.vid);
-    if (foundSynced) {
-      userWantsAudioCapture = false;
-      state.audioCaptureActive = false;
-      updateToadButtonUI(video, "idle");
-      showSyncToast(video, "🎵 Đã tải và hiển thị lời bài hát đồng bộ!");
-      renderYouTubeByTime(video);
-      return;
+    // Nếu trên YouTube và có ID video, tìm kiếm lyrics nền nhưng KHÔNG TẮT LẮNG NGHE của người dùng!
+    if (location.hostname.includes("youtube.com") && ytCueState.vid) {
+      tryLoadSongLyricsForVideo(video, ytCueState.vid)
+        .then((foundSynced) => {
+          if (foundSynced && state.audioCaptureActive) {
+            showSyncToast(video, "🎵 Đã tải lời bài hát đồng bộ! AI tiếp tục nghe hỗ trợ bạn.");
+            renderYouTubeByTime(video);
+          }
+        })
+        .catch(() => {});
     }
 
-    const captureFn = video.captureStream || video.mozCaptureStream;
-    if (typeof captureFn !== "function") {
-      userWantsAudioCapture = false;
-      state.audioCaptureActive = false;
-      updateToadButtonUI(video, "idle");
-      showSyncToast(video, "⚠️ Trình duyệt không hỗ trợ captureStream cho thẻ video này.");
-      return;
-    }
-
-    let stream = null;
-    try {
-      const full = captureFn.call(video);
-      const audioTracks = full.getAudioTracks().filter((t) => t.readyState !== "ended");
-      if (audioTracks.length) stream = new MediaStream(audioTracks);
-    } catch {}
+    // Lấy stream âm thanh qua 3 tầng bảo vệ
+    const stream = await getAudioStreamFromVideo(video);
 
     if (!stream) {
       userWantsAudioCapture = false;
       state.audioCaptureActive = false;
       updateToadButtonUI(video, "idle");
-      showSyncToast(video, "⚠️ Không thể trích xuất âm thanh từ video (CORS). Vui lòng thử bật CC của YouTube.");
+      showSyncToast(video, "⚠️ Không thể trích xuất âm thanh từ video. Vui lòng bấm Play video và thử lại!");
       return;
     }
 
-    state.audioCaptureActive = true;
-    const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/webm";
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ? "audio/webm;codecs=opus"
+      : (MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4");
 
     const recordNext = () => {
       if (!state.audioCaptureActive || !userWantsAudioCapture) {
@@ -686,42 +736,49 @@
       try {
         const recorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 24000 });
         const chunks = [];
-        recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+        recorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) chunks.push(e.data);
+        };
         recorder.onstop = async () => {
           if (!state.audioCaptureActive || !chunks.length) return;
           const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
           if (blob.size < 400) return;
           const b64 = await blobToBase64(blob);
           const sliceTime = video.currentTime || 0;
-          chrome.runtime.sendMessage({
-            type: "TRANSCRIBE_AUDIO",
-            audioBase64: b64,
-            mimeType: recorder.mimeType || "audio/webm",
-            videoTitle: getVideoTitle()
-          }, (res) => {
-            if (res?.error === "NO_KEY") {
-              stopVideoAudioCapture(video, true);
-              showSyncToast(video, "🔑 Cần API Key (Gemini/Groq) để AI nghe & dịch. Bấm icon Toad để lấy Key!");
-              return;
-            }
-            if (!chrome.runtime.lastError && (res?.vi || res?.orig)) {
-              if (res.orig && ytCueState.cues.length > 0) {
-                correlateLiveAudioWithCues(video, res.orig, Math.max(0, sliceTime - 0.9));
+          chrome.runtime.sendMessage(
+            {
+              type: "TRANSCRIBE_AUDIO",
+              audioBase64: b64,
+              mimeType: recorder.mimeType || "audio/webm",
+              videoTitle: getVideoTitle()
+            },
+            (res) => {
+              if (res?.error === "NO_KEY") {
+                stopVideoAudioCapture(video, true);
+                showSyncToast(video, "🔑 Cần API Key (Gemini/Groq) để AI nghe & dịch. Bấm icon Toad để lấy Key!");
+                return;
               }
-              root.VieContent?.renderSubtitles(video, res.orig || "", res.vi || "", res.sub2 || "", false);
+              if (!chrome.runtime.lastError && (res?.vi || res?.orig)) {
+                if (res.orig && ytCueState.cues.length > 0) {
+                  correlateLiveAudioWithCues(video, res.orig, Math.max(0, sliceTime - 0.9));
+                }
+                root.VieContent?.renderSubtitles(video, res.orig || "", res.vi || "", res.sub2 || "", false);
+              }
             }
-          });
+          );
         };
 
         state.audioRecorder = recorder;
         recorder.start();
         state.audioLoopTimer = setTimeout(() => {
           if (recorder.state === "recording") {
-            try { recorder.stop(); } catch {}
+            try {
+              recorder.stop();
+            } catch {}
           }
           if (state.audioCaptureActive && userWantsAudioCapture) recordNext();
         }, 1800);
-      } catch {
+      } catch (err) {
         state.audioLoopTimer = setTimeout(recordNext, 800);
       }
     };
@@ -730,9 +787,12 @@
 
   function ensureToadAudioButton(video) {
     const state = getVideoState(video);
-    const container = root.VieDOM?.getContainer
-      ? root.VieDOM.getContainer(video)
-      : (video.closest(".html5-video-player, .video-js, .jwplayer, .plyr") || video.parentElement || document.body);
+    const container =
+      (root.VieDOM?.getContainer && root.VieDOM.getContainer(video)) ||
+      (root.VieDOM?.findBestVideoContainer && root.VieDOM.findBestVideoContainer(video)) ||
+      video.closest(".html5-video-player, .video-js, .jwplayer, .plyr") ||
+      video.parentElement ||
+      document.body;
 
     let btn = state.toadBtnEl;
     if (btn && btn.isConnected) {
@@ -749,11 +809,14 @@
         btn = document.createElement("button");
         btn.type = "button";
         btn.className = "vie-toad-audio-btn";
-        btn.title = "Translate Toad AI: Tự tìm Lyrics hoặc nghe âm thanh khi video không có CC";
+        btn.title = "Translate Toad AI: Tự tìm Lyrics hoặc nghe âm thanh khi video không có CC (Facebook, TikTok, YouTube...)";
         btn.innerHTML = `<img src="${chrome.runtime.getURL("assets/icon48.png")}" alt="Toad"><span>AI Nghe & Dịch</span>`;
         btn.addEventListener("click", (e) => {
           e.stopPropagation();
           e.preventDefault();
+          const now = Date.now();
+          if (btn._lastClick && now - btn._lastClick < 400) return;
+          btn._lastClick = now;
           startVideoAudioCapture(video);
         });
         container.appendChild(btn);
@@ -785,11 +848,17 @@
   }
 
   function observePlatformCaptions(video, onCaption) {
-    const scopeRoot = root.VieDOM?.getContainer ? root.VieDOM.getContainer(video) : (video.parentElement || document);
+    const scopeRoot =
+      (root.VieDOM?.getContainer && root.VieDOM.getContainer(video)) ||
+      (root.VieDOM?.findBestVideoContainer && root.VieDOM.findBestVideoContainer(video)) ||
+      video.parentElement ||
+      document;
     for (const cfg of PLATFORM_CAPTION_CONFIGS) {
-      const player = video.closest(cfg.playerSelector) || scopeRoot;
+      const player = video.closest(cfg.playerSelector) || (cfg.name === "generic" ? scopeRoot : (scopeRoot || document));
+      if (!player) continue;
       const captionContainer = player.querySelector(cfg.containerSelector);
       if (!captionContainer || watchedCaptionContainers.has(captionContainer)) continue;
+      if (captionContainer.closest(".vie-overlay")) continue;
       watchedCaptionContainers.add(captionContainer);
 
       player.classList.add("vie-player-active", "vie-yt-active");

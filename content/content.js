@@ -151,12 +151,37 @@
       }
       if (clearCache) localCache.clear();
       root.VieDOM?.applySettingsToDOM(settings);
+      document.querySelectorAll("video").forEach((v) => {
+        const overlay = v._vieOverlay || root.VieDOM?.getContainer?.(v)?.querySelector(".vie-overlay") || v.parentElement?.querySelector(".vie-overlay");
+        if (overlay) root.VieDOM.applyOverlayVisualStyle(overlay, settings);
+      });
     });
 
     root.VieSelection?.init();
     scanAndWatchVideos();
 
-    // DOM Observer for dynamically added videos
+    // Bắt ngay lập tức mọi video đang phát qua capture phase (Tối ưu cho Facebook Feed, Reels, Twitter, TikTok)
+    window.addEventListener(
+      "play",
+      (e) => {
+        if (e.target && e.target.tagName === "VIDEO") {
+          root.VieCaptions?.watchVideo(e.target, onCaptionReceived);
+        }
+      },
+      true
+    );
+
+    window.addEventListener(
+      "playing",
+      (e) => {
+        if (e.target && e.target.tagName === "VIDEO") {
+          root.VieCaptions?.watchVideo(e.target, onCaptionReceived);
+        }
+      },
+      true
+    );
+
+    // DOM Observer cho các video được chèn động vào trang
     const observer = new MutationObserver(() => scanAndWatchVideos());
     if (document.documentElement) {
       observer.observe(document.documentElement, { childList: true, subtree: true });
