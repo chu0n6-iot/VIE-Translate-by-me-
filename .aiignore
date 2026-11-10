@@ -1,0 +1,45 @@
+# AI Index Ignore (.aiignore)
+# Prevents AI assistant / Antigravity / Cursor from scanning heavy binary & non-essential files
+
+# Dependencies & Build artifacts
+node_modules/
+dist/
+build/
+out/
+.git/
+*.zip
+*.crx
+*.pem
+*.log
+.DS_Store
+Thumbs.db
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Binary & Media assets (Prevent AI from wasting token budget on binary/base64)
+assets/
+icons/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.svg
+*.ico
+*.woff
+*.woff2
+*.ttf
+*.eot
+*.mp3
+*.wav
+*.webm
+*.ogg
+
+# Temporary & Cache files
+.cache/
+.temp/
+*.tmp
+__pycache__/
+.venv/
+venv/

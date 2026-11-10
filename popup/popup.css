@@ -1,10 +1,3 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VIE-Translate — Translate Toad Studio</title>
-  <style>
     :root {
       --bg-deep: #0f172a;
       --bg-card: #18253e;
@@ -767,6 +760,64 @@
       margin-bottom: 8px;
     }
 
+    .vocab-filter-bar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-bottom: 8px;
+      padding: 5px 6px;
+      background: rgba(15, 23, 42, 0.45);
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .vocab-filter-chip {
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      color: var(--text-dim);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .vocab-filter-chip:hover {
+      color: #ffffff;
+      border-color: rgba(251, 191, 36, 0.5);
+    }
+
+    .vocab-filter-chip.active {
+      background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+      border-color: #60a5fa;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+    }
+
+    .vocab-multipos-box {
+      margin-top: 5px;
+      padding: 6px 8px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      border-left: 2.5px solid #a855f7;
+      border-radius: 6px;
+    }
+
+    .vocab-multipos-row {
+      font-size: 11.2px;
+      margin-top: 3px;
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      line-height: 1.35;
+    }
+
+    .vocab-multipos-text {
+      color: #e2e8f0;
+    }
+
     .vocab-list {
       max-height: 290px;
       overflow-y: auto;
@@ -957,64 +1008,6 @@
       color: #e2e8f0;
     }
 
-    .vocab-filter-bar {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 5px;
-      margin-bottom: 8px;
-      padding: 5px 6px;
-      background: rgba(15, 23, 42, 0.45);
-      border-radius: 8px;
-      border: 1px solid var(--border-subtle);
-    }
-
-    .vocab-filter-chip {
-      background: rgba(30, 41, 59, 0.7);
-      border: 1px solid rgba(148, 163, 184, 0.25);
-      color: var(--text-dim);
-      font-size: 11px;
-      font-weight: 700;
-      padding: 3px 8px;
-      border-radius: 999px;
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-
-    .vocab-filter-chip:hover {
-      color: #ffffff;
-      border-color: rgba(251, 191, 36, 0.5);
-    }
-
-    .vocab-filter-chip.active {
-      background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
-      border-color: #60a5fa;
-      color: #ffffff;
-      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
-    }
-
-    .vocab-multipos-box {
-      margin-top: 5px;
-      padding: 6px 8px;
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid rgba(168, 85, 247, 0.3);
-      border-left: 2.5px solid #a855f7;
-      border-radius: 6px;
-    }
-
-    .vocab-multipos-row {
-      font-size: 11.2px;
-      margin-top: 3px;
-      display: flex;
-      align-items: baseline;
-      gap: 6px;
-      line-height: 1.35;
-    }
-
-    .vocab-multipos-text {
-      color: #cbd5e1;
-    }
-
     .vocab-empty {
       text-align: center;
       padding: 20px 12px;
@@ -1025,283 +1018,3 @@
       border-radius: 10px;
       line-height: 1.5;
     }
-  </style>
-</head>
-<body>
-  <div id="microToast" class="micro-toast">✨ Đã áp dụng!</div>
-
-  <!-- TRANSLATE TOAD HERO HEADER -->
-  <div class="toad-hero">
-    <div id="toadAvatarWrap" class="toad-avatar-wrap">
-      <img src="assets/translate-toad.png" alt="Translate Toad" class="toad-avatar">
-    </div>
-    <div class="toad-info">
-      <div class="toad-title-row">
-        <span class="toad-brand">Translate Toad AI</span>
-        <span class="toad-badge">v0.6.6 Studio</span>
-      </div>
-      <div id="toadSpeech" class="toad-speech">
-        Ộp ộp! Đeo tai nghe lên, Cóc dịch mọi video cho bạn nhé! 🐸✨
-      </div>
-      <div class="master-toggles">
-        <label class="pill-toggle">
-          <input type="checkbox" id="enabled" checked>
-          <span>Đang bật dịch</span>
-        </label>
-        <label class="pill-toggle">
-          <input type="checkbox" id="dualSub" checked>
-          <span>Song ngữ 2 dòng</span>
-        </label>
-      </div>
-    </div>
-  </div>
-
-  <!-- 3-TAB BAR -->
-  <div class="nav-tabs">
-    <button type="button" class="tab-btn active" data-tab="tab-api">🔑 Kết Nối</button>
-    <button type="button" class="tab-btn" data-tab="tab-lang">🌍 Ngôn Ngữ</button>
-    <button type="button" class="tab-btn" data-tab="tab-style">🎨 Giao Diện</button>
-    <button type="button" class="tab-btn" data-tab="tab-vocab">📚 Học Từ <span id="vocabCountBadge"></span></button>
-  </div>
-
-  <!-- TAB 1: AI & API KEY -->
-  <div id="tab-api" class="tab-pane active">
-    <div class="field">
-      <label for="provider">Bộ máy dịch (Free AI):</label>
-      <select id="provider">
-        <option value="gemini">Google Gemini AI (Free - Chuẩn ngữ cảnh & Xưng hô)</option>
-        <option value="groq">Groq Cloud (Free - Tốc độ phản hồi siêu thanh)</option>
-        <option value="gtx">Google Translate (Free - Tức thì, không cần Key)</option>
-      </select>
-    </div>
-
-    <div id="apiSection">
-      <div id="connectedKeyBar" class="connected-bar">
-        <div class="connected-bar-info">
-          <span class="connected-dot"></span>
-          <span id="connectedKeyText" class="connected-text">Đã kết nối API Key</span>
-        </div>
-        <button type="button" id="changeKeyBtn" class="btn-change-key">Đổi Key</button>
-      </div>
-
-      <div id="keyEditorBox">
-        <div class="auto-import-box">
-          <div class="auto-import-actions">
-            <button type="button" id="autoImportBtn" class="btn-auto-import">
-              🚀 Tự động lấy Key từ Google AI Studio
-            </button>
-            <button type="button" id="pasteKeyBtn" class="btn-paste-key" title="Tự nhận Key trong Clipboard">
-              📋 Dán nhanh
-            </button>
-          </div>
-          <div class="auto-import-hint">
-            Bấm 1 chạm để Cóc mở AI Studio, tự trích xuất Key & chọn model miễn phí khỏe nhất!
-          </div>
-        </div>
-
-        <div class="field">
-          <div class="label-row">
-            <label id="apiKeyLabel" for="apiKey">Gemini API Key (AIza... / AQ.):</label>
-            <a id="getKeyLink" class="get-key-link" href="https://aistudio.google.com/apikey?vie_auto_import=1" target="_blank" rel="noopener noreferrer">
-              Lấy key Free ↗
-            </a>
-          </div>
-          <div class="key-input-group">
-            <input type="password" id="apiKey" placeholder="Dán AIza... / AQ... hoặc gsk_..." autocomplete="off">
-            <button type="button" id="toggleKeyBtn" class="btn-toggle-key">Hiện</button>
-          </div>
-        </div>
-      </div>
-
-      <div id="modelField" class="field" style="display: none;">
-        <div class="label-row">
-          <label for="model">Model khả dụng của Key:</label>
-          <div class="model-meta-row">
-            <span id="modelCount" class="model-count"></span>
-          </div>
-        </div>
-        <select id="model">
-          <option value="auto">✨ Tự động chọn Model tốt nhất</option>
-        </select>
-        <div id="detectedModelBadge" class="model-badge" style="display: none;"></div>
-      </div>
-    </div>
-
-    <div class="feature-card">
-      <label class="checkbox-row">
-        <input type="checkbox" id="fallbackToFree" checked>
-        <span>🔄 <b>Tự động dự phòng Google Translate</b> khi chưa có Key hoặc hết Quota</span>
-      </label>
-      <label class="checkbox-row" title="Dùng Gemini Audio / Groq Whisper + LRCLIB tự nghe nhạc/thoại khi video không có nút CC">
-        <input type="checkbox" id="autoAudioNoCC">
-        <span>🎙️ <b>Tự động bật AI Nghe & Dịch</b> cho video không có CC (hoặc bấm 🐸 góc video)</span>
-      </label>
-      <label class="checkbox-row" title="Chủ động làm mềm từ ngữ chửi thề/nói tục sang biểu cảm lịch sự ('chết tiệt', 'trời đất ơi') mà không ngắt quãng phụ đề">
-        <input type="checkbox" id="softenProfanity" checked>
-        <span>🛡️ <b>Chế độ thân thiện (Family-friendly)</b>: Làm dịu từ nhạy cảm, nói tục</span>
-      </label>
-      <label class="checkbox-row" title="Rê chuột vào phụ đề để tự động tạm dừng video, bấm từ tra từ điển hoặc bấm 'Xem thêm' để phân tích ngữ cảnh & cách dùng thực tế">
-        <input type="checkbox" id="hoverPauseDict" checked>
-        <span>🎓 <b>Học ngoại ngữ qua phụ đề</b>: Rê chuột dừng video, chạm từ tra nghĩa & Xem thêm ngữ cảnh thực tế</span>
-      </label>
-    </div>
-  </div>
-
-  <!-- TAB 2: NGÔN NGỮ, XƯNG HÔ & PHONG CÁCH DỊCH -->
-  <div id="tab-lang" class="tab-pane">
-    <div class="grid-2">
-      <div>
-        <label for="targetLang">🎯 Ngôn ngữ chính (Dòng dưới):</label>
-        <select id="targetLang">
-          <option value="vi">🇻🇳 Tiếng Việt</option>
-          <option value="en">🇬🇧 Tiếng Anh (English)</option>
-          <option value="fr">🇫🇷 Tiếng Pháp (Français)</option>
-          <option value="ja">🇯🇵 Tiếng Nhật (日本語)</option>
-          <option value="ko">🇰🇷 Tiếng Hàn (한국어)</option>
-          <option value="zh-CN">🇨🇳 Tiếng Trung (Giản thể)</option>
-          <option value="zh-TW">🇹🇼 Tiếng Trung (Phồn thể)</option>
-          <option value="de">🇩🇪 Tiếng Đức (Deutsch)</option>
-          <option value="es">🇪🇸 Tiếng Tây Ban Nha</option>
-          <option value="ru">🇷🇺 Tiếng Nga (Русский)</option>
-          <option value="th">🇹🇭 Tiếng Thái (ไทย)</option>
-        </select>
-      </div>
-      <div>
-        <label for="secondaryLang">🥂 Dòng phụ ở trên (Song ngữ):</label>
-        <select id="secondaryLang">
-          <option value="orig">🎬 Giữ ngôn ngữ gốc video</option>
-          <option value="fr">🇫🇷 Song ngữ Tiếng Pháp</option>
-          <option value="en">🇬🇧 Song ngữ Tiếng Anh</option>
-          <option value="ja">🇯🇵 Song ngữ Tiếng Nhật</option>
-          <option value="ko">🇰🇷 Song ngữ Tiếng Hàn</option>
-          <option value="zh-CN">🇨🇳 Song ngữ Tiếng Trung</option>
-          <option value="de">🇩🇪 Song ngữ Tiếng Đức</option>
-          <option value="es">🇪🇸 Song ngữ Tiếng TBN</option>
-          <option value="ru">🇷🇺 Song ngữ Tiếng Nga</option>
-          <option value="vi">🇻🇳 Song ngữ Tiếng Việt</option>
-          <option value="none">🚫 Tắt dòng phụ (Chỉ 1 dòng)</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="field">
-      <label for="pronounStyle">🗣️ Thống nhất ngôi xưng xuyên suốt video:</label>
-      <select id="pronounStyle">
-        <option value="auto">🔒 Tự động khóa ngôi xưng theo mạch video (Không nhảy xưng hô)</option>
-        <option value="minh_ban">🤝 Mình – Bạn / Các bạn (Thân thiện cho Vlog, Review, Hướng dẫn)</option>
-        <option value="toi_ban">👔 Tôi – Bạn / Các bạn (Lịch sự cho Bài giảng, Tin tức, Khoa học)</option>
-        <option value="anh_em">🎬 Anh/Chị – Em / Cậu – Tớ (Phim truyện, Anime, Hội thoại)</option>
-      </select>
-    </div>
-
-    <div class="field">
-      <label for="translationStyle">🎭 Phong cách biên dịch của Cóc AI:</label>
-      <select id="translationStyle">
-        <option value="natural">🌿 Tự nhiên & Đời thường (Mượt mà, gần gũi)</option>
-        <option value="cinema">🍿 Điện ảnh / Netflix (Cô đọng, giàu cảm xúc & thần thái)</option>
-        <option value="academic">🎓 Học thuật & Chuyên ngành (Chuẩn thuật ngữ Coursera, IT, Y sinh)</option>
-        <option value="genz">🔥 Hài hước / GenZ (Trẻ trung, bắt trend cho Vlog & Gaming)</option>
-        <option value="literal">📖 Dịch sát nghĩa cấu trúc câu (Hỗ trợ học ngoại ngữ)</option>
-      </select>
-    </div>
-  </div>
-
-  <!-- TAB 3: TÙY CHỈNH GIAO DIỆN PHỤ ĐỀ -->
-  <div id="tab-style" class="tab-pane">
-    <div id="previewStage" class="preview-stage">
-      <span class="preview-stage-label">🐸 Xem trước trực tiếp</span>
-      <div id="previewBox" class="preview-sub-box">
-        <div id="previewOrig" class="preview-orig">Bonjour tout le monde, bienvenue !</div>
-        <div id="previewVi" class="preview-vi">Xin chào mọi người, chào mừng quay trở lại!</div>
-      </div>
-    </div>
-
-    <div class="grid-2">
-      <div>
-        <label for="subBgStyle">Kiểu khung nền:</label>
-        <select id="subBgStyle">
-          <option value="toad">🐸 Translate Toad (Viền Vàng)</option>
-          <option value="glass">✨ Kính mờ (Frosted Glass)</option>
-          <option value="dark">🎬 Hộp đen đậm (Cinema)</option>
-          <option value="outline">🌟 Không nền (Viền chữ đậm)</option>
-        </select>
-      </div>
-      <div>
-        <label for="subFont">Phông chữ:</label>
-        <select id="subFont">
-          <option value="default">Hiện đại (Segoe UI / Sans)</option>
-          <option value="serif">Cổ điển (Merriweather / Serif)</option>
-          <option value="mono">Công nghệ (JetBrains Mono)</option>
-          <option value="rounded">Mềm mại (Rounded / Anime)</option>
-          <option value="impact">Đậm nét (Impact / Bold)</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="field" style="margin-bottom: 8px;">
-      <div class="label-row">
-        <label for="overlayWidth">Độ rộng khung: <b id="overlayWidthVal" style="color:#fef08a;">72%</b></label>
-        <span style="font-size: 11px; color: #cbd5e1;">Cỡ chữ: <b id="subSizeVal" style="color:#fef08a;">100%</b> • Đáy: <b id="subBottomVal" style="color:#fef08a;">12%</b></span>
-      </div>
-      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
-        <input type="range" id="overlayWidth" min="35" max="98" step="3" value="72" title="Độ rộng khung phụ đề">
-        <input type="range" id="subSize" min="70" max="170" step="5" value="100" title="Cỡ chữ">
-        <input type="range" id="subBottomPos" min="3" max="45" step="1" value="12" title="Khoảng cách từ đáy video">
-      </div>
-    </div>
-
-    <div class="grid-2" style="margin-bottom: 0;">
-      <div>
-        <label>Màu chữ dòng chính:</label>
-        <div class="color-row">
-          <button type="button" class="swatch" data-color="#fef08a" style="background:#fef08a;" title="Vàng Toad"></button>
-          <button type="button" class="swatch" data-color="#ffffff" style="background:#ffffff;" title="Trắng"></button>
-          <button type="button" class="swatch" data-color="#67e8f9" style="background:#67e8f9;" title="Xanh Ngọc"></button>
-          <button type="button" class="swatch" data-color="#86efac" style="background:#86efac;" title="Xanh Lá"></button>
-          <button type="button" class="swatch" data-color="#f9a8d4" style="background:#f9a8d4;" title="Hồng"></button>
-          <input type="color" id="subColor" value="#fef08a">
-        </div>
-      </div>
-      <div>
-        <label>Màu dòng phụ & Đặt lại:</label>
-        <div class="color-row" style="justify-content: space-between;">
-          <input type="color" id="subSecondColor" value="#e2e8f0" style="width: 46px;">
-          <button type="button" id="resetStyleBtn" class="btn-toggle-key" style="padding: 4px 9px; font-size: 11px;">
-            ↺ Mặc định
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- TAB 4: SỔ TỪ VỰNG HỌC NGOẠI NGỮ -->
-  <div id="tab-vocab" class="tab-pane">
-    <div class="vocab-header">
-      <span style="font-size: 11.5px; color: #cbd5e1;">💡 Bấm từ bất kỳ hoặc nút <b>🎓 Xem thêm</b> trên phụ đề để tra & lưu</span>
-      <div style="display: flex; gap: 5px;">
-        <button type="button" id="exportVocabBtn" class="btn-toggle-key" style="padding: 4px 8px; font-size: 11px;">📥 Xuất file</button>
-        <button type="button" id="clearVocabBtn" class="btn-toggle-key" style="padding: 4px 8px; font-size: 11px; color: #fca5a5;">🗑 Xóa hết</button>
-      </div>
-    </div>
-    <div class="vocab-filter-bar" id="vocabFilterBar">
-      <button type="button" class="vocab-filter-chip active" data-pos="all">Tất cả <span id="countAll"></span></button>
-      <button type="button" class="vocab-filter-chip" data-pos="verb">🟢 Verb <span id="countVerb"></span></button>
-      <button type="button" class="vocab-filter-chip" data-pos="noun">🔵 Noun <span id="countNoun"></span></button>
-      <button type="button" class="vocab-filter-chip" data-pos="adj">🟣 Adj <span id="countAdj"></span></button>
-      <button type="button" class="vocab-filter-chip" data-pos="idiom">🟡 Cụm / Idiom <span id="countIdiom"></span></button>
-      <button type="button" class="vocab-filter-chip" data-pos="other">⚪ Khác <span id="countOther"></span></button>
-    </div>
-    <div id="vocabList" class="vocab-list"></div>
-  </div>
-
-  <!-- ACTION BUTTONS -->
-  <div class="btn-group">
-    <button id="saveBtn" class="btn-save" type="button">💾 Lưu cài đặt</button>
-    <button id="testBtn" class="btn-test" type="button">🐸 Test API</button>
-  </div>
-
-  <div id="status"></div>
-
-  <script src="options.js"></script>
-</body>
-</html>

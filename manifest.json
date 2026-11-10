@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "VIE-Translate — Translate Toad AI",
-  "version": "0.6.6",
-  "description": "Real-time bilingual subtitle translator, rich vocabulary engine (POS, examples, fun facts), live lyrics & sub sync calibration, expressive notes & AI audio captioner",
+  "version": "0.6.7",
+  "description": "Modular, high-performance bilingual subtitle translator, contextual dictionary, lyrics & AI audio captioner powered by Google Gemini",
   "icons": {
     "16": "assets/icon16.png",
     "48": "assets/icon48.png",
@@ -10,29 +10,30 @@
   },
   "permissions": [
     "storage",
-    "clipboardRead"
+    "clipboardRead",
+    "contextMenus"
   ],
   "host_permissions": [
-    "https://api.groq.com/*",
     "https://generativelanguage.googleapis.com/*",
     "https://aiplatform.googleapis.com/*",
+    "https://api.groq.com/*",
     "https://translate.googleapis.com/*",
     "https://aistudio.google.com/*",
     "https://lrclib.net/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background/background.js"
   },
   "action": {
     "default_title": "VIE-Translate (Translate Toad AI)",
-    "default_popup": "options.html",
+    "default_popup": "popup/popup.html",
     "default_icon": {
       "16": "assets/icon16.png",
       "48": "assets/icon48.png",
       "128": "assets/icon128.png"
     }
   },
-  "options_page": "options.html",
+  "options_page": "popup/popup.html",
   "web_accessible_resources": [
     {
       "resources": [
@@ -46,8 +47,14 @@
     {
       "matches": ["<all_urls>"],
       "all_frames": true,
-      "js": ["content.js"],
-      "css": ["overlay.css"]
+      "js": [
+        "utils/storage.js",
+        "content/dom.js",
+        "content/selection.js",
+        "content/captions.js",
+        "content/content.js"
+      ],
+      "css": ["content/overlay.css"]
     },
     {
       "matches": ["https://aistudio.google.com/*"],
