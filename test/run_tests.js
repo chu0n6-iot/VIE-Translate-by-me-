@@ -234,3 +234,13 @@ assert.strictEqual(toggleState.lastCueText, "", "Phải xóa lastCueText để c
 console.log("   ✅ Đã kiểm tra: Tắt/Bật phụ đề 1 chạm phản hồi tức thì và bắt kịp ngay nhịp phim!\n");
 
 console.log("🎉 TẤT CẢ 6 BÀI KIỂM TRA ĐỀU VƯỢT QUA 100% KHÔNG CÓ BẤT KỲ LỖI NÀO!");
+
+// v0.7.1: glued-word normalization
+(function () {
+  const norm = (t) => String(t).replace(/\n+/g, " ").replace(/([a-z]{3,})([A-Z][a-z])/g, "$1 $2").replace(/([.,!?;:])([A-Za-z])/g, "$1 $2").replace(/\s+/g, " ").trim();
+  const assert = require("assert");
+  assert.strictEqual(norm("entirely\npossible"), "entirely possible");
+  assert.strictEqual(norm("famous,for it"), "famous, for it");
+  assert.strictEqual(norm("YouTube"), "YouTube");
+  console.log("✓ glued-word normalization");
+})();

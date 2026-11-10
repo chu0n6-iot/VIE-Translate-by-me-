@@ -80,10 +80,78 @@
 
   function normalizeSubtitleText(rawText) {
     return (rawText || "")
+      .replace(/\n+/g, " ")
       .replace(/<[^>]+>/g, " ")
       .replace(/\{[^}]+\}/g, " ")
+      .replace(/([a-z]{3,})([A-Z][a-z])/g, "$1 $2")
+      .replace(/([.,!?;:])([A-Za-z])/g, "$1 $2")
       .replace(/\s+/g, " ")
       .trim();
+  }
+
+  function getVideoDescription() {
+    try {
+      const pr = window.ytInitialPlayerResponse;
+      const curVid = new URL(location.href).searchParams.get("v");
+      const d = pr?.videoDetails?.shortDescription;
+      if (d && (!pr.videoDetails.videoId || pr.videoDetails.videoId === curVid)) return String(d);
+    } catch {}
+    try {
+      const d = document.querySelector("#description-inner, ytd-text-inline-expander #snippet-text, #description")?.textContent;
+      if (d) return d.trim();
+    } catch {}
+    return "";
+  }
+
+  function parseDescriptionSongQuery(desc) {
+    const d = String(desc || "");
+    if (!d) return "";
+    // "Provided to YouTube by X\nTitle · Artist · Album"
+    const m = d.match(/Provided to YouTube by[^\n]*\n+\s*([^\n·]+?)\s*·\s*([^\n·]+)/i);
+    if (m) return `${m[1].trim()} ${m[2].trim()}`.slice(0, 120);
+    const t = d.match(/(?:song|title|track)\s*[:：]\s*([^\n]{2,80})/i);
+    const a = d.match(/(?:artist|singer|vocals?|performed by)\s*[:：]\s*([^\n,]{2,60})/i);
+    if (t && a) return `${t[1].trim()} ${a[1].trim()}`;
+    return "";
+  }
+
+  function getVideoContext() {
+    const d = getVideoDescription().replace(/https?:\/\/\S+/g, "").replace(/\s+/g, " ").trim();
+    return d ? d.slice(0, 160) : "";
+  }
+
+  function resetForNewVideo(video) {
+    ytCueState.cues = [];
+    ytCueState.refEvents = [];
+    ytCueState.isLyrics = false;
+    ytCueState.lyricsDuration = 0;
+    ytCueState.lyricsSearchedTitle = "";
+    ytCueState.sent = new Set();
+    ytCueState.loading = false;
+    ytCueState.attempts = 0;
+    ytCueState.navToken = (ytCueState.navToken || 0) + 1;
+    const vids = new Set(video ? [video] : []);
+    document.querySelectorAll("video").forEach((v) => vids.add(v));
+    vids.forEach((v) => {
+      const st = getVideoState(v);
+      if (st.audioCaptureActive && !userWantsAudioCapture) stopVideoAudioCapture(v, false);
+      st.lastCueText = "";
+      st.lastText = "";
+      st.reqSeq++;
+      st.lastRenderedSeq = st.reqSeq;
+      st.hasReceivedAnySubtitle = false;
+      st.subSyncOffset = 0;
+      st.autoSynced = false;
+      st.autoSyncSource = "";
+      if (st.hideTimer) { clearTimeout(st.hideTimer); st.hideTimer = null; }
+      if (st.throttleTimer) { clearTimeout(st.throttleTimer); st.throttleTimer = null; }
+      try { root.VieDOM?.hideOverlay(v); } catch {}
+    });
+  }
+
+  function getActiveVideo(fallback) {
+    if (fallback && fallback.isConnected) return fallback;
+    return document.querySelector("video.html5-main-video") || document.querySelector("video") || fallback;
   }
 
   function getVideoTitle() {
@@ -409,7 +477,8 @@
         type: "SEARCH_SONG_LYRICS",
         videoTitle: title,
         channelName,
-        duration
+        duration,
+        descQuery: parseDescriptionSongQuery(getVideoDescription())
       }, (res) => {
         if (chrome.runtime.lastError || !res?.found) return resolve(false);
         if (expectedVid && ytCueState.vid && ytCueState.vid !== expectedVid) return resolve(false);
@@ -458,7 +527,8 @@
             chrome.runtime.sendMessage({
               type: "TRANSLATE_BATCH",
               texts: firstTexts,
-              videoTitle: getVideoTitle()
+              videoTitle: getVideoTitle(),
+              videoContext: getVideoContext()
             }, () => {});
           }
 
@@ -516,16 +586,16 @@
       return;
     }
 
+    if (ytCueState.vid !== vid && ytCueState.cues.length > 0) {
+      resetForNewVideo(video);
+      ytCueState.vid = vid;
+    }
     if (ytCueState.vid === vid && ytCueState.cues.length > 0) return;
     if (ytCueState.loading && ytCueState.vid === vid) return;
 
     if (ytCueState.vid !== vid) {
+      resetForNewVideo(video);
       ytCueState.vid = vid;
-      ytCueState.cues = [];
-      ytCueState.refEvents = [];
-      ytCueState.isLyrics = false;
-      ytCueState.sent = new Set();
-      ytCueState.attempts = 0;
     } else {
       ytCueState.attempts = (ytCueState.attempts || 0) + 1;
       if (ytCueState.attempts > 12) return;
@@ -660,11 +730,23 @@
     }
     if (!ytCueState.timer) {
       ytCueState.timer = setInterval(() => {
-        if (location.hostname.includes("youtube.com")) loadYouTubeCues(video);
+        if (location.hostname.includes("youtube.com")) loadYouTubeCues(getActiveVideo(video));
       }, 1500);
     }
     if (!ytCueState.renderTimer) {
-      ytCueState.renderTimer = setInterval(() => renderYouTubeByTime(video), 60);
+      ytCueState.renderTimer = setInterval(() => {
+        const cur = getActiveVideo(video);
+        if (location.hostname.includes("youtube.com")) {
+          const nv = new URL(location.href).searchParams.get("v") || "";
+          if (nv && ytCueState.vid && nv !== ytCueState.vid) {
+            resetForNewVideo(cur);
+            ytCueState.vid = nv;
+            loadYouTubeCues(cur);
+            return;
+          }
+        }
+        renderYouTubeByTime(cur);
+      }, 60);
     }
   }
 
@@ -1079,6 +1161,10 @@
 
   root.VieCaptions = {
     getVideoTitle,
+    getVideoDescription,
+    parseDescriptionSongQuery,
+    getVideoContext,
+    resetForNewVideo,
     getChannelName,
     looksLikeMusicVideo,
     normalizeSubtitleText,

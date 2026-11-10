@@ -382,7 +382,7 @@ Trả về duy nhất JSON hợp lệ (không markdown, không codeblock):
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 600,
+        maxOutputTokens: 1400,
         responseMimeType: "application/json"
       }
     };
@@ -391,11 +391,26 @@ Trả về duy nhất JSON hợp lệ (không markdown, không codeblock):
     for (const m of candidates) {
       if (isModelInCooldown(apiKey, m)) continue;
       try {
-        const raw = await callGeminiEndpoint({ model: m, apiKey, body, timeoutMs: 6500 });
-        const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
+        const raw = await callGeminiEndpoint({ model: m, apiKey, body, timeoutMs: 9000 });
+        const clean = String(raw).replace(/```json|```/g, "").trim();
+        let parsed;
+        try {
+          parsed = JSON.parse(clean);
+        } catch {
+          const a = clean.indexOf("{");
+          const b = clean.lastIndexOf("}");
+          if (a >= 0 && b > a) parsed = JSON.parse(clean.slice(a, b + 1));
+          else {
+            const mm = clean.match(/"meaning"\s*:\s*"([^"]+)"/);
+            if (!mm) throw new Error("bad json");
+            const pm = clean.match(/"pos"\s*:\s*"([^"]+)"/);
+            parsed = { word, meaning: mm[1], pos: pm ? pm[1] : "" };
+          }
+        }
         return { ok: true, ...parsed };
-      } catch {
-        markModelCooldown(apiKey, m, 120000);
+      } catch (err) {
+        if (err && err.isQuotaExceeded) markModelCooldown(apiKey, m, 3600000);
+        else if (!/bad json|JSON/i.test(String(err && err.message))) markModelCooldown(apiKey, m, 60000);
       }
     }
     throw new Error("Không thể tra từ lúc này.");
@@ -475,7 +490,7 @@ Trả về JSON duy nhất (không bọc code block markdown):
       ],
       generationConfig: {
         temperature: 0.1,
-        maxOutputTokens: 600,
+        maxOutputTokens: 1400,
         responseMimeType: "application/json"
       }
     };

@@ -103,9 +103,11 @@
           text: cleanText,
           nextText: nextText || "",
           videoTitle: root.VieCaptions.getVideoTitle(),
+          videoContext: root.VieCaptions.getVideoContext?.() || "",
+          navToken: root.VieCaptions.ytCueState?.navToken || 0,
           fastPreviewOnly: true
         }, (previewRes) => {
-          if (!chrome.runtime.lastError && previewRes?.vi && currentSeq >= state.lastRenderedSeq) {
+          if (!chrome.runtime.lastError && previewRes?.vi && currentSeq >= state.lastRenderedSeq && currentSeq === state.reqSeq) {
             state.lastRenderedSeq = currentSeq;
             renderSubtitles(video, cleanText, previewRes.vi, previewRes.sub2 || "", true, false);
           }
@@ -117,14 +119,17 @@
         text: cleanText,
         nextText: nextText || "",
         videoTitle: root.VieCaptions.getVideoTitle(),
+          videoContext: root.VieCaptions.getVideoContext?.() || "",
+          navToken: root.VieCaptions.ytCueState?.navToken || 0,
         fastPreviewOnly: false
       }, (res) => {
         if (!chrome.runtime.lastError && res?.vi && currentSeq >= state.lastRenderedSeq) {
-          state.lastRenderedSeq = currentSeq;
           localCache.set(ck, { vi: res.vi, sub2: res.sub2 || "" });
           if (localCache.size > 500) {
             localCache.delete(localCache.keys().next().value);
           }
+          if (currentSeq !== state.reqSeq) return;
+          state.lastRenderedSeq = currentSeq;
           renderSubtitles(video, cleanText, res.vi, res.sub2 || "", false, false);
         }
       });
@@ -232,6 +237,14 @@
       });
       scanAndWatchVideos();
     };
+    const onYouTubeNavStart = () => {
+      if (!location.hostname.includes("youtube.com")) return;
+      root.VieCaptions?.resetForNewVideo?.(document.querySelector("video"));
+      const cs = root.VieCaptions?.ytCueState;
+      if (cs) cs.vid = "";
+    };
+    window.addEventListener("yt-navigate-start", onYouTubeNavStart);
+    document.addEventListener("yt-navigate-start", onYouTubeNavStart);
     window.addEventListener("yt-navigate-finish", onYouTubePageChange);
     document.addEventListener("yt-navigate-finish", onYouTubePageChange);
     window.addEventListener("yt-page-data-updated", onYouTubePageChange);
