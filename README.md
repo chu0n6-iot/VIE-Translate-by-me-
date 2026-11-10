@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="#-tiếng-việt-bản-hướng-dẫn-đầy-đủ-từ-a-z">🇻🇳 Bản Tiếng Việt (A–Z)</a> •
-  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.6.7`)</a> •
+  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.7.0`)</a> •
   <a href="#-english-complete-a-to-z-guide">🇬🇧 English Version (A–Z)</a> •
   <a href="#-version-history--new-mechanisms-changelog">📋 English Changelog</a>
 </p>
@@ -19,14 +19,19 @@
 ---
 
 > ⚡ **LƯU Ý DÀNH CHO CỘNG TÁC VIÊN / COLLABORATORS (TỐI ƯU HÓA AI INDEXING)**:
-> Codebase của dự án đã được đại tu và module hóa toàn diện (`v0.6.7`), loại bỏ hoàn toàn các God file cồng kềnh nhằm giúp các công cụ lập trình AI (Antigravity IDE, Cursor, GitHub Copilot...) đọc hiểu cực nhanh và tiết kiệm tối đa token.
+> Codebase của dự án đã được đại tu và module hóa toàn diện (`v0.6.7` ➔ `v0.7.0`), loại bỏ hoàn toàn các God file cồng kềnh nhằm giúp các công cụ lập trình AI (Antigravity IDE, Cursor, GitHub Copilot...) đọc hiểu cực nhanh và tiết kiệm tối đa token.
 > **Mẹo quan trọng:** Trước khi yêu cầu AI sửa lỗi hoặc phát triển tính năng mới, bạn **chỉ cần gõ kèm `@AI_CONTEXT.md` ở đầu câu lệnh**. AI sẽ lập tức nắm toàn bộ bản đồ kiến trúc mà **không cần quét lại toàn bộ codebase**, giúp tốc độ phản hồi tăng vọt!
 
 # 🇻🇳 TIẾNG VIỆT (Bản Hướng Dẫn Đầy Đủ Từ A–Z)
 
-**VIE-Translate (Translate Toad AI `v0.6.7`)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)**, kết hợp **Trợ Lý Học Ngoại Ngữ Chuyên Sâu (`Từ Loại POS • Ví Dụ Thực Tế • Fact Thú Vị & Mẹo Nhớ • Cụm Đi Kèm • Sổ Từ Vựng`)**, **Cân Chỉnh Độ Lệch Sub/Nhạc Tức Thì (`Sub Sync Calibration`)** và **Đọc Phát Âm Chuẩn Giọng Bản Xứ** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles**.
+**VIE-Translate (Translate Toad AI `v0.7.0` — Local AI Edition)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)**, kết hợp **Trợ Lý Học Ngoại Ngữ Chuyên Sâu (`Từ Loại POS • Ví Dụ Thực Tế • Fact Thú Vị & Mẹo Nhớ • Cụm Đi Kèm • Sổ Từ Vựng`)**, **Cân Chỉnh Độ Lệch Sub/Nhạc Tức Thì (`Sub Sync Calibration`)** và **Đọc Phát Âm Chuẩn Giọng Bản Xứ** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles**.
 
-## ✨ Tính Năng Nổi Bật (`v0.6.7`)
+## ✨ Tính Năng Nổi Bật (`v0.7.0`)
+
+0. **🏠 MỚI `v0.7.0` — Local AI (chạy bằng phần cứng của bạn, miễn phí, riêng tư, không cần API Key)**:
+   - **Dịch bằng Ollama**: Qwen / Llama / Gemma chạy ngay trên máy, giữ ngữ cảnh phim, vần điệu nhạc, xưng hô, thuật ngữ.
+   - **AI Nghe bằng Whisper local**: chọn **Tự động / Song song GPU + CPU / Chỉ GPU / Chỉ CPU**.
+   - **Tùy chọn 100%**: không cài thì tự dùng Google Translate miễn phí, không ép phần cứng; local lỗi ➔ tự fallback.
 
 1. **📚 Phần Học Từ Vựng Đa Chiều Đặc Sắc (Rich Vocabulary Engine)**:
    - **Huy hiệu từ loại song ngữ trực quan (POS Badges)**: Tự động phân loại Động từ (Verb), Danh từ (Noun), Tính từ (Adjective), Trạng từ (Adverb), Cụm động từ (Phrasal Verb), Thành ngữ (Idiom), Tiếng lóng (Slang) với màu sắc bắt mắt.
@@ -56,7 +61,14 @@
 
 ## 🚀 Lịch Sử Cập Nhật & Các Cơ Chế Mới (Changelog)
 
-### 🌟 Phiên bản `v0.6.7` (Mới nhất) — *Dịch Thuật Chuyên Nghiệp Liên Kết Câu Trước-Sau & Khắc Phục Lỗi Giao Diện*
+### 🏠 Phiên bản `v0.7.0` (Mới nhất) — *Local AI Edition: Ollama + Whisper local, GPU/CPU song song*
+- **🏠 Local AI dịch thuật qua Ollama** (`api/ollama.js`, `popup/ollama.js`): chọn **Local AI – Ollama** trong popup; tự liệt kê model đã cài; lỗi/không chạy ➔ tự về Google Translate.
+- **🎧 AI Nghe local qua Whisper** (`api/whisper.js`, `popup/whisper.js`, `tools/whisper_server.py`): 4 chế độ phần cứng (Tự động, Song song GPU+CPU luân phiên đoạn, Chỉ GPU, Chỉ CPU); lỗi ➔ tự dùng key cloud nếu có.
+- **🎙️ Nâng cấp AI Nghe & Dịch**: nghe được dù đang chọn Ollama/Google Translate; đoạn thu 4 giây; lọc câu ảo giác của Whisper ("Thank you for watching"...).
+- **🗣️ Tách lời nhiều người nói** (mỗi người một dòng `- `), **🔒 Khóa thuật ngữ (Glossary)**, **🎭 Tự nhận diện thể loại (Auto Persona)**, **🧩 Gộp câu thông minh**.
+- **🔐 Quyền mới**: `http://localhost/*`, `http://127.0.0.1/*` (chỉ để nói chuyện với server local của bạn).
+
+### 🌟 Phiên bản `v0.6.7` — *Dịch Thuật Chuyên Nghiệp Liên Kết Câu Trước-Sau & Khắc Phục Lỗi Giao Diện*
 - **🧠 Cơ chế mới — Dịch Thuật Chuyên Nghiệp Liên Kết Mạch Lạc Câu Trước - Câu Sau (`Cohesive Discourse Translation Engine`)**:
   - **Truyền ngữ cảnh hai chiều (Bidirectional Context)**: Hệ thống truyền song song cả các câu thoại liền trước (`history` mở rộng 6 lượt) và câu thoại sắp xuất hiện tiếp theo (`nextText`), giúp AI hiểu trọn vẹn ngữ cảnh và chủ đề đang nói.
   - **Chấm dứt lối dịch ngang 1:1 máy móc ("tiếng Tây sang tiếng Ta")**: Áp dụng bộ chỉ thị dịch thuật cao cấp, diễn đạt thuần Việt uyển chuyển, giàu nhạc điệu và cảm xúc như dịch giả phụ đề chuyên nghiệp của Netflix/HBO.
@@ -131,13 +143,41 @@
 2. **Nếu sub chạy trước hoặc sau tiếng hát**: Rê chuột vào phụ đề và bấm `+1s ⏩` (để sub trễ lại) hoặc `⏪ -1s` (để sub chạy sớm hơn) trên cụm `⏱️ Lệch sub`.
 3. **Khi muốn học từ vựng**: Bấm vào bất kỳ từ nào để nghe phát âm chuẩn giọng bản xứ (`🔊`) hoặc bấm **`🎓 Xem thêm`** để xem phân tích sắc thái ngữ cảnh trong cảnh phim!
 
+### Bước E (Tùy chọn): Dùng Local AI — dịch bằng Ollama
+1. Cài [Ollama](https://ollama.com/download), rồi chạy: `ollama pull qwen2.5:7b` (máy yếu: `qwen2.5:3b`).
+2. Đặt biến môi trường **`OLLAMA_ORIGINS=chrome-extension://*`** rồi khởi động lại Ollama (thiếu bước này sẽ bị lỗi 403).
+   - Windows: `setx OLLAMA_ORIGINS "chrome-extension://*"` rồi mở lại Ollama. Linux/macOS: `OLLAMA_ORIGINS="chrome-extension://*" ollama serve`.
+3. Popup ➔ **🔑 Kết Nối** ➔ Bộ máy dịch: **🏠 Local AI – Ollama** ➔ bấm **Kiểm tra & tải danh sách model** ➔ chọn model ➔ xong.
+4. Không cài Ollama cũng được: extension tự dùng Google Translate miễn phí.
+
+### Bước F (Tùy chọn): AI Nghe & Dịch cho video KHÔNG có phụ đề — Whisper local
+1. Cài thư viện: `pip install faster-whisper fastapi uvicorn python-multipart`.
+2. Chạy server (mở 2 cửa sổ terminal nếu muốn dùng cả GPU và CPU):
+   - GPU (NVIDIA): `python tools/whisper_server.py --device cuda --port 8000 --model large-v3`
+   - CPU: `python tools/whisper_server.py --device cpu --port 8001 --model small`
+3. Popup ➔ **🎧 AI Nghe local** ➔ bật ➔ chọn chế độ (Tự động / Song song GPU+CPU / Chỉ GPU / Chỉ CPU) ➔ **Kiểm tra kết nối**.
+4. Mở video không có CC ➔ bấm nút **🐸 AI Nghe & Dịch** trên video (video phải đang phát và không tắt tiếng).
+
+| Phần cứng | Gợi ý model Whisper |
+|---|---|
+| CPU yếu / không GPU | `base` / `small` |
+| GPU 4–6 GB | `medium` |
+| GPU ≥ 8 GB | `large-v3` |
+
+> Không có Whisper local? Vẫn nghe được bằng key Groq (Whisper cloud) hoặc Gemini miễn phí.
+
 ---
 
 # 🇬🇧 ENGLISH (Complete A-to-Z Guide)
 
-**VIE-Translate (Translate Toad AI `v0.6.6`)** is a real-time browser extension that translates video subtitles into **Vietnamese or any custom bilingual pair**, acts as a **Multi-Dimensional Vocabulary & Scene Nuance Coach**, and provides **Instant Subtitle/Lyrics Timing Calibration & Native Voice Speech Synthesis** using **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)**, and **Google Translate**.
+**VIE-Translate (Translate Toad AI `v0.7.0` — Local AI Edition)** is a real-time browser extension that translates video subtitles into **Vietnamese or any custom bilingual pair**, acts as a **Multi-Dimensional Vocabulary & Scene Nuance Coach**, and provides **Instant Subtitle/Lyrics Timing Calibration & Native Voice Speech Synthesis** using **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)**, and **Google Translate**.
 
-## ✨ Key Features (`v0.6.6`)
+## ✨ Key Features (`v0.7.0`)
+
+0. **🏠 NEW in `v0.7.0` — Local AI (your own hardware, free, private, no API key)**:
+   - **Ollama translation** (Qwen / Llama / Gemma) with movie context, lyric rhyme, pronoun lock and glossary.
+   - **Local Whisper listening** with **Auto / Parallel GPU + CPU / GPU only / CPU only** modes.
+   - **100% optional**: skip it and the extension falls back to free Google Translate; any local failure falls back automatically.
 
 1. **📚 Multi-Dimensional Vocabulary Engine (POS, Real-World Examples, Fun Facts & Collocations)**:
    - **Bilingual Part-of-Speech Badges (POS)**: Clearly displays visual color-coded badges for Nouns (Blue), Verbs (Emerald), Adjectives (Purple), Adverbs (Rose), Phrasal Verbs (Orange), Idioms (Amber), and Slang.
@@ -166,7 +206,14 @@
 
 ## 📋 Version History & New Mechanisms (Changelog)
 
-### 🌟 `v0.6.7` (Latest) — *Cohesive Discourse Translation, Instant Subtitles & Critical Audio Fixes*
+### 🏠 `v0.7.0` (Latest) — *Local AI Edition: Ollama + Local Whisper, parallel GPU/CPU*
+- **🏠 Local translation via Ollama** (`api/ollama.js`, `popup/ollama.js`): auto-lists installed models; unreachable ➔ silent Google Translate fallback.
+- **🎧 Local listening via Whisper** (`api/whisper.js`, `popup/whisper.js`, `tools/whisper_server.py`): Auto, Parallel GPU+CPU (chunks alternate), GPU only, CPU only; failure ➔ cloud key if present.
+- **🎙️ Improved AI Listen & Translate**: works with any translation provider; 4s chunks; Whisper hallucination filter.
+- **🗣️ Multi-speaker line splitting**, **🔒 Glossary lock**, **🎭 Auto Persona**, **🧩 Smart sentence merge**.
+- **🔐 New permissions**: `http://localhost/*`, `http://127.0.0.1/*` (only to reach your own local servers).
+
+### 🌟 `v0.6.7` — *Cohesive Discourse Translation, Instant Subtitles & Critical Audio Fixes*
 - **🧠 New Mechanism — Cohesive Discourse Translation Engine**:
   - **Bidirectional Context Linking**: Feeds both preceding conversation history (up to 6 turns) and the upcoming next line (`nextText`) into the model so the AI grasps the full conversational narrative.
   - **Zero Word-for-Word Literalism**: Enforces professional cinematic/Netflix-grade Vietnamese subtitle translation, eliminating awkward mechanical 1:1 "tiếng Tây sang tiếng Ta" translations in favor of natural phrasing and poetic lyricism.
@@ -234,25 +281,22 @@ git pull origin main
 - **If sub runs ahead of music**: Hover over the subtitle box and click `+1s ⏩` on `⏱️ Lệch sub` to delay it and match the music.
 - **To listen to pronunciation**: Click any foreign word or the `🔊 Nghe câu` button to hear it spoken with an authentic native accent!
 
+### Step D (Optional): Local AI translation with Ollama
+1. Install [Ollama](https://ollama.com/download), then run `ollama pull qwen2.5:7b` (weak machine: `qwen2.5:3b`).
+2. Set **`OLLAMA_ORIGINS=chrome-extension://*`** and restart Ollama (otherwise you get HTTP 403).
+   - Windows: `setx OLLAMA_ORIGINS "chrome-extension://*"`. Linux/macOS: `OLLAMA_ORIGINS="chrome-extension://*" ollama serve`.
+3. Popup ➔ **🔑 Kết Nối** ➔ choose **🏠 Local AI – Ollama** ➔ **Test & load models** ➔ pick a model.
+4. Skipping Ollama is fine: Google Translate Free is used automatically.
+
+### Step E (Optional): Videos WITHOUT subtitles — Local Whisper
+1. `pip install faster-whisper fastapi uvicorn python-multipart`
+2. Start servers (two terminals for GPU + CPU):
+   - GPU: `python tools/whisper_server.py --device cuda --port 8000 --model large-v3`
+   - CPU: `python tools/whisper_server.py --device cpu --port 8001 --model small`
+3. Popup ➔ **🎧 AI Nghe local** ➔ enable ➔ choose mode ➔ **Test connection**.
+4. On a video without CC, click **🐸 AI Nghe & Dịch** (video must be playing and unmuted).
+
 ---
 
 ## 📄 License
 [MIT License](LICENSE)
-## 🏠 Local AI (Ollama) — tùy chọn, miễn phí, riêng tư
-
-Không bắt buộc. Nếu không cài, extension tự dùng Google Translate miễn phí.
-
-1. Cài [Ollama](https://ollama.com/download) và chạy `ollama pull qwen2.5:7b`.
-2. Đặt biến môi trường `OLLAMA_ORIGINS=chrome-extension://*` rồi khởi động lại Ollama.
-3. Popup ➔ Kết Nối ➔ chọn **Local AI – Ollama** ➔ bấm *Kiểm tra & tải danh sách model*.
-
-Ollama tắt/lỗi ➔ tự động fallback về Google Translate, không gián đoạn phụ đề.
-
-## 🎧 AI Nghe local (Whisper) — GPU + CPU song song
-
-Tùy chọn, không cần API Key. `pip install faster-whisper fastapi uvicorn python-multipart`, rồi chạy:
-
-- GPU: `python tools/whisper_server.py --device cuda --port 8000 --model large-v3`
-- CPU: `python tools/whisper_server.py --device cpu --port 8001 --model small`
-
-Popup ➔ Kết Nối ➔ "AI Nghe local": bật và chọn chế độ Tự động / Song song GPU+CPU / Chỉ GPU / Chỉ CPU. Lỗi server ➔ tự dùng key cloud (nếu có).
