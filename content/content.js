@@ -129,6 +129,7 @@
   }
 
   function scanAndWatchVideos() {
+    root.VieDOM?.applySettingsToDOM(settings);
     document.querySelectorAll("video").forEach((video) => {
       root.VieCaptions.watchVideo(video, onCaptionReceived);
     });
@@ -136,22 +137,20 @@
 
   async function init() {
     settings = await root.VieStorage.getSettings();
+    root.VieDOM?.applySettingsToDOM(settings);
 
     root.VieStorage.onChanged((changes) => {
       let clearCache = false;
       for (const [k, c] of Object.entries(changes)) {
         if (k in settings) {
           settings[k] = c.newValue;
-          if (["provider", "targetLang", "secondaryLang", "translationStyle", "pronounStyle"].includes(k)) {
+          if (["provider", "targetLang", "secondaryLang", "translationStyle", "pronounStyle", "softenProfanity", "enabled"].includes(k)) {
             clearCache = true;
           }
         }
       }
       if (clearCache) localCache.clear();
-      document.querySelectorAll("video").forEach((v) => {
-        const overlay = v.parentElement?.querySelector(".vie-overlay");
-        if (overlay) root.VieDOM.applyOverlayVisualStyle(overlay, settings);
-      });
+      root.VieDOM?.applySettingsToDOM(settings);
     });
 
     root.VieSelection?.init();
@@ -162,6 +161,9 @@
     if (document.documentElement) {
       observer.observe(document.documentElement, { childList: true, subtree: true });
     }
+
+    // Interval to ensure dynamic SPA video players (YouTube SPA nav, etc.) are always watched and have styles applied
+    setInterval(scanAndWatchVideos, 1200);
   }
 
   root.VieContent = {

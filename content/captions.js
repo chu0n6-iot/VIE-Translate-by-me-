@@ -730,10 +730,9 @@
 
   function ensureToadAudioButton(video) {
     const state = getVideoState(video);
-    const container =
-      video.closest(".html5-video-player, .video-js, .jwplayer, .plyr") ||
-      video.parentElement ||
-      document.body;
+    const container = root.VieDOM?.getContainer
+      ? root.VieDOM.getContainer(video)
+      : (video.closest(".html5-video-player, .video-js, .jwplayer, .plyr") || video.parentElement || document.body);
 
     let btn = state.toadBtnEl;
     if (btn && btn.isConnected) {
@@ -786,12 +785,14 @@
   }
 
   function observePlatformCaptions(video, onCaption) {
-    const scopeRoot = video.parentElement || document;
+    const scopeRoot = root.VieDOM?.getContainer ? root.VieDOM.getContainer(video) : (video.parentElement || document);
     for (const cfg of PLATFORM_CAPTION_CONFIGS) {
       const player = video.closest(cfg.playerSelector) || scopeRoot;
       const captionContainer = player.querySelector(cfg.containerSelector);
       if (!captionContainer || watchedCaptionContainers.has(captionContainer)) continue;
       watchedCaptionContainers.add(captionContainer);
+
+      player.classList.add("vie-player-active", "vie-yt-active");
 
       const readCaption = () => {
         if (cfg.name === "youtube" && ytCueState.cues.length) return;
@@ -822,6 +823,11 @@
   function watchVideo(video, onCaption) {
     if (watchedVideos.has(video)) return;
     watchedVideos.add(video);
+
+    const player = (root.VieDOM?.getContainer ? root.VieDOM.getContainer(video) : video.closest(".html5-video-player")) || video.parentElement;
+    if (player) {
+      player.classList.add("vie-player-active", "vie-yt-active");
+    }
 
     observePlatformCaptions(video, onCaption);
     startYouTubePrefetch(video);
