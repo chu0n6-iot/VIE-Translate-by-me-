@@ -109,6 +109,8 @@
     texts,
     nextText = "",
     videoTitle,
+    videoPersona = "",
+    glossary = [],
     history = [],
     apiKey,
     preferredModel = "auto",
@@ -128,6 +130,10 @@
       if (!ordered.includes(m)) ordered.push(m);
     }
 
+    const validGlossary = Array.isArray(glossary)
+      ? glossary.filter((g) => g && g.src && g.target && g.enabled !== false)
+      : [];
+
     const sys = [
       `You are an expert bilingual subtitle translator. Target language: ${targetLang}.`,
       "PROFESSIONAL COHESION & FLOW (LIÊN KẾT MẠCH LẠC CÂU TRƯỚC - CÂU SAU):",
@@ -136,9 +142,17 @@
       "- Sử dụng liên từ tiếng Việt tự nhiên ('Nhưng rồi', 'Thế là', 'Hóa ra', 'Chẳng ngờ', 'Dẫu vậy...') khi câu là vế nối tiếp hoặc câu rút gọn.",
       "- Xử lý các đại từ quy chiếu (it, that, they...) sát theo đối tượng ở câu trước thay vì dịch cứng nhắc.",
       "- Với video ca nhạc/lyrics: dịch giàu vần điệu, hình ảnh thơ ca, giữ trọn hồn bài hát.",
+      videoPersona && root.VieStorage?.PERSONA_INSTRUCTIONS[videoPersona]
+        ? root.VieStorage.PERSONA_INSTRUCTIONS[videoPersona]
+        : "",
       root.VieStorage?.STYLE_INSTRUCTIONS[translationStyle] || "",
       root.VieStorage?.PRONOUN_INSTRUCTIONS[pronounStyle] || "",
       lockedPronounPair ? `LOCKED PRONOUN: ${lockedPronounPair}.` : "",
+      validGlossary.length > 0
+        ? `STRICT GLOSSARY ENFORCEMENT: You MUST translate the following terms exactly as mapped without exception: ${validGlossary
+            .map((g) => `"${g.src}" => "${g.target}"`)
+            .join(", ")}.`
+        : "",
       softenProfanity
         ? "FAMILY-FRIENDLY: Soften severe profanities/vulgar insults into mild natural expressions (e.g. 'chết tiệt', 'khốn kiếp', 'trời đất ơi'). NEVER refuse or stop translating."
         : "UNCENSORED: Faithfully translate any colloquial expressions and slang.",
@@ -176,10 +190,7 @@
         markModelCooldown(apiKey, m, 120000);
       }
     }
-    if (lastErr) throw lastErr;
-    const cd = new Error("All Groq models are cooling down (rate_limit).");
-    cd.isQuotaExceeded = true;
-    throw cd;
+    throw lastErr || new Error("All Groq models failed.");
   }
 
   async function transcribeWithGroqWhisper(audioBase64, mimeType, apiKey, prompt = "") {

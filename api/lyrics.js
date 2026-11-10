@@ -108,7 +108,7 @@
     }
   }
 
-  async function searchLyrics({ videoTitle, channelName, duration, descQuery }) {
+  async function searchLyrics({ videoTitle, channelName, duration }) {
     const rawTitle = (videoTitle || "").trim();
     const cleanDuration = Number(duration) || 0;
     if (!rawTitle) return { found: false };
@@ -122,9 +122,6 @@
     let candidates = await searchLrclibCandidates(primary);
     if (candidates.length === 0 && secondary && secondary !== primary) {
       candidates = await searchLrclibCandidates(secondary);
-    }
-    if (candidates.length === 0 && descQuery) {
-      candidates = await searchLrclibCandidates(descQuery);
     }
 
     let bestSynced = null;

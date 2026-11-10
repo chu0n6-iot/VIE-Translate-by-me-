@@ -1,0 +1,12 @@
+# Rules for AI Coding Assistant (Antigravity & Cursor)
+
+## 📌 BẮT BUỘC ĐỌC TRƯỚC KHI LÀM BẤT KỲ ĐIỀU GÌ:
+1. Luôn đọc file `AI_CONTEXT.md` tại thư mục gốc trước khi phân tích codebase hoặc sửa code.
+2. `AI_CONTEXT.md` chứa bản đồ kiến trúc module chuẩn của dự án:
+   - `utils/storage.js`: Quản lý storage, settings, cache keys.
+   - `api/`: Các module API riêng biệt (`gemini.js`, `groq.js`, `gtx.js`, `lyrics.js`).
+   - `background/background.js`: Service worker điều phối tin nhắn & cache.
+   - `content/`: `dom.js` (UI subtitle & dictionary), `selection.js` (bôi đen), `captions.js` (bắt sub & sync), `content.js` (entry point).
+   - `popup/`: `popup.html`, `popup.css`, `popup.js`.
+3. Chỉ định vị và đọc đúng file liên quan đến tính năng cần sửa theo `AI_CONTEXT.md`.
+4. TUYỆT ĐỐI KHÔNG quét toàn bộ codebase để tránh lãng phí token và làm chậm tốc độ phản hồi.

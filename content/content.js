@@ -13,10 +13,6 @@
     if (!settings.enabled) return;
     const overlay = root.VieDOM?.getOrCreateOverlay(video, settings);
     if (!overlay) return;
-    if (overlay._subMuted) {
-      overlay.classList.add("vie-hidden");
-      return;
-    }
 
     const cleanOrigRaw = (origText || "")
       .replace(/^(?:\*{1,2})?(?:ORIG(?:INAL)?|GỐC)\s*:\s*(?:\*{1,2})?/i, "")
@@ -25,18 +21,10 @@
     const cleanViRaw = (viText || "")
       .replace(/^(?:\*{1,2})?(?:TRANS(?:LATION)?|DỊCH|VIETNAMESE|VI|ORIG(?:INAL)?|GỐC)\s*:\s*(?:\*{1,2})?/i, "")
       .replace(/^(?:ORIG|GỐC|ORIGINAL)\b[:\s-]*/i, "")
-      .replace(/^(?:Tôi đang dịch|Đang dịch|Dưới đây là bản dịch)\s*[:\s-]*/i, "")
       .trim();
 
-    // Giấu ngay lập tức nếu sub chứa câu chữ AI tự nói về mình ("Tôi đang dịch...") hoặc rò rỉ prompt
-    const isLeakFn = root.VieStorage?.isAiMetaOrPromptLeak;
-    if (isLeakFn && (isLeakFn(cleanOrigRaw) || isLeakFn(cleanViRaw))) {
-      root.VieDOM?.hideOverlay(video);
-      return;
-    }
-
-    const isLyrics = Boolean(root.VieCaptions?.ytCueState?.isLyrics);
-    const { formattedOrig, formattedVi } = root.VieDOM.formatSubtitleDecorations(cleanOrigRaw, cleanViRaw, isLyrics);
+    const isMusic = root.VieCaptions?.ytCueState?.isLyrics || root.VieCaptions?.looksLikeMusicVideo(root.VieCaptions.getVideoTitle());
+    const { formattedOrig, formattedVi } = root.VieDOM.formatSubtitleDecorations(cleanOrigRaw, cleanViRaw, isMusic);
 
     const origEl = overlay.querySelector(".vie-orig");
     const viEl = overlay.querySelector(".vie-vi");
@@ -56,81 +44,6 @@
 
     root.VieCaptions?.updateOverlaySyncUI?.(video);
     overlay.classList.remove("vie-hidden");
-  }
-
-  let reloadHintVid = "";
-  let noSubPlayedMs = 0;
-  function showReloadHint(video, text) {
-    const host = video?.parentElement || document.body;
-    if (host.querySelector(".vie-quota-toast")) return;
-    const el = document.createElement("div");
-    el.className = "vie-quota-toast";
-    const span = document.createElement("span");
-    span.textContent = text;
-    const btn = document.createElement("button");
-    btn.textContent = "Tải lại (F5)";
-    btn.onclick = () => location.reload();
-    const close = document.createElement("button");
-    close.className = "vie-quota-close";
-    close.textContent = "✕";
-    close.onclick = () => el.remove();
-    el.append(span, btn, close);
-    host.appendChild(el);
-    setTimeout(() => el.remove(), 25000);
-  }
-
-  // Nếu video đã chạy một lúc mà vẫn chưa có phụ đề, gợi ý người dùng tải lại trang
-  function startNoSubWatchdog() {
-    setInterval(() => {
-      const video = document.querySelector("video.html5-main-video") || document.querySelector("video");
-      if (!video) return;
-      const key = location.href;
-      if (reloadHintVid === key) return;
-      let stale = false;
-      try { stale = !chrome.runtime?.id; } catch { stale = true; }
-      if (stale) {
-        reloadHintVid = key;
-        showReloadHint(video, "Tiện ích vừa được cập nhật. Tải lại trang để phụ đề chạy lại.");
-        return;
-      }
-      const st = root.VieCaptions?.getVideoState?.(video);
-      if (!st || video.paused || video.ended || (video.currentTime || 0) < 1) return;
-      const cs = root.VieCaptions?.ytCueState;
-      const hasSub = st.hasReceivedAnySubtitle || st.audioCaptureActive || (cs && cs.cues.length > 0);
-      const overlayText = document.querySelector(".vie-overlay:not(.vie-hidden)");
-      if (hasSub || overlayText) { noSubPlayedMs = 0; return; }
-      noSubPlayedMs += 2000;
-      if (noSubPlayedMs >= 16000) {
-        reloadHintVid = key;
-        noSubPlayedMs = 0;
-        showReloadHint(video, "Chưa thấy phụ đề hiện ra. Thử tải lại trang (F5) nhé.");
-      }
-    }, 2000);
-  }
-
-  let lastQuotaToastAt = 0;
-  function showQuotaToast(video) {
-    const now = Date.now();
-    if (now - lastQuotaToastAt < 10 * 60 * 1000) return;
-    lastQuotaToastAt = now;
-    const host = video?.parentElement || document.body;
-    if (host.querySelector(".vie-quota-toast")) return;
-    const el = document.createElement("div");
-    el.className = "vie-quota-toast";
-    el.innerHTML = '<span>Key AI đã hết lượt hôm nay. Đang dùng Google Translate tạm.</span>';
-    const add = document.createElement("button");
-    add.textContent = "Thêm key";
-    add.onclick = () => {
-      chrome.runtime.sendMessage({ type: "OPEN_KEY_SETUP" });
-      el.remove();
-    };
-    const close = document.createElement("button");
-    close.className = "vie-quota-close";
-    close.textContent = "✕";
-    close.onclick = () => el.remove();
-    el.append(add, close);
-    host.appendChild(el);
-    setTimeout(() => el.remove(), 20000);
   }
 
   function onCaptionReceived(video, rawText, immediate = false, nextText = "") {
@@ -171,44 +84,53 @@
       state.lastSendAt = Date.now();
       const currentSeq = ++state.reqSeq;
 
-      // Fast preview stream
+      // Fast preview stream (0ms instant preview)
       if (settings.provider !== "gtx") {
         chrome.runtime.sendMessage({
           type: "TRANSLATE",
           text: cleanText,
           nextText: nextText || "",
           videoTitle: root.VieCaptions.getVideoTitle(),
-          videoContext: root.VieCaptions.getVideoContext?.() || "",
-          navToken: root.VieCaptions.ytCueState?.navToken || 0,
           fastPreviewOnly: true
         }, (previewRes) => {
-          if (!chrome.runtime.lastError && previewRes?.vi && currentSeq >= state.lastRenderedSeq && currentSeq === state.reqSeq) {
+          if (!chrome.runtime.lastError && previewRes?.vi && currentSeq >= state.lastRenderedSeq) {
             state.lastRenderedSeq = currentSeq;
             renderSubtitles(video, cleanText, previewRes.vi, previewRes.sub2 || "", true, false);
           }
         });
       }
 
-      chrome.runtime.sendMessage({
-        type: "TRANSLATE",
-        text: cleanText,
-        nextText: nextText || "",
-        videoTitle: root.VieCaptions.getVideoTitle(),
-          videoContext: root.VieCaptions.getVideoContext?.() || "",
-          navToken: root.VieCaptions.ytCueState?.navToken || 0,
-        fastPreviewOnly: false
-      }, (res) => {
-        if (!chrome.runtime.lastError && res?.quotaExhausted) showQuotaToast(video);
-        if (!chrome.runtime.lastError && res?.vi && currentSeq >= state.lastRenderedSeq) {
-          localCache.set(ck, { vi: res.vi, sub2: res.sub2 || "" });
-          if (localCache.size > 500) {
-            localCache.delete(localCache.keys().next().value);
+      const executeAiTranslate = () => {
+        chrome.runtime.sendMessage({
+          type: "TRANSLATE",
+          text: cleanText,
+          nextText: nextText || "",
+          videoTitle: root.VieCaptions.getVideoTitle(),
+          fastPreviewOnly: false
+        }, (res) => {
+          if (!chrome.runtime.lastError && res?.vi && currentSeq >= state.lastRenderedSeq) {
+            state.lastRenderedSeq = currentSeq;
+            localCache.set(ck, { vi: res.vi, sub2: res.sub2 || "" });
+            if (localCache.size > 500) {
+              localCache.delete(localCache.keys().next().value);
+            }
+            renderSubtitles(video, cleanText, res.vi, res.sub2 || "", false, false);
           }
-          if (currentSeq !== state.reqSeq) return;
-          state.lastRenderedSeq = currentSeq;
-          renderSubtitles(video, cleanText, res.vi, res.sub2 || "", false, false);
-        }
-      });
+        });
+      };
+
+      if (state.aiRefineTimer) {
+        clearTimeout(state.aiRefineTimer);
+        state.aiRefineTimer = null;
+      }
+
+      // Ghép câu thông minh (Cơ chế 4): Nếu câu chưa trọn vẹn ngữ pháp, đợi nhẹ 280ms để ghép trọn câu
+      const isIncomplete = settings.smartMergeCaptions !== false && root.VieCaptions?.isIncompleteClause?.(cleanText);
+      if (isIncomplete && !nextText && settings.provider !== "gtx") {
+        state.aiRefineTimer = setTimeout(executeAiTranslate, 280);
+      } else {
+        executeAiTranslate();
+      }
     };
 
     if (immediate || elapsed >= THROTTLE_MS) {
@@ -244,92 +166,19 @@
       }
       if (clearCache) localCache.clear();
       root.VieDOM?.applySettingsToDOM(settings);
-      document.querySelectorAll("video").forEach((v) => {
-        const overlay = v._vieOverlay || root.VieDOM?.getContainer?.(v)?.querySelector(".vie-overlay") || v.parentElement?.querySelector(".vie-overlay");
-        if (overlay) root.VieDOM.applyOverlayVisualStyle(overlay, settings);
-      });
     });
 
     root.VieSelection?.init();
     scanAndWatchVideos();
 
-    // Bắt ngay lập tức mọi video đang phát qua capture phase (Tối ưu cho Facebook Feed, Reels, Twitter, TikTok)
-    window.addEventListener(
-      "play",
-      (e) => {
-        if (e.target && e.target.tagName === "VIDEO") {
-          root.VieCaptions?.watchVideo(e.target, onCaptionReceived);
-        }
-      },
-      true
-    );
-
-    window.addEventListener(
-      "playing",
-      (e) => {
-        if (e.target && e.target.tagName === "VIDEO") {
-          root.VieCaptions?.watchVideo(e.target, onCaptionReceived);
-        }
-      },
-      true
-    );
-
-    // Xử lý tua video (seek) trên mọi trang web: xóa ngay cache text cũ để phụ đề hiển thị tức thì không bị mất
-    const handleGlobalSeek = (e) => {
-      if (e.target && e.target.tagName === "VIDEO") {
-        const v = e.target;
-        const state = root.VieCaptions?.getVideoState?.(v);
-        if (state) {
-          state.lastCueText = "";
-          state.lastText = "";
-          state.lastRenderedSeq = 0;
-          if (state.hideTimer) {
-            clearTimeout(state.hideTimer);
-            state.hideTimer = null;
-          }
-          if (state.throttleTimer) {
-            clearTimeout(state.throttleTimer);
-            state.throttleTimer = null;
-          }
-        }
-        root.VieCaptions?.renderYouTubeByTime?.(v);
-      }
-    };
-    window.addEventListener("seeking", handleGlobalSeek, true);
-    window.addEventListener("seeked", handleGlobalSeek, true);
-
-    // DOM Observer cho các video được chèn động vào trang
+    // DOM Observer for dynamically added videos
     const observer = new MutationObserver(() => scanAndWatchVideos());
     if (document.documentElement) {
       observer.observe(document.documentElement, { childList: true, subtree: true });
     }
 
-    // Lắng nghe sự kiện chuyển trang ngầm (SPA) của YouTube để kích hoạt ngay phụ đề và CC
-    const onYouTubePageChange = () => {
-      if (!location.hostname.includes("youtube.com")) return;
-      document.querySelectorAll("video").forEach((v) => {
-        root.VieCaptions?.autoEnsureYouTubeCC?.(v);
-        root.VieCaptions?.watchVideo?.(v, onCaptionReceived);
-      });
-      scanAndWatchVideos();
-    };
-    const onYouTubeNavStart = () => {
-      if (!location.hostname.includes("youtube.com")) return;
-      reloadHintVid = "";
-      noSubPlayedMs = 0;
-      root.VieCaptions?.resetForNewVideo?.(document.querySelector("video"));
-      const cs = root.VieCaptions?.ytCueState;
-      if (cs) cs.vid = "";
-    };
-    window.addEventListener("yt-navigate-start", onYouTubeNavStart);
-    document.addEventListener("yt-navigate-start", onYouTubeNavStart);
-    window.addEventListener("yt-navigate-finish", onYouTubePageChange);
-    document.addEventListener("yt-navigate-finish", onYouTubePageChange);
-    window.addEventListener("yt-page-data-updated", onYouTubePageChange);
-
     // Interval to ensure dynamic SPA video players (YouTube SPA nav, etc.) are always watched and have styles applied
     setInterval(scanAndWatchVideos, 1200);
-    startNoSubWatchdog();
   }
 
   root.VieContent = {
