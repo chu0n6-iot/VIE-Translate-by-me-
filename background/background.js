@@ -77,8 +77,13 @@ function detectVideoPersona(videoTitle) {
   return "general";
 }
 
+const CJK_OR_THAI_TERM_RE = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af\u0e00-\u0e7f]/;
+
 function buildUnicodeTermRegex(term) {
   const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (CJK_OR_THAI_TERM_RE.test(term)) {
+    return new RegExp(escaped, "giu");
+  }
   try {
     return new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, "giu");
   } catch {
@@ -88,17 +93,18 @@ function buildUnicodeTermRegex(term) {
 
 function applyGlossaryOverrides(viText, glossary, srcText) {
   if (!viText || !Array.isArray(glossary) || !glossary.length || !srcText) return viText;
+  const active = glossary
+    .filter((item) => item && item.src && item.target && item.enabled !== false && item.src.trim() && item.target.trim())
+    .map((item) => ({ src: item.src.trim(), target: item.target.trim() }))
+    .sort((a, b) => b.src.length - a.src.length);
+  if (!active.length) return viText;
+
   let result = viText;
   const lowerSrc = srcText.toLowerCase();
-
-  for (const item of glossary) {
-    if (!item || !item.src || !item.target || item.enabled === false) continue;
-    const cleanSrc = item.src.trim();
-    const target = item.target.trim();
-    if (!cleanSrc || !target) continue;
-    if (lowerSrc.includes(cleanSrc.toLowerCase())) {
-      const regex = buildUnicodeTermRegex(cleanSrc);
-      result = result.replace(regex, target);
+  for (const item of active) {
+    if (lowerSrc.includes(item.src.toLowerCase())) {
+      const regex = buildUnicodeTermRegex(item.src);
+      result = result.replace(regex, item.target);
     }
   }
   return result;
@@ -125,16 +131,21 @@ function getTabContext(tabId, videoTitle) {
   return ctx;
 }
 
+const COMPOUND_PRONOUN_STRIP_RE = /(?:một|tự|giật|rùng|vươn|chuyển|ẩn|nép|dấn|thân|bên|riêng|chính|thương|quên|liều|hòa|nhún|uốn|xoay|nghiêng|cúi|gồng|thu|trở|đẫm|lắc|bản\s+thân)\s+mình|mình\s+(?:mẩy|ên|đồng)|(?:vôi|bề|phận)\s+tôi|tôi\s+(?:luyện|đòi|tớ|mọi)/giu;
+const UNICODE_MINH_RE = /(?<![\p{L}\p{N}_])(mình|tụi mình|chúng mình)(?![\p{L}\p{N}_])/iu;
+const UNICODE_TOI_RE = /(?<![\p{L}\p{N}_])(tôi|chúng tôi)(?![\p{L}\p{N}_])/iu;
+const UNICODE_KINSHIP_RE = /(?<![\p{L}\p{N}_])(anh|em|chị|cậu|tớ)(?![\p{L}\p{N}_])/iu;
+
 function updateContextPronounLock(ctx, viText) {
   if (ctx.lockedPronounPair) return;
-  const s = (viText || "").toLowerCase();
-  if (/\b(mình|tụi mình|chúng mình)\b/.test(s) && !/\b(một mình|tự mình|giật mình|rùng mình|thân mình|bên mình)\b/.test(s)) {
+  const stripped = (viText || "").replace(COMPOUND_PRONOUN_STRIP_RE, " ");
+  if (UNICODE_MINH_RE.test(stripped)) {
     ctx.lockedPronounPair = "mình – các bạn";
     ctx.lockedFirstPerson = "mình";
-  } else if (/\b(tôi|chúng tôi)\b/.test(s) && !/\b(tôi luyện|vôi tôi|bề tôi)\b/.test(s)) {
+  } else if (UNICODE_TOI_RE.test(stripped)) {
     ctx.lockedPronounPair = "tôi – các bạn";
     ctx.lockedFirstPerson = "tôi";
-  } else if (/\b(anh|em|chị|cậu|tớ)\b/.test(s)) {
+  } else if (UNICODE_KINSHIP_RE.test(stripped)) {
     ctx.lockedPronounPair = "anh/chị – em (hoặc cậu – tớ)";
     ctx.lockedFirstPerson = "";
   }
@@ -148,10 +159,10 @@ function pushTabContext(tabId, videoTitle, src, vi) {
 }
 
 // Danh sách từ đứng trước/sau tạo thành từ ghép tiếng Việt với "mình" hoặc "tôi" (không được đổi nhầm)
-const MINH_PREFIX_COMPOUNDS = /^(?:một|tự|giật|rùng|vươn|chuyển|ẩn|nép|dấn|thân|bên|riêng|chính|bản\s+thân)$/i;
-const MINH_SUFFIX_COMPOUNDS = /^(?:mẩy|ên)$/i;
+const MINH_PREFIX_COMPOUNDS = /^(?:một|tự|giật|rùng|vươn|chuyển|ẩn|nép|dấn|thân|bên|riêng|chính|thương|quên|liều|hòa|nhún|uốn|xoay|nghiêng|cúi|gồng|thu|trở|đẫm|lắc|bản\s+thân)$/i;
+const MINH_SUFFIX_COMPOUNDS = /^(?:mẩy|ên|đồng)$/i;
 const TOI_PREFIX_COMPOUNDS = /^(?:vôi|bề|phận)$/i;
-const TOI_SUFFIX_COMPOUNDS = /^(?:luyện|đòi|tớ)$/i;
+const TOI_SUFFIX_COMPOUNDS = /^(?:luyện|đòi|tớ|mọi)$/i;
 
 function harmonizeVietnamesePronouns(viText, pronounStyle = "auto", lockedFirstPerson = "", persona = "") {
   if (!viText || typeof viText !== "string") return viText;
@@ -174,7 +185,7 @@ function harmonizeVietnamesePronouns(viText, pronounStyle = "auto", lockedFirstP
   else return viText;
 
   const otherFirst = targetFirst === "mình" ? "tôi" : "mình";
-  const regex = new RegExp(`(^|\\s)(${otherFirst})(?=([.,!?;:\\s]|$))`, "gi");
+  const regex = new RegExp(`(^|[\\s"“‘'(—–-])(${otherFirst})(?=([.,!?;:\\s"”’')!]|$))`, "gi");
 
   return viText.replace(regex, (match, prefix, word, _lookahead, offset, fullStr) => {
     const beforeSlice = fullStr.slice(0, offset + prefix.length).trim();
@@ -259,29 +270,51 @@ function limitTranslationLength(vi, src, style = "natural") {
   const srcStr = (src || "").trim();
   // Chữ tượng hình (Nhật/Trung/Hàn) ngắn nhưng dịch ra chữ Latin tiếng Việt sẽ dài hơn ~3-4 lần
   const hasCjk = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]/.test(srcStr);
-  const mult = hasCjk ? 4.5 : style === "unhinged" ? 3.2 : 2.3;
-  const minFloor = style === "unhinged" || cleanVi.includes("\n-") ? 110 : 60;
+  const mult = hasCjk ? 4.8 : style === "unhinged" ? 3.4 : 2.75;
+  const minFloor = style === "unhinged" || cleanVi.includes("\n-") ? 125 : 75;
   const max = Math.max(minFloor, Math.round(srcStr.length * mult));
   return cleanVi.length > max ? "" : cleanVi;
 }
 
+function postProcessTranslation(rawVi, srcText, settings, ctx, persona, targetLang, glossaryList, splitMulti) {
+  if (!rawVi) return "";
+  let vi = targetLang === "vi"
+    ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson, persona)
+    : rawVi;
+  if (self.VieStorage?.formatMultiSpeakerDialogue) {
+    vi = self.VieStorage.formatMultiSpeakerDialogue(vi, splitMulti);
+  }
+  return applyGlossaryOverrides(vi, glossaryList, srcText);
+}
+
 async function translateGtxMultiline(cleanText, targetLang, glossaryList = []) {
   const preText = applyGlossaryOverrides(cleanText, glossaryList, cleanText);
-  if (preText.includes("\n")) {
+  const singleOut = await self.VieGTX.translate(preText, targetLang);
+  if (preText.includes("\n") && (!singleOut || !singleOut.includes("\n"))) {
     const parts = preText.split("\n");
     const transParts = await Promise.all(parts.map((p) => self.VieGTX.translate(p, targetLang)));
     return transParts.join("\n");
   }
-  return self.VieGTX.translate(preText, targetLang);
+  return singleOut;
+}
+
+async function translateGtxBatch(texts, targetLang, glossaryList = []) {
+  if (!Array.isArray(texts) || !texts.length) return [];
+  const preTexts = texts.map((t) => applyGlossaryOverrides(t, glossaryList, t));
+  if (typeof self.VieGTX?.translateBatch === "function") {
+    return self.VieGTX.translateBatch(preTexts, targetLang);
+  }
+  return Promise.all(preTexts.map((t) => translateGtxMultiline(t, targetLang, [])));
 }
 
 async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = false, nextText = "") {
+  const settings = await self.VieStorage.getSettings();
+  const splitMulti = settings.multiSpeakerSplit !== false;
   const cleanText = self.VieStorage?.formatMultiSpeakerDialogue
-    ? self.VieStorage.formatMultiSpeakerDialogue(rawText)
+    ? self.VieStorage.formatMultiSpeakerDialogue(rawText, splitMulti)
     : (rawText || "").trim();
   if (!cleanText) return { vi: "" };
 
-  const settings = await self.VieStorage.getSettings();
   const isLocal = settings.provider === "ollama";
   const rawKey = isLocal ? "local" : settings.apiKey || (settings.provider === "groq" ? settings.groqApiKey : settings.geminiApiKey) || "";
   const provider = isLocal ? "ollama" : self.VieStorage.detectProviderFromKey(rawKey) || settings.provider || "gemini";
@@ -289,15 +322,46 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
 
   const targetLang = settings.targetLang || "vi";
   const secondaryLang = settings.secondaryLang || "orig";
-  const cacheKey = `${targetProvider}:${self.VieStorage.getCacheKey(cleanText, settings)}`;
+  const baseCacheKey = self.VieStorage.getCacheKey(cleanText, settings);
+  const aiCacheKey = `${provider}:${baseCacheKey}`;
+  const cacheKey = `${targetProvider}:${baseCacheKey}`;
+
+  // 0ms AI Cache Shortcut: If final AI translation is already cached, return it on fastPreviewOnly without hitting GTX
+  if (fastPreviewOnly && provider !== "gtx" && rawKey) {
+    const aiCached = getCached(aiCacheKey);
+    if (aiCached) {
+      const sub2 = await resolveSecondaryTranslation(cleanText, secondaryLang, targetLang);
+      return { vi: aiCached, sub2, provider, cached: true, isFinalAi: true };
+    }
+  }
 
   const cached = getCached(cacheKey);
   if (cached) {
     const sub2 = await resolveSecondaryTranslation(cleanText, secondaryLang, targetLang);
-    return { vi: cached, sub2, provider: targetProvider, cached: true };
+    return {
+      vi: cached,
+      sub2,
+      provider: targetProvider,
+      cached: true,
+      isFinalAi: targetProvider !== "gtx" || provider === "gtx" || !rawKey
+    };
   }
 
-  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
+  if (inFlight.has(cacheKey)) {
+    const shared = await inFlight.get(cacheKey);
+    if (
+      shared &&
+      !shared.sub2 &&
+      secondaryLang &&
+      secondaryLang !== "orig" &&
+      secondaryLang !== "none" &&
+      secondaryLang !== targetLang
+    ) {
+      const sub2 = await resolveSecondaryTranslation(cleanText, secondaryLang, targetLang);
+      return { ...shared, sub2 };
+    }
+    return shared;
+  }
 
   const task = (async () => {
     try {
@@ -312,9 +376,7 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
           translateGtxMultiline(cleanText, targetLang, glossaryList),
           sub2Promise
         ]);
-        let vi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson, persona) : rawVi;
-        if (self.VieStorage?.formatMultiSpeakerDialogue) vi = self.VieStorage.formatMultiSpeakerDialogue(vi);
-        vi = applyGlossaryOverrides(vi, glossaryList, cleanText);
+        const vi = postProcessTranslation(rawVi, cleanText, settings, ctx, persona, targetLang, glossaryList, splitMulti);
         if (vi) setCached(cacheKey, vi);
         return { vi, sub2, provider: "gtx" };
       }
@@ -322,14 +384,21 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
       try {
         const callAI = (key, prov) => {
           if (prov === "ollama") {
-            return self.VieOllama.translateWithOllama({ text: cleanText, nextText, videoPersona: persona, glossary: glossaryList, history: ctx.items, baseUrl: settings.ollamaBaseUrl, preferredModel: settings.ollamaModel, targetLang, translationStyle: settings.translationStyle, pronounStyle: settings.pronounStyle, lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false });
+            return self.VieOllama.translateWithOllama({
+              text: cleanText, nextText, videoTitle, videoPersona: persona, glossary: glossaryList,
+              history: ctx.items, baseUrl: settings.ollamaBaseUrl, preferredModel: settings.ollamaModel,
+              targetLang, translationStyle: settings.translationStyle, pronounStyle: settings.pronounStyle,
+              lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false,
+              multiSpeakerSplit: splitMulti
+            });
           }
           const common = {
             text: cleanText, nextText, videoTitle, videoPersona: persona, glossary: glossaryList,
             history: ctx.items, apiKey: key,
             preferredModel: settings.model || "auto", targetLang,
             translationStyle: settings.translationStyle, pronounStyle: settings.pronounStyle,
-            lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false
+            lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false,
+            multiSpeakerSplit: splitMulti
           };
           return prov === "groq" ? self.VieGroq.translateWithGroqAuto(common) : self.VieGemini.translateWithGeminiAuto(common);
         };
@@ -338,9 +407,7 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
 
         const rawVi = limitTranslationLength(result.vi || "", cleanText, settings.translationStyle);
         if (!rawVi) throw new Error("translation too long or empty");
-        let finalVi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson, persona) : rawVi;
-        if (self.VieStorage?.formatMultiSpeakerDialogue) finalVi = self.VieStorage.formatMultiSpeakerDialogue(finalVi);
-        finalVi = applyGlossaryOverrides(finalVi, glossaryList, cleanText);
+        const finalVi = postProcessTranslation(rawVi, cleanText, settings, ctx, persona, targetLang, glossaryList, splitMulti);
         if (finalVi) {
           setCached(cacheKey, finalVi);
           pushTabContext(tabId, videoTitle, cleanText, finalVi);
@@ -352,10 +419,8 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
           translateGtxMultiline(cleanText, targetLang, glossaryList),
           sub2Promise
         ]);
-        let vi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson, persona) : rawVi;
-        if (self.VieStorage?.formatMultiSpeakerDialogue) vi = self.VieStorage.formatMultiSpeakerDialogue(vi);
-        vi = applyGlossaryOverrides(vi, glossaryList, cleanText);
-        if (vi) setCached(`gtx:${self.VieStorage.getCacheKey(cleanText, settings)}`, vi);
+        const vi = postProcessTranslation(rawVi, cleanText, settings, ctx, persona, targetLang, glossaryList, splitMulti);
+        if (vi) setCached(`gtx:${baseCacheKey}`, vi);
         return { vi, sub2, provider: "gtx", quotaExhausted: !!err.allKeysExhausted };
       }
     } finally {
@@ -375,107 +440,185 @@ function isWhisperNoise(text) {
 }
 
 async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
-  if (!Array.isArray(rawTexts) || !rawTexts.length) return { results: {} };
+  if (!Array.isArray(rawTexts) || !rawTexts.length) return { results: {}, sub2Results: {} };
+  const settings = await self.VieStorage.getSettings();
+  const splitMulti = settings.multiSpeakerSplit !== false;
+
   const cleanList = Array.from(
     new Set(
       rawTexts
         .map((t) =>
           self.VieStorage?.formatMultiSpeakerDialogue
-            ? self.VieStorage.formatMultiSpeakerDialogue(t)
+            ? self.VieStorage.formatMultiSpeakerDialogue(t, splitMulti)
             : (t || "").trim()
         )
         .filter(Boolean)
     )
   ).slice(0, 12);
-  if (!cleanList.length) return { results: {} };
+  if (!cleanList.length) return { results: {}, sub2Results: {} };
 
-  const settings = await self.VieStorage.getSettings();
   const isLocal = settings.provider === "ollama";
   const rawKey = isLocal ? "local" : settings.apiKey || (settings.provider === "groq" ? settings.groqApiKey : settings.geminiApiKey) || "";
   const provider = isLocal ? "ollama" : self.VieStorage.detectProviderFromKey(rawKey) || settings.provider || "gemini";
   const targetLang = settings.targetLang || "vi";
+  const secondaryLang = settings.secondaryLang || "orig";
+  const needsSub2 = Boolean(secondaryLang && secondaryLang !== "orig" && secondaryLang !== "none" && secondaryLang !== targetLang);
 
   const results = {};
+  const sub2Results = {};
   const uncached = [];
+  const uncachedSub2 = [];
+
   for (const text of cleanList) {
     const ck = `${provider}:${self.VieStorage.getCacheKey(text, settings)}`;
     const cached = getCached(ck);
     if (cached) results[text] = cached;
     else uncached.push(text);
+
+    if (needsSub2) {
+      const s2k = `sub2:${secondaryLang}:${text}`;
+      const cachedS2 = getCached(s2k);
+      if (cachedS2) sub2Results[text] = cachedS2;
+      else uncachedSub2.push(text);
+    }
   }
 
-  if (!uncached.length) return { results, cached: true };
+  const sub2BatchPromise = (async () => {
+    if (!needsSub2 || !uncachedSub2.length) return;
+    try {
+      const s2List = typeof self.VieGTX?.translateBatch === "function"
+        ? await self.VieGTX.translateBatch(uncachedSub2, secondaryLang)
+        : await Promise.all(uncachedSub2.map((t) => self.VieGTX.translate(t, secondaryLang).catch(() => "")));
+      for (let i = 0; i < uncachedSub2.length; i++) {
+        const s2Val = (s2List[i] || "").trim();
+        if (s2Val) {
+          sub2Results[uncachedSub2[i]] = s2Val;
+          setCached(`sub2:${secondaryLang}:${uncachedSub2[i]}`, s2Val);
+        }
+      }
+    } catch {}
+  })();
+
+  if (!uncached.length) {
+    await sub2BatchPromise;
+    return { results, sub2Results, cached: true };
+  }
 
   const ctx = getTabContext(tabId, videoTitle);
   const batchGlossary = Array.isArray(settings.customGlossary) ? settings.customGlossary : [];
   const persona = settings.autoPersona !== false ? ctx.persona : "";
 
   if (provider === "gtx" || !rawKey) {
-    await Promise.all(
-      uncached.map(async (t) => {
-        try {
-          const rawVi = await translateGtxMultiline(t, targetLang, batchGlossary);
-          let vi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson, persona) : rawVi;
-          if (self.VieStorage?.formatMultiSpeakerDialogue) vi = self.VieStorage.formatMultiSpeakerDialogue(vi);
-          vi = applyGlossaryOverrides(vi, batchGlossary, t);
-          if (vi) {
-            setCached(`gtx:${self.VieStorage.getCacheKey(t, settings)}`, vi);
-            results[t] = vi;
-          }
-        } catch {}
-      })
-    );
-    return { results, provider: "gtx" };
-  }
-
-  try {
-    const batchCall = (key, prov) => {
-      if (prov === "ollama") {
-        return self.VieOllama.translateWithOllama({ texts: uncached, videoPersona: persona, history: ctx.items, glossary: batchGlossary, baseUrl: settings.ollamaBaseUrl, preferredModel: settings.ollamaModel, targetLang, translationStyle: settings.translationStyle, pronounStyle: settings.pronounStyle, lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false });
-      }
-      const common = {
-        texts: uncached, videoTitle, videoPersona: persona, glossary: batchGlossary,
-        history: ctx.items, apiKey: key,
-        preferredModel: settings.model || "auto", targetLang,
-        translationStyle: settings.translationStyle, pronounStyle: settings.pronounStyle,
-        lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false
-      };
-      return prov === "groq" ? self.VieGroq.translateWithGroqAuto(common) : self.VieGemini.translateWithGeminiAuto(common);
-    };
-    const batchRes = provider === "ollama" ? await batchCall("local", "ollama") : await withKeyPool(settings, rawKey, batchCall);
-
-    const translations = batchRes.translations || [];
+    const [rawBatch] = await Promise.all([
+      translateGtxBatch(uncached, targetLang, batchGlossary).catch(() => new Array(uncached.length).fill("")),
+      sub2BatchPromise
+    ]);
     for (let i = 0; i < uncached.length; i++) {
       const src = uncached[i];
-      const rawVi = limitTranslationLength((translations[i] || "").trim(), src, settings.translationStyle);
-      let vi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson, persona) : rawVi;
-      if (self.VieStorage?.formatMultiSpeakerDialogue) vi = self.VieStorage.formatMultiSpeakerDialogue(vi);
-      vi = applyGlossaryOverrides(vi, batchGlossary, src);
+      const vi = postProcessTranslation(rawBatch[i] || "", src, settings, ctx, persona, targetLang, batchGlossary, splitMulti);
       if (vi) {
-        setCached(`${provider}:${self.VieStorage.getCacheKey(src, settings)}`, vi);
-        pushTabContext(tabId, videoTitle, src, vi);
+        setCached(`gtx:${self.VieStorage.getCacheKey(src, settings)}`, vi);
         results[src] = vi;
       }
     }
-    return { results, provider, modelUsed: batchRes.modelUsed };
-  } catch {
-    // Fallback GTX
-    await Promise.all(
-      uncached.map(async (t) => {
+    return { results, sub2Results, provider: "gtx" };
+  }
+
+  const batchCall = (key, prov) => {
+    if (prov === "ollama") {
+      return self.VieOllama.translateWithOllama({
+        texts: uncached, videoTitle, videoPersona: persona, history: ctx.items,
+        glossary: batchGlossary, baseUrl: settings.ollamaBaseUrl, preferredModel: settings.ollamaModel,
+        targetLang, translationStyle: settings.translationStyle, pronounStyle: settings.pronounStyle,
+        lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false,
+        multiSpeakerSplit: splitMulti
+      });
+    }
+    const common = {
+      texts: uncached, videoTitle, videoPersona: persona, glossary: batchGlossary,
+      history: ctx.items, apiKey: key,
+      preferredModel: settings.model || "auto", targetLang,
+      translationStyle: settings.translationStyle, pronounStyle: settings.pronounStyle,
+      lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false,
+      multiSpeakerSplit: splitMulti
+    };
+    return prov === "groq" ? self.VieGroq.translateWithGroqAuto(common) : self.VieGemini.translateWithGeminiAuto(common);
+  };
+
+  const batchExecutionPromise = (async () => {
+    const itemProviders = {};
+    try {
+      const batchRes = provider === "ollama" ? await batchCall("local", "ollama") : await withKeyPool(settings, rawKey, batchCall);
+      const translations = batchRes.translations || [];
+      const missingSrcs = [];
+
+      for (let i = 0; i < uncached.length; i++) {
+        const src = uncached[i];
+        const rawVi = limitTranslationLength((translations[i] || "").trim(), src, settings.translationStyle);
+        const vi = postProcessTranslation(rawVi, src, settings, ctx, persona, targetLang, batchGlossary, splitMulti);
+        if (vi) {
+          setCached(`${provider}:${self.VieStorage.getCacheKey(src, settings)}`, vi);
+          pushTabContext(tabId, videoTitle, src, vi);
+          results[src] = vi;
+          itemProviders[src] = provider;
+        } else {
+          missingSrcs.push(src);
+        }
+      }
+
+      if (missingSrcs.length > 0) {
         try {
-          const rawVi = await translateGtxMultiline(t, targetLang, batchGlossary);
-          let vi = targetLang === "vi" ? harmonizeVietnamesePronouns(rawVi, settings.pronounStyle, ctx.lockedFirstPerson, persona) : rawVi;
-          if (self.VieStorage?.formatMultiSpeakerDialogue) vi = self.VieStorage.formatMultiSpeakerDialogue(vi);
-          vi = applyGlossaryOverrides(vi, batchGlossary, t);
-          if (vi) {
-            setCached(`gtx:${self.VieStorage.getCacheKey(t, settings)}`, vi);
-            results[t] = vi;
+          const recovered = await translateGtxBatch(missingSrcs, targetLang, batchGlossary);
+          for (let j = 0; j < missingSrcs.length; j++) {
+            const mSrc = missingSrcs[j];
+            const mVi = postProcessTranslation(recovered[j] || "", mSrc, settings, ctx, persona, targetLang, batchGlossary, splitMulti);
+            if (mVi) {
+              setCached(`gtx:${self.VieStorage.getCacheKey(mSrc, settings)}`, mVi);
+              results[mSrc] = mVi;
+              itemProviders[mSrc] = "gtx";
+            }
           }
         } catch {}
-      })
-    );
-    return { results, provider: "gtx" };
+      }
+
+      return { results, provider, modelUsed: batchRes.modelUsed, itemProviders };
+    } catch {
+      try {
+        const recovered = await translateGtxBatch(uncached, targetLang, batchGlossary);
+        for (let i = 0; i < uncached.length; i++) {
+          const src = uncached[i];
+          const vi = postProcessTranslation(recovered[i] || "", src, settings, ctx, persona, targetLang, batchGlossary, splitMulti);
+          if (vi) {
+            setCached(`gtx:${self.VieStorage.getCacheKey(src, settings)}`, vi);
+            results[src] = vi;
+            itemProviders[src] = "gtx";
+          }
+        }
+      } catch {}
+      return { results, provider: "gtx", modelUsed: "", itemProviders };
+    }
+  })();
+
+  // Register per-item inFlight promises so live single-cue requests await this active batch instead of duplicating API calls
+  for (const src of uncached) {
+    const itemKey = `${provider}:${self.VieStorage.getCacheKey(src, settings)}`;
+    if (!inFlight.has(itemKey)) {
+      const itemPromise = Promise.all([batchExecutionPromise, sub2BatchPromise])
+        .then(([out]) => ({
+          vi: out.results[src] || "",
+          sub2: sub2Results[src] || "",
+          provider: out.itemProviders[src] || out.provider,
+          modelUsed: out.modelUsed
+        }))
+        .finally(() => {
+          inFlight.delete(itemKey);
+        });
+      inFlight.set(itemKey, itemPromise);
+    }
   }
+
+  const [batchOut] = await Promise.all([batchExecutionPromise, sub2BatchPromise]);
+  return { results: batchOut.results, sub2Results, provider: batchOut.provider, modelUsed: batchOut.modelUsed };
 }
 
 // Message Dispatcher
@@ -672,6 +815,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "LOOKUP_WORD") {
     (async () => {
       const s = await self.VieStorage.getSettings();
+      const dictCacheKey = `dict:${s.targetLang || "vi"}:${(msg.word || "").toLowerCase()}:${(msg.sentence || "").slice(0, 80)}`;
+      const cachedDict = getCached(dictCacheKey);
+      if (cachedDict) return cachedDict;
+
       const gk = buildKeyPool(s, s.apiKey || "").filter((k) => self.VieStorage.detectProviderFromKey(k) === "gemini" && (keyCooldown.get(k) || 0) <= Date.now());
       const key = gk[0] || "";
       const gtxFallback = async () => {
@@ -688,7 +835,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       };
       if (!key) return await gtxFallback();
       try {
-        return await self.VieGemini.lookupWordWithGemini(msg.word, msg.sentence || "", key);
+        const res = await self.VieGemini.lookupWordWithGemini(msg.word, msg.sentence || "", key);
+        if (res?.ok && !res.fallback) setCached(dictCacheKey, res);
+        return res;
       } catch {
         return await gtxFallback();
       }

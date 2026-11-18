@@ -9,15 +9,36 @@
   let lastSelectedText = "";
   let lastCoords = { x: 0, y: 0 };
   let isEnabled = true;
+  let selectionReqId = 0;
+
+  function syncSelectionSetting(s) {
+    if (!s) return;
+    isEnabled = s.enabled !== false && s.selectionTranslate !== false;
+    if (!isEnabled) {
+      root.VieDOM?.hideSelectionBubble();
+    }
+  }
 
   function initSelectionListener() {
+    root.VieStorage?.getSettings?.().then(syncSelectionSetting).catch(() => {});
+    root.VieStorage?.onChanged?.((changes) => {
+      if ("enabled" in changes || "selectionTranslate" in changes) {
+        root.VieStorage?.getSettings?.().then(syncSelectionSetting).catch(() => {});
+      }
+    });
+
     document.addEventListener("mouseup", (e) => {
+      if (!isEnabled) return;
       // Don't trigger if click is inside our own bubble or overlay
       if (e.target.closest("#vie-selection-bubble, .vie-overlay, .vie-toad-audio-btn")) {
         return;
       }
 
       setTimeout(() => {
+        if (!isEnabled) {
+          root.VieDOM?.hideSelectionBubble();
+          return;
+        }
         const sel = window.getSelection();
         const text = sel ? sel.toString().trim() : "";
 
@@ -72,11 +93,28 @@
   }
 
   function handleSelectionAction(text, coords) {
-    chrome.runtime.sendMessage({ type: "TRANSLATE", text }, (res) => {
+    const reqId = ++selectionReqId;
+    let gotFinal = false;
+
+    root.VieDOM?.showQuickTranslatePopup(text, coords, { vi: "⏳ Đang dịch..." });
+
+    chrome.runtime.sendMessage({ type: "TRANSLATE", text, fastPreviewOnly: true }, (previewRes) => {
+      if (reqId !== selectionReqId) return;
+      if (!chrome.runtime.lastError && previewRes?.vi && !gotFinal) {
+        if (previewRes.isFinalAi) gotFinal = true;
+        root.VieDOM?.showQuickTranslatePopup(text, coords, previewRes);
+      }
+    });
+
+    chrome.runtime.sendMessage({ type: "TRANSLATE", text, fastPreviewOnly: false }, (res) => {
+      if (reqId !== selectionReqId) return;
       if (chrome.runtime.lastError || !res) {
-        root.VieDOM?.showQuickTranslatePopup(text, coords, { vi: "Lỗi kết nối dịch thuật." });
+        if (!gotFinal) {
+          root.VieDOM?.showQuickTranslatePopup(text, coords, { vi: "Lỗi kết nối dịch thuật." });
+        }
         return;
       }
+      gotFinal = true;
       root.VieDOM?.showQuickTranslatePopup(text, coords, res);
     });
   }

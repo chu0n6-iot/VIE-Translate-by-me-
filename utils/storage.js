@@ -52,6 +52,23 @@
     podcast_interview: "VIBE: Podcast / Phỏng vấn / Đàm thoại sâu. Dịch tự nhiên, ấm áp, nhã nhặn, đối đáp trôi chảy và xưng hô tôn trọng, chân thành."
   };
 
+  const NEUTRAL_STYLE_INSTRUCTIONS = {
+    natural: "Style: Natural, conversational, idiomatic, and context-accurate. Connect sentences smoothly and never translate word-for-word.",
+    cinema: "Style: Professional cinema / Netflix subtitle style: concise, emotionally resonant, rhythmic, faithful to character voice and pacing.",
+    academic: "Style: Academic & technical: accurate domain terminology in science, engineering, medicine, and economics with logical cohesion.",
+    genz: "Style: Youthful, witty, energetic casual slang appropriate to the target language while preserving exact core meaning.",
+    literal: "Style: Close bilingual reference style that remains grammatically natural and clear in the target language.",
+    unhinged: "Style: Unhinged dark-humor, edgy satirical parody with sharp internet meme energy while staying true to the underlying plot."
+  };
+
+  const NEUTRAL_PERSONA_INSTRUCTIONS = {
+    gaming_vlog: "VIBE: Gaming / Streamer / Vlog. Playful, energetic, colloquial banter with natural gamer slang.",
+    science_tech: "VIBE: Science / Tech / Educational (TED, Veritasium, Kurzgesagt). Clear, concise, accurate technical terminology and logical flow.",
+    drama_movie: "VIBE: Cinema / Drama. Expressive, emotionally nuanced dialogue matching character tone and tension.",
+    music_lyrics: "VIBE: Music / Lyrics. Poetic imagery, lyrical rhythm, and emotional fidelity to the song.",
+    podcast_interview: "VIBE: Podcast / Interview. Warm, conversational, thoughtful back-and-forth dialogue."
+  };
+
   const DEFAULT_SETTINGS = {
     enabled: true,
     dualSub: true,
@@ -96,21 +113,26 @@
     savedVocab: []
   };
 
-  function formatMultiSpeakerDialogue(rawText) {
+  function formatMultiSpeakerDialogue(rawText, enableSplit = true) {
     if (!rawText) return "";
-    let text = String(rawText)
+    const text = String(rawText)
       .replace(/<[^>]+>/g, " ")
       .replace(/\{[^}]+\}/g, " ")
       .trim();
+    if (!text) return "";
+
+    if (enableSplit === false) {
+      return text.replace(/\n+/g, " ").replace(/\s+/g, " ").trim();
+    }
 
     // 1. YouTube / Broadcast CC chevrons: ">>" or ">>>"
     if (/>>+/.test(text)) {
       const parts = text
         .split(/>>+/)
-        .map((p) => p.replace(/\s+/g, " ").trim())
+        .map((p) => p.replace(/\s+/g, " ").replace(/^[-–—]\s*/, "").trim())
         .filter(Boolean);
       if (parts.length >= 2) {
-        return parts.map((p) => (p.startsWith("-") ? p : `- ${p}`)).join("\n");
+        return parts.map((p) => `- ${p}`).join("\n");
       }
     }
 
@@ -125,23 +147,18 @@
         // Chỉ coi là 2 người nói khi có gạch đầu dòng; CC YouTube thường tự ngắt 1 câu thành 2 dòng
         if (hasDash) {
           return lines
-            .map((l) => {
-              const cleanL = l.replace(/^[-–—]\s*/, "").trim();
-              return `- ${cleanL}`;
-            })
+            .map((l) => `- ${l.replace(/^[-–—]\s*/, "").trim()}`)
             .join("\n");
         }
       }
     }
 
-    // 3. Dual dialogue on single line separated by " - " or " – " or " — "
-    const dashDialogueMatch = text.match(/^([-–—]\s*)?(.+?[.?!…”"'])\s+[-–—]\s+(.+)$/);
-    if (dashDialogueMatch) {
-      const part1 = dashDialogueMatch[2].replace(/^[-–—]\s*/, "").trim();
-      const part2 = dashDialogueMatch[3].replace(/^[-–—]\s*/, "").trim();
-      if (part1 && part2) {
-        return `- ${part1}\n- ${part2}`;
-      }
+    // 3. Multi-turn dialogue on single line separated after sentence punctuation by " - " / " – " / " — "
+    const dashParts = text.split(/(?<=[.?!…”"'])\s+[-–—]\s+/)
+      .map((p) => p.replace(/^[-–—]\s*/, "").replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+    if (dashParts.length >= 2) {
+      return dashParts.map((p) => `- ${p}`).join("\n");
     }
 
     // 4. Bracketed speakers like "[John] Hello! [Mary] Hi!" or "John: Hello! Mary: Hi!"
@@ -167,10 +184,21 @@
     return lines.length >= 2 && lines.some((l) => l.startsWith("-") || l.startsWith("–") || l.startsWith("—"));
   }
 
+  function stripAiThinkingAndFences(raw) {
+    if (!raw) return "";
+    return String(raw)
+      .replace(/<think>[\s\S]*?<\/think>/gi, "")
+      .replace(/<think>[\s\S]*$/gi, "")
+      .replace(/```[a-zA-Z0-9_-]*\s*\n?/g, "")
+      .replace(/```/g, "")
+      .trim();
+  }
+
   function cleanTranslatedOutput(rawText) {
     if (!rawText) return "";
-    let s = String(rawText)
+    let s = stripAiThinkingAndFences(rawText)
       .replace(/<\/?(?:translate_now|context_next|current_line)>/gi, "")
+      .replace(/^\s*(?:\[\[|［［)\s*#?\d+\s*(?:\]\]|］］)\s*/, "")
       .replace(/\[(?:Upcoming next line|Next line for context|Context Only[^\]]*|Multi-speaker dialogue[^\]]*|Dòng tiếp theo[^\]]*)\]\s*/gi, "")
       .replace(/^(?:Current line|Translated line|Bản dịch|Dịch)\s*:\s*/i, "")
       .trim();
@@ -183,17 +211,22 @@
   }
 
   function parseBatchTranslations(rawOutput, expectedCount = 0) {
-    const clean = String(rawOutput || "").trim();
+    const clean = stripAiThinkingAndFences(rawOutput);
     if (!clean) return [];
 
-    // Ưu tiên bóc theo đánh số đầu dòng (1. / 1) / [1] / #1:) để giữ nguyên hội thoại nhiều dòng (- A \n - B) bên trong mỗi câu
-    const itemRegex = /(?:^|\n)\s*(?:\[?#?(\d+)\]?[\.\)\]:-])\s*/g;
-    const matches = [...clean.matchAll(itemRegex)];
+    const extractByMatches = (regex) => {
+      const rawMatches = [...clean.matchAll(regex)];
+      const matches = expectedCount > 0
+        ? rawMatches.filter((m) => {
+            const n = parseInt(m[1] || m[2], 10);
+            return n >= 1 && n <= expectedCount;
+          })
+        : rawMatches;
+      if (!matches.length) return null;
 
-    if (matches.length >= 1) {
       const indexed = new Array(expectedCount || matches.length).fill("");
       for (let i = 0; i < matches.length; i++) {
-        const num = parseInt(matches[i][1], 10);
+        const num = parseInt(matches[i][1] || matches[i][2], 10);
         const startPos = matches[i].index + matches[i][0].length;
         const endPos = i + 1 < matches.length ? matches[i + 1].index : clean.length;
         const body = cleanTranslatedOutput(clean.slice(startPos, endPos));
@@ -203,16 +236,183 @@
           indexed[i] = body;
         }
       }
-      if (indexed.some(Boolean)) {
-        return indexed;
-      }
-    }
+      return indexed.some(Boolean) ? indexed : null;
+    };
+
+    // Priority 1: [[1]] / ［［1］］ bracketed batch delimiters
+    const bracketParsed = extractByMatches(/(?:^|\n)\s*(?:\[\[|［［)\s*#?(\d+)\s*(?:\]\]|］］)[\.\):-]?\s*/g);
+    if (bracketParsed) return bracketParsed;
+
+    // Priority 2: Classic numbered markers (1. / 1) / [1] / #1:); preserve 8:30 or 9-10 at line start
+    const classicParsed = extractByMatches(/(?:^|\n)\s*(?:\[\s*#?(\d+)\s*\][\.\)\]:-]?\s*|#?(\d+)[\.\)\]:](?:\s+|$))/g);
+    if (classicParsed) return classicParsed;
 
     return clean
       .split("\n")
-      .map((l) => cleanTranslatedOutput(l.replace(/^\d+[\.\)\]:-]\s*/, "")))
+      .map((l) => cleanTranslatedOutput(l.replace(/^\d+[\.\)\]:]\s+/, "")))
       .filter(Boolean);
   }
+
+  function getGlossaryHash(glossary) {
+    if (!Array.isArray(glossary) || !glossary.length) return "0";
+    const normalized = glossary
+      .filter((g) => g && g.src && g.target && g.enabled !== false && g.src.trim() && g.target.trim())
+      .map((g) => `${g.src.trim().toLowerCase()}=>${g.target.trim()}`)
+      .sort();
+    if (!normalized.length) return "0";
+    let hash = 0x811c9dc5;
+    const str = normalized.join("|");
+    for (let i = 0; i < str.length; i++) {
+      hash ^= str.charCodeAt(i);
+      hash = Math.imul(hash, 0x01000193);
+    }
+    return (hash >>> 0).toString(36);
+  }
+
+  function filterRelevantGlossary(glossary, corpusText = "", maxFallback = 15) {
+    if (!Array.isArray(glossary) || !glossary.length) return [];
+    const active = glossary
+      .filter((g) => g && g.src && g.target && g.enabled !== false && g.src.trim() && g.target.trim())
+      .map((g) => ({ src: g.src.trim(), target: g.target.trim() }))
+      .sort((a, b) => b.src.length - a.src.length);
+    if (!active.length) return [];
+
+    const lowerCorpus = String(corpusText || "").toLowerCase();
+    const matched = [];
+    const unmatched = [];
+    for (const item of active) {
+      if (lowerCorpus && lowerCorpus.includes(item.src.toLowerCase())) {
+        matched.push(item);
+      } else {
+        unmatched.push(item);
+      }
+    }
+    if (active.length <= maxFallback) {
+      return [...matched, ...unmatched].slice(0, maxFallback);
+    }
+    return matched;
+  }
+
+  function buildTranslationPrompts({
+    text = "",
+    texts = null,
+    nextText = "",
+    videoTitle = "",
+    videoPersona = "",
+    glossary = [],
+    targetLang = "vi",
+    translationStyle = "natural",
+    pronounStyle = "auto",
+    lockedPronounPair = "",
+    softenProfanity = true,
+    multiSpeakerSplit = true
+  } = {}) {
+    const isBatch = Array.isArray(texts) && texts.length > 0;
+    const langCode = targetLang || "vi";
+    const langName = LANGUAGE_NAMES[langCode] || langCode;
+    const isVi = langCode === "vi";
+
+    const corpus = isBatch ? texts.join("\n") : [text, nextText].filter(Boolean).join("\n");
+    const relevantGlossary = filterRelevantGlossary(glossary, corpus, 15);
+
+    const sysParts = [
+      `You are an elite bilingual subtitle localizer. Target language: ${langName} (${langCode}).`,
+      videoTitle ? `VIDEO CONTEXT: "${videoTitle}".` : "",
+      "SUBTITLE LOCALIZATION QUALITY:",
+      "- Translate by contextual meaning, idioms, phrasal verbs, slang, and domain terms natively into the target language — NEVER translate word-for-word.",
+      "- Use prior conversation history and lookahead cues to keep flow cohesive, resolve ambiguous pronouns (it, that, they) and omitted subjects (Japanese/Korean/Chinese), and keep subtitle phrasing concise for comfortable reading speed.",
+      "- SPLIT-CLAUSE ALIGNMENT: When one sentence spans consecutive cues, translate only the current segment seamlessly without duplicating or stealing content from adjacent cues."
+    ];
+
+    if (multiSpeakerSplit !== false) {
+      sysParts.push(
+        "MULTI-SPEAKER DIALOGUE: If a cue has 2+ speakers (indicated by '- ', '>>', character names, or back-and-forth exchanges), place EACH speaker on a separate line starting with '- ' and NEVER merge different speakers onto one line."
+      );
+    }
+
+    if (isVi) {
+      sysParts.push(
+        "- Với hội thoại nối tiếp hoặc vế rút gọn, dùng liên từ tiếng Việt tự nhiên ('Nhưng rồi', 'Thế là', 'Hóa ra', 'Chẳng ngờ', 'Dẫu vậy...').",
+        "- Với video ca nhạc/lyrics: dịch giàu vần điệu, hình ảnh thơ ca, giữ trọn hồn bài hát.",
+        videoPersona && PERSONA_INSTRUCTIONS[videoPersona] ? PERSONA_INSTRUCTIONS[videoPersona] : "",
+        STYLE_INSTRUCTIONS[translationStyle] || STYLE_INSTRUCTIONS.natural,
+        PRONOUN_INSTRUCTIONS[pronounStyle] || PRONOUN_INSTRUCTIONS.auto,
+        lockedPronounPair ? `LOCKED PRONOUN: ${lockedPronounPair}.` : ""
+      );
+    } else {
+      sysParts.push(
+        "- For music/lyrics, preserve poetic rhythm, imagery, and emotional tone.",
+        videoPersona && NEUTRAL_PERSONA_INSTRUCTIONS[videoPersona] ? NEUTRAL_PERSONA_INSTRUCTIONS[videoPersona] : "",
+        NEUTRAL_STYLE_INSTRUCTIONS[translationStyle] || NEUTRAL_STYLE_INSTRUCTIONS.natural,
+        "REGISTER CONSISTENCY: Choose a natural, context-appropriate tone/formality for the target language and keep pronouns/register consistent across lines."
+      );
+    }
+
+    if (relevantGlossary.length > 0) {
+      sysParts.push(
+        `STRICT GLOSSARY ENFORCEMENT: You MUST translate the following terms exactly as mapped without exception: ${relevantGlossary
+          .map((g) => `"${g.src}" => "${g.target}"`)
+          .join(", ")}.`
+      );
+    }
+
+    sysParts.push(
+      softenProfanity !== false
+        ? "FAMILY-FRIENDLY: Soften severe profanities/vulgar insults into mild natural expressions in the target language. NEVER refuse or stop translating."
+        : "UNCENSORED: Faithfully translate colloquial expressions and slang without censoring."
+    );
+
+    if (isBatch) {
+      sysParts.push(
+        "BATCH OUTPUT CONTRACT: Translate EVERY item in order and return ONLY lines tagged with exact markers [[1]], [[2]], ... up to [[" +
+          texts.length +
+          "]]. Preserve '- ' speaker lines inside multi-speaker items. Do NOT merge items, skip numbers, or output notes/thinking."
+      );
+    } else {
+      sysParts.push(
+        "OUTPUT CONTRACT: If <context_next> is provided, use it ONLY as lookahead context for grammar/pronouns — NEVER translate <context_next>. Translate ONLY <translate_now> and output ONLY the translated subtitle text without XML tags, notes, quotes, or thinking."
+      );
+    }
+
+    const systemPrompt = sysParts.filter(Boolean).join(" ");
+
+    let userPrompt = "";
+    if (isBatch) {
+      userPrompt =
+        `Translate each [[N]] subtitle cue below in continuous context. Keep exact [[N]] markers:\n` +
+        texts.map((t, i) => `[[${i + 1}]] ${t}`).join("\n");
+    } else {
+      const corePrompt =
+        nextText && nextText.trim()
+          ? `<context_next>${nextText.trim()}</context_next>\n<translate_now>${text}</translate_now>`
+          : text;
+      const isMulti = multiSpeakerSplit !== false && (isMultiSpeakerDialogue(text) || text.includes("\n-"));
+      userPrompt = isMulti
+        ? `[Multi-speaker dialogue. Keep each speaker on separate line with '- ']:\n${corePrompt}`
+        : corePrompt;
+    }
+
+    return { systemPrompt, userPrompt, isBatch };
+  }
+
+  let _cachedSettings = null;
+  let _settingsPromise = null;
+  let _cacheListenerAttached = false;
+
+  function ensureCacheListener() {
+    if (_cacheListenerAttached) return;
+    if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
+      _cacheListenerAttached = true;
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === "local" && _cachedSettings) {
+          for (const [k, c] of Object.entries(changes)) {
+            _cachedSettings[k] = c.newValue;
+          }
+        }
+      });
+    }
+  }
+  ensureCacheListener();
 
   const VieStorage = {
     FONT_FAMILY_MAP,
@@ -220,35 +420,66 @@
     STYLE_INSTRUCTIONS,
     PRONOUN_INSTRUCTIONS,
     PERSONA_INSTRUCTIONS,
+    NEUTRAL_STYLE_INSTRUCTIONS,
+    NEUTRAL_PERSONA_INSTRUCTIONS,
     DEFAULT_SETTINGS,
     formatMultiSpeakerDialogue,
     isMultiSpeakerDialogue,
+    stripAiThinkingAndFences,
     cleanTranslatedOutput,
     parseBatchTranslations,
+    getGlossaryHash,
+    filterRelevantGlossary,
+    buildTranslationPrompts,
 
     getSettings() {
-      return new Promise((resolve) => {
-        chrome.storage.local.get(DEFAULT_SETTINGS, (res) => {
-          resolve({ ...DEFAULT_SETTINGS, ...res });
+      ensureCacheListener();
+      if (_cachedSettings) {
+        return Promise.resolve({ ..._cachedSettings });
+      }
+      if (typeof chrome === "undefined" || !chrome.storage?.local) {
+        _cachedSettings = { ...DEFAULT_SETTINGS };
+        return Promise.resolve({ ..._cachedSettings });
+      }
+      if (!_settingsPromise) {
+        _settingsPromise = new Promise((resolve) => {
+          chrome.storage.local.get(DEFAULT_SETTINGS, (res) => {
+            _cachedSettings = { ...DEFAULT_SETTINGS, ...res };
+            _settingsPromise = null;
+            resolve({ ..._cachedSettings });
+          });
         });
-      });
+      }
+      return _settingsPromise.then((s) => ({ ...s }));
     },
 
     setSettings(updates) {
+      ensureCacheListener();
+      if (_cachedSettings && updates && typeof updates === "object") {
+        _cachedSettings = { ..._cachedSettings, ...updates };
+      }
+      if (typeof chrome === "undefined" || !chrome.storage?.local) {
+        _cachedSettings = { ...DEFAULT_SETTINGS, ...(_cachedSettings || {}), ...(updates || {}) };
+        return Promise.resolve();
+      }
       return new Promise((resolve) => {
         chrome.storage.local.set(updates, resolve);
       });
     },
 
     onChanged(callback) {
-      chrome.storage.onChanged.addListener((changes, area) => {
-        if (area === "local") callback(changes);
-      });
+      if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
+        chrome.storage.onChanged.addListener((changes, area) => {
+          if (area === "local") callback(changes);
+        });
+      }
     },
 
     getCacheKey(text, settings) {
       const s = settings || DEFAULT_SETTINGS;
-      const mode = `${s.softenProfanity !== false ? "soft" : "raw"}:${s.pronounStyle || "auto"}`;
+      const ms = s.multiSpeakerSplit !== false ? "ms1" : "ms0";
+      const glHash = getGlossaryHash(s.customGlossary);
+      const mode = `${s.softenProfanity !== false ? "soft" : "raw"}:${s.pronounStyle || "auto"}:${ms}:g${glHash}`;
       return `${s.targetLang || "vi"}:${s.secondaryLang || "orig"}:${s.translationStyle || "natural"}:${mode}:${text}`;
     },
 

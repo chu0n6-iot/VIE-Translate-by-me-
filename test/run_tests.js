@@ -380,15 +380,24 @@ console.log("1️⃣1️⃣ Kiểm tra kết nối mạng thực tế tới Goog
 async function testLiveGtx() {
   const url = "https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl=auto&tl=vi&q=" + encodeURIComponent("Hello world");
   try {
-    const res = await fetch(url);
-    if (res.ok) {
-      const data = await res.json();
+    let data = null;
+    let status = 200;
+    if (process.versions && process.versions.electron) {
+      const { execFileSync } = require("child_process");
+      const raw = execFileSync("curl.exe", ["-sS", "--max-time", "5", url], { encoding: "utf8" });
+      data = JSON.parse(raw);
+    } else {
+      const res = await fetch(url);
+      status = res.status;
+      if (res.ok) data = await res.json();
+    }
+    if (data && Array.isArray(data[0])) {
       const translated = data[0].map((item) => item[0] || "").join("").trim();
       assert.strictEqual(translated.toLowerCase().includes("chào") || translated.toLowerCase().includes("thế giới"), true, "Bản dịch thực tế phải chứa 'chào' hoặc 'thế giới'!");
       console.log(`   ✅ Đã kiểm tra trực tuyến: 'Hello world' ➔ '${translated}' (Phản hồi tức thì!)\n`);
     } else {
-      assert.strictEqual([429, 200].includes(res.status), true, "Phản hồi kết nối phải hợp lệ!");
-      console.log(`   ✅ Đã kiểm tra trực tuyến: Google Translate phản hồi HTTP ${res.status} (Kết nối mạng tới máy chủ Google thông suốt!)\n`);
+      assert.strictEqual([429, 200].includes(status), true, "Phản hồi kết nối phải hợp lệ!");
+      console.log(`   ✅ Đã kiểm tra trực tuyến: Google Translate phản hồi HTTP ${status} (Kết nối mạng tới máy chủ Google thông suốt!)\n`);
     }
   } catch (err) {
     console.log(`   ⚠️ Bỏ qua kiểm tra mạng trực tiếp: ${err.message}\n`);
@@ -482,5 +491,707 @@ console.log("🎉 TOÀN BỘ 14 BÀI KIỂM TRA ĐỀU HOÀN TOÀN CHÍNH XÁC V
   assert.strictEqual(norm("YouTube"), "YouTube");
   console.log("✓ glued-word normalization");
 })();
+
+// =========================================================================
+// REAL-MODULE INTEGRATION & PERFORMANCE TESTS (15 - 22)
+// =========================================================================
+const vm = require("vm");
+const fs = require("fs");
+const path = require("path");
+const ROOT_DIR = path.resolve(__dirname, "..");
+
+function createSandbox(overrides = {}) {
+  const sandbox = {
+    console,
+    setTimeout,
+    clearTimeout,
+    setInterval,
+    clearInterval,
+    AbortController,
+    URL,
+    Date,
+    Math,
+    RegExp,
+    Promise,
+    Error,
+    JSON,
+    Map,
+    Set,
+    WeakMap,
+    WeakSet,
+    encodeURIComponent,
+    decodeURIComponent,
+    atob: (b64) => Buffer.from(b64, "base64").toString("binary"),
+    btoa: (bin) => Buffer.from(bin, "binary").toString("base64"),
+    location: { href: "https://www.youtube.com/watch?v=testVid", hostname: "www.youtube.com" },
+    ...overrides
+  };
+  sandbox.self = sandbox;
+  sandbox.globalThis = sandbox;
+  sandbox.window = sandbox;
+  return vm.createContext(sandbox);
+}
+
+function loadModule(ctx, relPath) {
+  const fullPath = path.join(ROOT_DIR, relPath);
+  const code = fs.readFileSync(fullPath, "utf8");
+  vm.runInContext(code, ctx, { filename: fullPath });
+}
+
+function makeMockResponse({ ok = true, status = 200, jsonData = {} }) {
+  return {
+    ok,
+    status,
+    json: async () => jsonData,
+    text: async () => JSON.stringify(jsonData)
+  };
+}
+
+// --- 15. Test VieStorage Real Module (Settings Cache, Glossary Hash, Output & Batch Parser) ---
+console.log("\n1️⃣5️⃣ Kiểm tra VieStorage thật (Settings Cache 0ms, CacheKey hash, <think> strip & [[N]] Parser)...");
+await (async () => {
+  let storageGetCalls = 0;
+  let storedData = { targetLang: "vi", translationStyle: "natural", customGlossary: [] };
+  const changeListeners = [];
+  const chromeMock = {
+    storage: {
+      local: {
+        get: (defaults, cb) => {
+          storageGetCalls++;
+          cb({ ...defaults, ...storedData });
+        },
+        set: (updates, cb) => {
+          storedData = { ...storedData, ...updates };
+          if (cb) cb();
+        }
+      },
+      onChanged: {
+        addListener: (fn) => changeListeners.push(fn)
+      }
+    }
+  };
+  const ctx = createSandbox({ chrome: chromeMock });
+  loadModule(ctx, "utils/storage.js");
+  const S = ctx.VieStorage;
+
+  // Concurrent + repeated getSettings calls must only hit chrome.storage.local.get ONCE
+  const [s1, s2, s3] = await Promise.all([S.getSettings(), S.getSettings(), S.getSettings()]);
+  assert.strictEqual(storageGetCalls, 1, "Đồng thời nhiều getSettings chỉ được gọi IPC 1 lần duy nhất!");
+  assert.strictEqual(s1.targetLang, "vi");
+  assert.strictEqual(s2.translationStyle, "natural");
+  assert.strictEqual(s3.multiSpeakerSplit, true);
+
+  // Live onChanged invalidates/updates in-memory cache without re-reading storage
+  for (const fn of changeListeners) {
+    fn({ translationStyle: { oldValue: "natural", newValue: "cinema" } }, "local");
+  }
+  const s4 = await S.getSettings();
+  assert.strictEqual(s4.translationStyle, "cinema", "onChanged phải cập nhật ngay cache bộ nhớ!");
+  assert.strictEqual(storageGetCalls, 1, "Sau onChanged không cần gọi lại storage.get!");
+
+  // setSettings updates cache synchronously
+  await S.setSettings({ targetLang: "ja" });
+  const s5 = await S.getSettings();
+  assert.strictEqual(s5.targetLang, "ja", "setSettings phải cập nhật cache!");
+
+  // getCacheKey invalidates on glossary change & multiSpeakerSplit toggle
+  const kBase = S.getCacheKey("Hello", { targetLang: "vi", multiSpeakerSplit: true, customGlossary: [] });
+  const kGloss = S.getCacheKey("Hello", { targetLang: "vi", multiSpeakerSplit: true, customGlossary: [{ src: "Hello", target: "Chào", enabled: true }] });
+  const kNoSplit = S.getCacheKey("Hello", { targetLang: "vi", multiSpeakerSplit: false, customGlossary: [] });
+  assert.notStrictEqual(kBase, kGloss, "Thay đổi Glossary phải làm đổi cacheKey!");
+  assert.notStrictEqual(kBase, kNoSplit, "Bật/tắt tách nhiều người nói phải làm đổi cacheKey!");
+
+  // formatMultiSpeakerDialogue configurable & 3+ turns
+  assert.strictEqual(S.formatMultiSpeakerDialogue("Wait! - Why? - Because!", true), "- Wait!\n- Why?\n- Because!");
+  assert.strictEqual(S.formatMultiSpeakerDialogue("Wait! - Why?", false), "Wait! - Why?");
+
+  // cleanTranslatedOutput strips <think>, code fences, [[1]] echo, and quotes
+  const dirtyOut = '<think>1. step one\n2. step two</think>\n```txt\n[[1]] "Xin chào"\n```';
+  assert.strictEqual(S.cleanTranslatedOutput(dirtyOut), "Xin chào", "Phải lọc sạch <think>, code fence, [[1]] và ngoặc kép!");
+  assert.strictEqual(S.cleanTranslatedOutput('<think>unclosed thinking'), "", "Unclosed <think> phải bị lọc sạch!");
+
+  // parseBatchTranslations handles [[1]] multi-speaker, preserves 8:30 / 9-10, and strips <think>1. ... 2. ...
+  const rawBracket = `<think>1. think first\n2. think second</think>\n[[1]] - Chào anh!\n- Chào em!\n[[2]] Bây giờ là\n8:30 sáng và 9-10 giờ họp.\n[[3]] Xong rồi!`;
+  const parsedB = S.parseBatchTranslations(rawBracket, 3);
+  assert.strictEqual(parsedB[0], "- Chào anh!\n- Chào em!", "Mục 1 phải giữ nguyên hội thoại nhiều dòng!");
+  assert.strictEqual(parsedB[1], "Bây giờ là\n8:30 sáng và 9-10 giờ họp.", "Mục 2 không được tách nhầm tại 8:30 hay 9-10!");
+  assert.strictEqual(parsedB[2], "Xong rồi!", "Mục 3 phải khớp chính xác bất chấp số trong <think>!");
+
+  // Classic numbering ignores year at line start if > expectedCount
+  const rawYear = "1. Năm nay là\n2024. Một năm tuyệt vời\n2. Tuyệt quá!";
+  const parsedY = S.parseBatchTranslations(rawYear, 2);
+  assert.strictEqual(parsedY[0], "Năm nay là\n2024. Một năm tuyệt vời");
+  assert.strictEqual(parsedY[1], "Tuyệt quá!");
+
+  console.log("   ✅ Đã kiểm tra VieStorage: Cache 0ms, CacheKey hash, <think> strip & [[N]] Batch Parser chuẩn 100%!\n");
+})();
+
+// --- 16. Test buildTranslationPrompts & filterRelevantGlossary ---
+console.log("1️⃣6️⃣ Kiểm tra buildTranslationPrompts (đa ngôn ngữ sạch) & filterRelevantGlossary...");
+(() => {
+  const ctx = createSandbox();
+  loadModule(ctx, "utils/storage.js");
+  const S = ctx.VieStorage;
+
+  const pJa = S.buildTranslationPrompts({
+    text: "I will become stronger.",
+    targetLang: "ja",
+    translationStyle: "natural",
+    videoPersona: "drama_movie",
+    pronounStyle: "minh_ban"
+  });
+  assert.strictEqual(pJa.systemPrompt.includes("日本語") || pJa.systemPrompt.includes("(ja)"), true);
+  assert.strictEqual(pJa.systemPrompt.includes("thuần Việt"), false, "Dịch sang tiếng Nhật KHÔNG được chèn prompt 'thuần Việt'!");
+  assert.strictEqual(pJa.systemPrompt.includes("mình"), false, "Dịch sang tiếng Nhật KHÔNG được chèn ngôi xưng 'mình - bạn'!");
+
+  const pEn = S.buildTranslationPrompts({
+    texts: ["Xin chào", "Cảm ơn"],
+    targetLang: "en",
+    translationStyle: "cinema"
+  });
+  assert.strictEqual(pEn.isBatch, true);
+  assert.strictEqual(pEn.systemPrompt.includes("[[1]]"), true);
+  assert.strictEqual(pEn.userPrompt.includes("[[1]] Xin chào"), true);
+  assert.strictEqual(pEn.systemPrompt.includes("thuần Việt"), false, "Dịch sang tiếng Anh KHÔNG được chứa chỉ dẫn tiếng Việt!");
+
+  const pVi = S.buildTranslationPrompts({
+    text: "Hello!",
+    targetLang: "vi",
+    translationStyle: "natural",
+    pronounStyle: "minh_ban"
+  });
+  assert.strictEqual(pVi.systemPrompt.includes("thuần Việt"), true, "Dịch sang tiếng Việt phải giữ phong cách thuần Việt!");
+  assert.strictEqual(pVi.systemPrompt.includes("mình"), true, "Dịch sang tiếng Việt phải áp dụng ngôi xưng mình - bạn!");
+
+  // filterRelevantGlossary with > 15 items selects only relevant matched terms longest-first
+  const largeGlossary = [
+    { src: "Machine", target: "Máy móc", enabled: true },
+    { src: "Machine Learning", target: "Học máy", enabled: true },
+    { src: "GPU", target: "Card đồ họa", enabled: true }
+  ];
+  for (let i = 0; i < 18; i++) {
+    largeGlossary.push({ src: `UnusedTerm${i}`, target: `Không dùng ${i}`, enabled: true });
+  }
+  const filtered = S.filterRelevantGlossary(largeGlossary, "We train Machine Learning models on GPU.", 15);
+  assert.strictEqual(filtered.length, 3, "Glossary > 15 mục chỉ được giữ lại các từ xuất hiện trong câu!");
+  assert.strictEqual(filtered[0].src, "Machine Learning", "Thuật ngữ dài hơn ('Machine Learning') phải xếp trước 'Machine'!");
+
+  console.log("   ✅ Đã kiểm tra buildTranslationPrompts & filterRelevantGlossary chuẩn 100%!\n");
+})();
+
+// --- 17. Test VieGemini Real Module (Single-Endpoint AIza, 401 Abort, Gemma-3, Deduplicated Discovery) ---
+console.log("1️⃣7️⃣ Kiểm tra VieGemini thật (AIza chỉ gọi 1 endpoint, 401 dừng ngay, Gemma-3 & Discovery dedup)...");
+await (async () => {
+  const calls = [];
+  const mockFetch = async (url, opts) => {
+    calls.push({ url, opts });
+    if (url.includes("/v1beta/models?")) {
+      await new Promise((r) => setTimeout(r, 15));
+      return makeMockResponse({
+        ok: true,
+        status: 200,
+        jsonData: { models: [{ name: "models/gemini-2.5-flash-lite" }, { name: "models/gemma-3-27b-it" }] }
+      });
+    }
+    if (url.includes("AIzaQuotaKey")) {
+      return makeMockResponse({ ok: false, status: 429, jsonData: { error: { message: "Quota exceeded 429" } } });
+    }
+    if (url.includes("AIzaDeadKey")) {
+      return makeMockResponse({ ok: false, status: 401, jsonData: { error: { message: "API key invalid" } } });
+    }
+    const body = JSON.parse(opts.body);
+    return makeMockResponse({
+      ok: true,
+      status: 200,
+      jsonData: {
+        candidates: [{ content: { parts: [{ text: body.systemInstruction ? "Dịch Gemini" : "Dịch Gemma" }] } }]
+      }
+    });
+  };
+  const ctx = createSandbox({ fetch: mockFetch });
+  loadModule(ctx, "utils/storage.js");
+  loadModule(ctx, "api/gemini.js");
+
+  // Deduplicated parallel discovery
+  const [m1, m2] = await Promise.all([
+    ctx.VieGemini.discoverGeminiModels("AIzaQuotaKey"),
+    ctx.VieGemini.discoverGeminiModels("AIzaQuotaKey")
+  ]);
+  assert.deepStrictEqual(m1, m2);
+  const discoveryCalls = calls.filter((c) => c.url.includes("/v1beta/models?"));
+  assert.strictEqual(discoveryCalls.length, 1, "2 lần discover song song cùng key chỉ được gọi HTTP 1 lần!");
+
+  // AIza key 429 must NEVER hit aiplatform.googleapis.com and MUST preserve isQuotaExceeded
+  calls.length = 0;
+  let caught429 = null;
+  try {
+    await ctx.VieGemini.translateWithGeminiAuto({ text: "Hi", apiKey: "AIzaQuotaKey", targetLang: "vi" });
+  } catch (e) {
+    caught429 = e;
+  }
+  assert.ok(caught429 && caught429.isQuotaExceeded === true, "Key AIza gặp 429 phải giữ nguyên isQuotaExceeded: true!");
+  assert.strictEqual(calls.some((c) => c.url.includes("aiplatform.googleapis.com")), false, "Key AIza tuyệt đối không được gọi Vertex endpoint!");
+
+  // 401 must break immediately after 1 generateContent call (no retry loop across models)
+  calls.length = 0;
+  let caught401 = null;
+  try {
+    await ctx.VieGemini.translateWithGeminiAuto({ text: "Hi", apiKey: "AIzaDeadKey", targetLang: "vi" });
+  } catch (e) {
+    caught401 = e;
+  }
+  assert.strictEqual(caught401?.status, 401);
+  const genCalls401 = calls.filter((c) => c.url.includes(":generateContent"));
+  assert.strictEqual(genCalls401.length, 1, "HTTP 401 phải dừng ngay sau 1 lần gọi, không retry sang model khác!");
+
+  // Gemma-3 model must omit systemInstruction and inline into contents[0]
+  calls.length = 0;
+  const gemmaRes = await ctx.VieGemini.translateWithGeminiAuto({
+    text: "Hello",
+    apiKey: "AIzaGemmaOk",
+    preferredModel: "gemma-3-27b-it",
+    targetLang: "vi"
+  });
+  assert.strictEqual(gemmaRes.vi, "Dịch Gemma");
+  const gemmaReq = JSON.parse(calls.find((c) => c.url.includes("gemma-3-27b-it")).opts.body);
+  assert.strictEqual(gemmaReq.systemInstruction, undefined, "Gemma-3 không được gửi trường systemInstruction!");
+  assert.strictEqual(gemmaReq.contents[0].parts[0].text.includes("Hello"), true);
+  assert.strictEqual(gemmaReq.contents[0].parts[0].text.length > 20, true, "System prompt phải được gộp vào contents[0] cho Gemma-3!");
+
+  console.log("   ✅ Đã kiểm tra VieGemini: AIza 1 endpoint, 401 dừng ngay, Gemma-3 tương thích & dedup 100%!\n");
+})();
+
+// --- 18. Test VieGroq & VieOllama Real Modules ---
+console.log("1️⃣8️⃣ Kiểm tra VieGroq & VieOllama thật (Groq 429/401, Qwen3 /no_think, Ollama 60s discovery cache)...");
+await (async () => {
+  const groqCalls = [];
+  const groqFetch = async (url, opts) => {
+    groqCalls.push({ url, opts });
+    if (url.endsWith("/models")) {
+      return makeMockResponse({ ok: true, status: 200, jsonData: { data: [{ id: "qwen/qwen3-32b" }, { id: "llama-3.3-70b-versatile" }] } });
+    }
+    const auth = opts?.headers?.Authorization || "";
+    if (auth.includes("gsk_429")) {
+      return makeMockResponse({ ok: false, status: 429, jsonData: { error: { message: "rate_limit_exceeded" } } });
+    }
+    if (auth.includes("gsk_401")) {
+      return makeMockResponse({ ok: false, status: 401, jsonData: { error: { message: "Invalid API Key" } } });
+    }
+    return makeMockResponse({
+      ok: true,
+      status: 200,
+      jsonData: { choices: [{ message: { content: "<think>internal plan</think>\nXin chào Groq" } }] }
+    });
+  };
+  const ctxG = createSandbox({ fetch: groqFetch });
+  loadModule(ctxG, "utils/storage.js");
+  loadModule(ctxG, "api/gemini.js");
+  loadModule(ctxG, "api/groq.js");
+
+  // Qwen3 /no_think + <think> stripping
+  const qwenRes = await ctxG.VieGroq.translateWithGroqAuto({
+    text: "Hello Groq",
+    apiKey: "gsk_ok",
+    preferredModel: "qwen/qwen3-32b",
+    targetLang: "vi"
+  });
+  assert.strictEqual(qwenRes.vi, "Xin chào Groq");
+  const qwenBody = JSON.parse(groqCalls.find((c) => c.url.includes("/chat/completions")).opts.body);
+  assert.strictEqual(qwenBody.messages[0].content.endsWith("/no_think"), true, "Qwen3 phải được gắn /no_think!");
+
+  // Groq 401 aborts immediately
+  groqCalls.length = 0;
+  let g401 = null;
+  try {
+    await ctxG.VieGroq.translateWithGroqAuto({ text: "Hi", apiKey: "gsk_401", targetLang: "vi" });
+  } catch (e) {
+    g401 = e;
+  }
+  assert.strictEqual(g401?.status, 401);
+  assert.strictEqual(groqCalls.filter((c) => c.url.includes("/chat/completions")).length, 1, "Groq 401 phải dừng sau 1 lần gọi!");
+
+  // Groq 429 preserves isQuotaExceeded
+  let g429 = null;
+  try {
+    await ctxG.VieGroq.translateWithGroqAuto({ text: "Hi", apiKey: "gsk_429", targetLang: "vi" });
+  } catch (e) {
+    g429 = e;
+  }
+  assert.strictEqual(g429?.isQuotaExceeded, true, "Groq 429 phải đánh dấu isQuotaExceeded: true!");
+
+  // Ollama 60s tag discovery cache & qwen3 /no_think + num_predict
+  const ollamaCalls = [];
+  const ollamaFetch = async (url, opts) => {
+    ollamaCalls.push({ url, opts });
+    if (url.endsWith("/api/tags")) {
+      return makeMockResponse({ ok: true, status: 200, jsonData: { models: [{ name: "qwen3:8b" }, { name: "llama3.1:8b" }] } });
+    }
+    return makeMockResponse({
+      ok: true,
+      status: 200,
+      jsonData: { message: { content: "<think>hmm</think>Bản dịch Ollama" } }
+    });
+  };
+  const ctxO = createSandbox({ fetch: ollamaFetch });
+  loadModule(ctxO, "utils/storage.js");
+  loadModule(ctxO, "api/ollama.js");
+
+  const o1 = await ctxO.VieOllama.translateWithOllama({ text: "One", targetLang: "vi" });
+  const o2 = await ctxO.VieOllama.translateWithOllama({ text: "Two", targetLang: "vi" });
+  assert.strictEqual(o1.vi, "Bản dịch Ollama");
+  assert.strictEqual(o2.vi, "Bản dịch Ollama");
+  assert.strictEqual(ollamaCalls.filter((c) => c.url.endsWith("/api/tags")).length, 1, "Ollama /api/tags phải được cache 60s (chỉ gọi 1 lần)!");
+  const oBody = JSON.parse(ollamaCalls.find((c) => c.url.endsWith("/api/chat")).opts.body);
+  assert.strictEqual(oBody.messages[0].content.endsWith("/no_think"), true);
+  assert.strictEqual(oBody.options.num_predict, 280);
+
+  console.log("   ✅ Đã kiểm tra VieGroq & VieOllama: 429/401, /no_think, & 60s Ollama tag cache chuẩn 100%!\n");
+})();
+
+// --- 19. Test VieGTX.translateBatch (1-Request Batching + Missing Index Fallback) ---
+console.log("1️⃣9️⃣ Kiểm tra VieGTX.translateBatch (gộp 1 request + tự cứu hộ mục khuyết)...");
+await (async () => {
+  const gtxCalls = [];
+  const gtxFetch = async (url) => {
+    const q = decodeURIComponent(new URL(url).searchParams.get("q") || "");
+    gtxCalls.push(q);
+    if (q.includes("[[1]]") && q.includes("DropMe")) {
+      // Simulate GTX dropping [[2]]
+      return makeMockResponse({ ok: true, status: 200, jsonData: [[["[[1]]\nXin chào\n[[3]]\nTạm biệt"]]] });
+    }
+    if (q.includes("[[1]]")) {
+      return makeMockResponse({ ok: true, status: 200, jsonData: [[["[[1]]\nMột\n[[2]]\nHai\n[[3]]\nBa"]]] });
+    }
+    if (q === "DropMe") {
+      return makeMockResponse({ ok: true, status: 200, jsonData: [[["Thả tôi"]]] });
+    }
+    return makeMockResponse({ ok: true, status: 200, jsonData: [[["OK"]]] });
+  };
+  const ctx = createSandbox({ fetch: gtxFetch });
+  loadModule(ctx, "utils/storage.js");
+  loadModule(ctx, "api/gtx.js");
+
+  const fullBatch = await ctx.VieGTX.translateBatch(["One", "Two", "Three"], "vi");
+  assert.deepStrictEqual(Array.from(fullBatch), ["Một", "Hai", "Ba"]);
+  assert.strictEqual(gtxCalls.length, 1, "3 câu GTX phải gộp thành đúng 1 HTTP request!");
+
+  gtxCalls.length = 0;
+  const partialBatch = await ctx.VieGTX.translateBatch(["Hello", "DropMe", "Bye"], "vi");
+  assert.deepStrictEqual(Array.from(partialBatch), ["Xin chào", "Thả tôi", "Tạm biệt"]);
+  assert.strictEqual(gtxCalls.length, 2, "Mục bị rớt [[2]] phải tự cứu hộ bằng đúng 1 request bổ sung!");
+
+  console.log("   ✅ Đã kiểm tra VieGTX.translateBatch: Gộp 1 request & tự bù mục khuyết chuẩn 100%!\n");
+})();
+
+// --- 20. Test background/background.js Coordinator (0ms AI Preview, Cross-Dedup, Partial Recovery, CJK Glossary, Unicode Pronoun Lock) ---
+console.log("2️⃣0️⃣ Kiểm tra background.js thật (0ms AI Cache Shortcut, Batch↔Single Dedup, Partial GTX Recovery, Glossary CJK & Đại từ)...");
+await (async () => {
+  let msgHandler = null;
+  let storedSettings = {
+    provider: "gemini",
+    apiKey: "AIzaMockBgKey",
+    geminiApiKey: "AIzaMockBgKey",
+    targetLang: "vi",
+    secondaryLang: "orig",
+    translationStyle: "natural",
+    pronounStyle: "auto",
+    autoPersona: true,
+    multiSpeakerSplit: true,
+    softenProfanity: true,
+    customGlossary: [
+      { src: "五条悟", target: "Gojo Satoru", enabled: true },
+      { src: "Machine", target: "Máy móc", enabled: true },
+      { src: "Machine Learning", target: "Học máy", enabled: true }
+    ]
+  };
+  let storageLocalData = { translationCache: [] };
+
+  let aiCalls = 0;
+  let gtxCalls = 0;
+  let releaseBatchAi = null;
+
+  const mockFetch = async (url, opts) => {
+    if (url.includes("translate.googleapis.com")) {
+      gtxCalls++;
+      const q = decodeURIComponent(new URL(url).searchParams.get("q") || "");
+      if (q === "Line B") return makeMockResponse({ ok: true, status: 200, jsonData: [[["Dòng B từ GTX"]]] });
+      return makeMockResponse({ ok: true, status: 200, jsonData: [[[`GTX:${q}`]]] });
+    }
+    if (url.includes("/v1beta/models?")) {
+      return makeMockResponse({ ok: true, status: 200, jsonData: { models: [{ name: "models/gemini-2.5-flash-lite" }] } });
+    }
+    if (url.includes(":generateContent")) {
+      aiCalls++;
+      const body = JSON.parse(opts.body);
+      const userTxt = body.contents[body.contents.length - 1].parts[0].text;
+      if (userTxt.includes("Line A") && userTxt.includes("Line B")) {
+        // Hold batch open to test cross-deduplication with live TRANSLATE
+        await new Promise((resolve) => { releaseBatchAi = resolve; });
+        return makeMockResponse({
+          ok: true,
+          status: 200,
+          jsonData: { candidates: [{ content: { parts: [{ text: "[[1]] Dòng A từ AI" }] } }] }
+          // Intentionally omit [[2]] to test partial GTX recovery!
+        });
+      }
+      if (userTxt.includes("Hôm nay") || userTxt.includes("camping")) {
+        return makeMockResponse({
+          ok: true,
+          status: 200,
+          jsonData: { candidates: [{ content: { parts: [{ text: "Hôm nay mình đi cắm trại một mình" }] } }] }
+        });
+      }
+      if (userTxt.includes("五条悟")) {
+        return makeMockResponse({
+          ok: true,
+          status: 200,
+          jsonData: { candidates: [{ content: { parts: [{ text: "五条悟 là mạnh nhất" }] } }] }
+        });
+      }
+      if (userTxt.includes("Machine Learning")) {
+        return makeMockResponse({
+          ok: true,
+          status: 200,
+          jsonData: { candidates: [{ content: { parts: [{ text: "Machine Learning dùng Machine" }] } }] }
+        });
+      }
+      return makeMockResponse({
+        ok: true,
+        status: 200,
+        jsonData: { candidates: [{ content: { parts: [{ text: "Tôi thích ẩn mình và hòa mình" }] } }] }
+      });
+    }
+    return makeMockResponse({ ok: false, status: 404, jsonData: {} });
+  };
+
+  const chromeMock = {
+    storage: {
+      local: {
+        get: (keys, cb) => {
+          if (keys && "translationCache" in keys) return cb({ translationCache: storageLocalData.translationCache });
+          return cb({ ...keys, ...storedSettings });
+        },
+        set: (updates, cb) => {
+          if ("translationCache" in updates) storageLocalData.translationCache = updates.translationCache;
+          else storedSettings = { ...storedSettings, ...updates };
+          if (cb) cb();
+        },
+        remove: () => {}
+      },
+      onChanged: { addListener: () => {} }
+    },
+    runtime: {
+      onMessage: { addListener: (fn) => { msgHandler = fn; } },
+      onInstalled: { addListener: () => {} },
+      lastError: null
+    },
+    contextMenus: { create: () => {}, onClicked: { addListener: () => {} } }
+  };
+
+  const ctx = createSandbox({
+    chrome: chromeMock,
+    fetch: mockFetch,
+    importScripts: (...paths) => {
+      for (const p of paths) loadModule(ctx, p.replace(/^\//, ""));
+    }
+  });
+  loadModule(ctx, "background/background.js");
+
+  const sendMsg = (msg, tabId = 101) =>
+    new Promise((resolve) => msgHandler(msg, { tab: { id: tabId } }, resolve));
+
+  // 20A: Cross-dedup (TRANSLATE_BATCH + concurrent TRANSLATE for "Line A") + Partial GTX Recovery for "Line B"
+  aiCalls = 0;
+  gtxCalls = 0;
+  const batchProm = sendMsg({ type: "TRANSLATE_BATCH", texts: ["Line A", "Line B"], videoTitle: "Test" }, 101);
+  // Wait a microtask so batch reaches generateContent and registers inFlight promises
+  await new Promise((r) => setTimeout(r, 20));
+  const singleProm = sendMsg({ type: "TRANSLATE", text: "Line A", videoTitle: "Test", fastPreviewOnly: false }, 101);
+  assert.ok(releaseBatchAi, "Batch phải đang chờ mock AI!");
+  releaseBatchAi();
+
+  const [batchRes, singleRes] = await Promise.all([batchProm, singleProm]);
+  assert.strictEqual(aiCalls, 1, "TRANSLATE cho 'Line A' đang nằm trong batch KHÔNG được gọi AI lần 2!");
+  assert.strictEqual(batchRes.results["Line A"], "Dòng A từ AI");
+  assert.strictEqual(singleRes.vi, "Dòng A từ AI");
+  assert.strictEqual(batchRes.results["Line B"], "Dòng B từ GTX", "Mục bị rớt trong batch AI phải tự phục hồi bằng GTX!");
+
+  // 20B: 0ms AI Cache Shortcut on fastPreviewOnly === true
+  const gtxBeforeShortcut = gtxCalls;
+  const previewRes = await sendMsg({ type: "TRANSLATE", text: "Line A", videoTitle: "Test", fastPreviewOnly: true }, 101);
+  assert.strictEqual(previewRes.vi, "Dòng A từ AI");
+  assert.strictEqual(previewRes.isFinalAi, true, "Preview khi AI đã cached phải trả về isFinalAi: true!");
+  assert.strictEqual(gtxCalls, gtxBeforeShortcut, "Khi AI đã cached, fastPreviewOnly KHÔNG được gọi GTX!");
+
+  // 20C: CJK Glossary & Longest-Match-First
+  const cjkRes = await sendMsg({ type: "TRANSLATE", text: "五条悟は最強だ", videoTitle: "Anime" }, 102);
+  assert.strictEqual(cjkRes.vi.includes("Gojo Satoru"), true, "Thuật ngữ CJK không khoảng trắng phải thay chuẩn!");
+  const mlRes = await sendMsg({ type: "TRANSLATE", text: "Machine Learning uses Machine", videoTitle: "Tech" }, 102);
+  assert.strictEqual(mlRes.vi, "Học máy dùng Máy móc", "Phải khớp 'Machine Learning' trước 'Machine'!");
+
+  // 20D: Unicode Pronoun Lock & Compound Protection
+  const tabCtx1 = ctx.getTabContext(201, "Solo Camping Vlog");
+  ctx.updateContextPronounLock(tabCtx1, "Hôm nay chỉ có một mình");
+  assert.strictEqual(tabCtx1.lockedPronounPair, "", "'một mình' không được khóa nhầm đại từ 'mình'!");
+  ctx.updateContextPronounLock(tabCtx1, "Hôm nay mình đi cắm trại một mình");
+  assert.strictEqual(tabCtx1.lockedFirstPerson, "mình", "'mình' đứng độc lập phải được khóa!");
+  const harmonized = ctx.harmonizeVietnamesePronouns("Tôi thích ẩn mình và hòa mình và tôi đi.", "minh_ban", "mình", "");
+  assert.strictEqual(harmonized, "Mình thích ẩn mình và hòa mình và mình đi.", "Các từ ghép 'ẩn mình', 'hòa mình' phải được bảo vệ nguyên vẹn!");
+  const tabCtx2 = ctx.getTabContext(202, "Drama Clip");
+  ctx.updateContextPronounLock(tabCtx2, "Chị ơi đợi với");
+  assert.strictEqual(tabCtx2.lockedPronounPair.includes("anh/chị"), true, "Từ có dấu 'Chị' đầu câu phải nhận diện đúng với Unicode boundary!");
+
+  console.log("   ✅ Đã kiểm tra background.js: 0ms AI Preview, Dedup, Partial Recovery, CJK Glossary & Pronoun Lock chuẩn 100%!\n");
+})();
+
+// --- 21. Test content/captions.js & content/content.js (Watermark Batch, CJK isIncompleteClause, 0ms Discrete Cue & Live Preview Promotion) ---
+console.log("2️⃣1️⃣ Kiểm tra captions.js & content.js thật (Watermark Batching, Rollback, CJK Clause, 0ms Cue & Preview Promotion)...");
+await (async () => {
+  const sentMessages = [];
+  let shouldFailBatch = false;
+  const mockViEl = {
+    classes: new Set(["vie-vi", "vie-preview"]),
+    classList: {
+      contains: (c) => mockViEl.classes.has(c),
+      toggle: (c, v) => (v ? mockViEl.classes.add(c) : mockViEl.classes.delete(c))
+    },
+    dataset: {}
+  };
+  const mockOrigEl = { style: {}, dataset: {} };
+  const mockOverlay = {
+    classList: { add: () => {}, remove: () => {} },
+    querySelector: (sel) => (sel === ".vie-vi" ? mockViEl : sel === ".vie-orig" ? mockOrigEl : null)
+  };
+  const mockVideo = { currentTime: 0, _vieOverlay: mockOverlay };
+
+  const chromeMock = {
+    storage: {
+      local: { get: (d, cb) => cb({ ...d, provider: "gemini" }), set: (_u, cb) => cb && cb() },
+      onChanged: { addListener: () => {} }
+    },
+    runtime: {
+      lastError: null,
+      sendMessage: (msg, cb) => {
+        sentMessages.push(msg);
+        if (msg.type === "TRANSLATE_BATCH") {
+          if (shouldFailBatch) {
+            chromeMock.runtime.lastError = { message: "Network failed" };
+            cb && cb(null);
+            chromeMock.runtime.lastError = null;
+          } else {
+            const results = {};
+            for (const t of msg.texts) results[t] = `VI:${t}`;
+            cb && cb({ results, sub2Results: {} });
+          }
+          return;
+        }
+        if (msg.type === "TRANSLATE" && msg.fastPreviewOnly === true) {
+          cb && cb({ vi: "AI Cached Final", isFinalAi: true, cached: true });
+          return;
+        }
+        cb && cb({ vi: "AI Late" });
+      }
+    }
+  };
+
+  const ctx = createSandbox({
+    chrome: chromeMock,
+    document: {
+      readyState: "loading",
+      title: "Mock Test Video - YouTube",
+      addEventListener: () => {},
+      getElementById: () => null,
+      querySelectorAll: (sel) => (sel === "video" ? [mockVideo] : []),
+      querySelector: () => null
+    }
+  });
+  ctx.VieDOM = {
+    getOrCreateOverlay: () => mockOverlay,
+    hideOverlay: () => {},
+    formatSubtitleDecorations: (o, v) => ({ formattedOrig: o, formattedVi: v }),
+    renderInteractiveWords: () => {},
+    renderStableViText: (_el, txt) => { mockViEl.textContent = txt; },
+    applySettingsToDOM: () => {},
+    getContainer: () => ({ querySelector: () => mockOverlay })
+  };
+
+  loadModule(ctx, "utils/storage.js");
+  loadModule(ctx, "content/captions.js");
+  loadModule(ctx, "content/content.js");
+
+  const C = ctx.VieCaptions;
+  const Content = ctx.VieContent;
+
+  // 21A: CJK & short sentence isIncompleteClause
+  assert.strictEqual(C.isIncompleteClause("今日はいい天気です"), false, "Câu tiếng Nhật đủ ý không được bị trì hoãn!");
+  assert.strictEqual(C.isIncompleteClause("今日はいい天気だけど"), true, "Vế nối tiếng Nhật phải nhận là chưa trọn câu!");
+  assert.strictEqual(C.isIncompleteClause("Let's get started"), false, "Câu 3 từ đầy đủ không bị trì hoãn!");
+  assert.strictEqual(C.isIncompleteClause("Wait for"), true, "Câu kết thúc bằng giới từ vẫn là chưa trọn câu!");
+
+  // 21B: Watermark batching & failed-batch sent rollback
+  const cues = Array.from({ length: 15 }, (_, i) => ({ start: i * 2, end: i * 2 + 1.8, text: `Cue ${i + 1}` }));
+  shouldFailBatch = true;
+  C.prefetchUpcomingCues(cues, 0, 10, true);
+  assert.strictEqual(C.ytCueState.sent.has("Cue 1"), false, "Khi TRANSLATE_BATCH lỗi, sent phải rollback để dịch lại!");
+
+  shouldFailBatch = false;
+  sentMessages.length = 0;
+  C.prefetchUpcomingCues(cues, 0, 10, true); // sends Cue 1..10
+  assert.strictEqual(sentMessages.filter((m) => m.type === "TRANSLATE_BATCH").length, 1);
+  assert.strictEqual(sentMessages[0].texts.length, 10);
+
+  // Advancing indices 1..5 must send ZERO extra batch requests while >= 4 cues remain in window
+  sentMessages.length = 0;
+  for (let i = 1; i <= 5; i++) {
+    C.prefetchUpcomingCues(cues, i, 10, false);
+  }
+  assert.strictEqual(sentMessages.length, 0, "Khi cửa sổ còn đủ >= 4 câu đã dịch, không được spam thêm batch request!");
+
+  // Advancing to idx = 7 (only Cue 8,9,10 remain -> < 4 watermark) triggers next batch
+  C.prefetchUpcomingCues(cues, 7, 10, false);
+  assert.strictEqual(sentMessages.length, 1, "Khi chạm ngưỡng watermark (< 4 câu), phải tự nạp lô tiếp theo!");
+  assert.strictEqual(sentMessages[0].texts.includes("Cue 11"), true);
+
+  // 21C: Immediate discrete cue triggers 0ms AI + isFinalAi skips redundant fastPreviewOnly=false
+  sentMessages.length = 0;
+  Content.onCaptionReceived(mockVideo, "Wait for", true, ""); // incomplete text, but immediate=true!
+  const translateCalls = sentMessages.filter((m) => m.type === "TRANSLATE");
+  assert.strictEqual(translateCalls.length, 1, "Cue rời rạc với isFinalAi preview chỉ gửi đúng 1 preview và KHÔNG gửi trùng fastPreviewOnly:false!");
+
+  // 21D: ingestBatchTranslations promotes live .vie-preview subtitle to non-preview immediately
+  const st = C.getVideoState(mockVideo);
+  st.lastText = "Cue 99";
+  mockViEl.classes.add("vie-preview");
+  Content.ingestBatchTranslations({ "Cue 99": "Câu 99 Final" });
+  assert.strictEqual(mockViEl.textContent, "Câu 99 Final");
+  assert.strictEqual(mockViEl.classes.has("vie-preview"), false, "ingestBatchTranslations phải nâng cấp ngay phụ đề preview đang hiện trên màn hình!");
+
+  console.log("   ✅ Đã kiểm tra captions.js & content.js: Watermark Batch, Rollback, CJK Clause & Preview Promotion chuẩn 100%!\n");
+})();
+
+// --- 22. Test Syntax Check All JS Files & manifest.json ---
+console.log("2️⃣2️⃣ Kiểm tra cú pháp (Syntax Check) toàn bộ file .js và manifest.json...");
+(() => {
+  const skipDirs = new Set([".git", "node_modules", "__pycache__"]);
+  const jsFiles = [];
+  function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (skipDirs.has(entry.name)) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.isFile() && entry.name.endsWith(".js")) jsFiles.push(full);
+    }
+  }
+  walk(ROOT_DIR);
+  for (const file of jsFiles) {
+    const src = fs.readFileSync(file, "utf8");
+    new vm.Script(src, { filename: file });
+  }
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, "manifest.json"), "utf8"));
+  assert.ok(manifest.manifest_version === 3 && manifest.background?.service_worker);
+  console.log(`   ✅ Đã kiểm tra cú pháp thành công ${jsFiles.length} file JavaScript và manifest.json!\n`);
+})();
+
+console.log("🎉 TOÀN BỘ 22 BÀI KIỂM TRA ĐỀU HOÀN TOÀN CHÍNH XÁC VÀ ĐẠT 100%!");
 
 })();

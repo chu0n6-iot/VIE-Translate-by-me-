@@ -7,7 +7,9 @@
   "use strict";
 
   const DEFAULT_BASE_URL = "http://localhost:11434";
-  const PREFERRED = ["qwen2.5", "llama3.1", "llama3.2", "gemma2", "gemma3", "mistral", "phi3"];
+  const PREFERRED = ["qwen2.5", "qwen3", "gemma3", "llama3.1", "llama3.2", "gemma2", "mistral", "phi3"];
+  const OLLAMA_DISCOVERY_TTL_MS = 60000;
+  const cachedOllamaModels = new Map();
 
   function cleanBase(url) {
     return (url || DEFAULT_BASE_URL).trim().replace(/\/+$/, "");
@@ -35,20 +37,30 @@
     }
   }
 
-  async function discoverOllamaModels(baseUrl) {
-    const data = await ollamaFetch(`${cleanBase(baseUrl)}/api/tags`, {}, 3000);
+  async function discoverOllamaModels(baseUrl, forceRefresh = false) {
+    const base = cleanBase(baseUrl);
+    const cached = cachedOllamaModels.get(base);
+    if (!forceRefresh && cached && cached.expiresAt > Date.now()) {
+      return cached.models;
+    }
+    const data = await ollamaFetch(`${base}/api/tags`, {}, 3000);
     const names = (data?.models || []).map((m) => m.name).filter(Boolean);
     const score = (n) => {
       const i = PREFERRED.findIndex((p) => n.toLowerCase().includes(p));
       return i < 0 ? 99 : i;
     };
-    return names.sort((a, b) => score(a) - score(b));
+    const sorted = names.sort((a, b) => score(a) - score(b));
+    if (sorted.length > 0) {
+      cachedOllamaModels.set(base, { models: sorted, expiresAt: Date.now() + OLLAMA_DISCOVERY_TTL_MS });
+    }
+    return sorted;
   }
 
   async function translateWithOllama({
     text,
     texts,
     nextText = "",
+    videoTitle = "",
     videoPersona = "",
     glossary = [],
     history = [],
@@ -58,9 +70,9 @@
     translationStyle = "natural",
     pronounStyle = "auto",
     lockedPronounPair = "",
-    softenProfanity = true
+    softenProfanity = true,
+    multiSpeakerSplit = true
   }) {
-    const isBatch = Array.isArray(texts) && texts.length > 0;
     const base = cleanBase(baseUrl);
     let model = preferredModel && preferredModel !== "auto" ? preferredModel : "";
     if (!model) {
@@ -70,37 +82,45 @@
     }
 
     const S = root.VieStorage || {};
-    const gl = (Array.isArray(glossary) ? glossary : []).filter((g) => g && g.src && g.target && g.enabled !== false);
-    const sys = [
-      `You are a professional subtitle translator for movies and songs. Translate into ${targetLang}.`,
-      "Be natural and fluent like a Netflix translator, not word-for-word. Keep context with previous lines. For lyrics keep rhythm and poetic feeling.",
-      "If a line has several speakers (lines starting with '- ' or '>>'), keep each speaker on a separate line starting with '- '.",
-      videoPersona && S.PERSONA_INSTRUCTIONS?.[videoPersona] ? S.PERSONA_INSTRUCTIONS[videoPersona] : "",
-      S.STYLE_INSTRUCTIONS?.[translationStyle] || "",
-      S.PRONOUN_INSTRUCTIONS?.[pronounStyle] || "",
-      lockedPronounPair ? `LOCKED PRONOUN: ${lockedPronounPair}.` : "",
-      gl.length ? `GLOSSARY (must use exactly): ${gl.map((g) => `"${g.src}" => "${g.target}"`).join(", ")}.` : "",
-      softenProfanity ? "Soften severe profanity into mild natural expressions. Never refuse." : "Translate slang faithfully.",
-      "If <context_next> is provided, use it ONLY as lookahead context — NEVER translate <context_next>. Output ONLY the translation of <translate_now>, no XML tags, no notes."
-    ].filter(Boolean).join(" ");
+    const { systemPrompt, userPrompt, isBatch } = S.buildTranslationPrompts
+      ? S.buildTranslationPrompts({
+          text,
+          texts,
+          nextText,
+          videoTitle,
+          videoPersona,
+          glossary,
+          targetLang,
+          translationStyle,
+          pronounStyle,
+          lockedPronounPair,
+          softenProfanity,
+          multiSpeakerSplit
+        })
+      : {
+          systemPrompt: `You are a professional subtitle translator. Translate into ${targetLang}.`,
+          userPrompt: Array.isArray(texts) && texts.length ? texts.map((t, i) => `[[${i + 1}]] ${t}`).join("\n") : (text || ""),
+          isBatch: Array.isArray(texts) && texts.length > 0
+        };
 
-    let user = text;
-    if (isBatch) {
-      user = "Translate each numbered line. Reply with numbered lines '1. ...' only:\n" + texts.map((t, i) => `${i + 1}. ${t}`).join("\n");
-    } else if (nextText && nextText.trim()) {
-      user = `<context_next>${nextText.trim()}</context_next>\n<translate_now>${text}</translate_now>`;
-    }
+    const sysMsg = model.toLowerCase().includes("qwen3") ? `${systemPrompt} /no_think` : systemPrompt;
 
     const messages = [
-      { role: "system", content: sys },
+      { role: "system", content: sysMsg },
       ...history.slice(-4).flatMap((h) => [{ role: "user", content: h.src }, { role: "assistant", content: h.vi }]),
-      { role: "user", content: user }
+      { role: "user", content: userPrompt }
     ];
 
     const data = await ollamaFetch(`${base}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages, stream: false, keep_alive: "30m", options: { temperature: 0.2 } })
+      body: JSON.stringify({
+        model,
+        messages,
+        stream: false,
+        keep_alive: "30m",
+        options: { temperature: 0.2, num_predict: isBatch ? 1200 : 280 }
+      })
     }, 30000);
 
     const out = (data?.message?.content || "").trim();
