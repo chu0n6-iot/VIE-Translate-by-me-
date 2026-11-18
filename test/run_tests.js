@@ -493,11 +493,12 @@ console.log("🎉 TOÀN BỘ 14 BÀI KIỂM TRA ĐỀU HOÀN TOÀN CHÍNH XÁC V
 })();
 
 // =========================================================================
-// REAL-MODULE INTEGRATION & PERFORMANCE TESTS (15 - 22)
+// REAL-MODULE INTEGRATION & PERFORMANCE TESTS (15 - 23)
 // =========================================================================
 const vm = require("vm");
 const fs = require("fs");
 const path = require("path");
+const nodeCrypto = require("crypto");
 const ROOT_DIR = path.resolve(__dirname, "..");
 
 function createSandbox(overrides = {}) {
@@ -519,6 +520,10 @@ function createSandbox(overrides = {}) {
     Set,
     WeakMap,
     WeakSet,
+    TextEncoder,
+    Uint8Array,
+    ArrayBuffer,
+    crypto: nodeCrypto.webcrypto,
     encodeURIComponent,
     decodeURIComponent,
     atob: (b64) => Buffer.from(b64, "base64").toString("binary"),
@@ -1192,6 +1197,161 @@ console.log("2️⃣2️⃣ Kiểm tra cú pháp (Syntax Check) toàn bộ file 
   console.log(`   ✅ Đã kiểm tra cú pháp thành công ${jsFiles.length} file JavaScript và manifest.json!\n`);
 })();
 
-console.log("🎉 TOÀN BỘ 22 BÀI KIỂM TRA ĐỀU HOÀN TOÀN CHÍNH XÁC VÀ ĐẠT 100%!");
+// --- 23. Test VieUpdater Real Module (Semver, Git Blob SHA-1 Diff, Badge & Rate-Limit Fallback) ---
+console.log("2️⃣3️⃣ Kiểm tra VieUpdater thật (Semver, Git Blob SHA-1 CRLF/LF, Tree Diff, Badge 'MỚI' & Fallback)...");
+await (async () => {
+  let badgeText = "";
+  let badgeColor = "";
+  let localStorage = { autoCheckUpdates: true };
+  let localFiles = {
+    "manifest.json": Buffer.from('{"manifest_version":3,"version":"0.8.2"}\n', "utf8"),
+    "api/gtx.js": Buffer.from("// gtx v1\n", "utf8")
+  };
+
+  let remoteMode = "synced";
+  let remoteSha = "sha1_commit_aaaa111";
+  let remoteManifestVersion = "0.8.2";
+  let remoteFiles = { ...localFiles };
+
+  const sha1HexSync = (buf) => {
+    const lf = Buffer.from(buf.toString("binary").replace(/\r\n/g, "\n"), "binary");
+    return nodeCrypto.createHash("sha1").update(`blob ${lf.length}\0`).update(lf).digest("hex");
+  };
+
+  const mockFetch = async (url) => {
+    if (String(url).startsWith("chrome-extension://mock/")) {
+      const rel = String(url).replace("chrome-extension://mock/", "");
+      const buf = localFiles[rel];
+      if (!buf) return { ok: false, status: 404 };
+      return {
+        ok: true,
+        status: 200,
+        arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+      };
+    }
+    if (String(url).includes("raw.githubusercontent.com") && String(url).includes("manifest.json")) {
+      return makeMockResponse({ ok: true, status: 200, jsonData: { version: remoteManifestVersion } });
+    }
+    if (remoteMode === "rate_limit") {
+      return makeMockResponse({ ok: false, status: 403, jsonData: { message: "API rate limit exceeded" } });
+    }
+    if (String(url).includes("/commits/main")) {
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: (h) => (h.toLowerCase() === "etag" ? `"etag_${remoteSha}"` : null) },
+        json: async () => ({
+          sha: remoteSha,
+          html_url: `https://github.com/chu0n6-iot/VIE-Translate-by-me-/commit/${remoteSha}`,
+          commit: {
+            message: `Update ${remoteSha}\nExtra body`,
+            tree: { sha: `tree_${remoteSha}` },
+            committer: { date: "2026-11-18T02:00:00Z" }
+          }
+        })
+      };
+    }
+    if (String(url).includes("/git/trees/")) {
+      const tree = Object.entries(remoteFiles).map(([p, buf]) => ({
+        path: p,
+        type: "blob",
+        sha: sha1HexSync(buf)
+      }));
+      return makeMockResponse({ ok: true, status: 200, jsonData: { tree } });
+    }
+    return makeMockResponse({ ok: false, status: 404, jsonData: {} });
+  };
+
+  const chromeMock = {
+    runtime: {
+      getManifest: () => ({ version: "0.8.2" }),
+      getURL: (p) => `chrome-extension://mock/${p}`
+    },
+    action: {
+      setBadgeText: ({ text }) => { badgeText = text; },
+      setBadgeBackgroundColor: ({ color }) => { badgeColor = color; }
+    },
+    storage: {
+      local: {
+        get: (defaults, cb) => cb({ ...defaults, ...localStorage }),
+        set: (updates, cb) => { localStorage = { ...localStorage, ...updates }; if (cb) cb(); }
+      },
+      onChanged: { addListener: () => {} }
+    }
+  };
+
+  const ctx = createSandbox({ chrome: chromeMock, fetch: mockFetch });
+  loadModule(ctx, "utils/storage.js");
+  loadModule(ctx, "api/updater.js");
+  const U = ctx.VieUpdater;
+
+  // 23A: Semver comparisons
+  assert.strictEqual(U.compareSemver("0.8.3", "0.8.2"), 1);
+  assert.strictEqual(U.compareSemver("0.10.0", "0.9.9"), 1);
+  assert.strictEqual(U.compareSemver("v0.8.2", "0.8.2"), 0);
+  assert.strictEqual(U.compareSemver("0.8.1", "0.8.2"), -1);
+
+  // 23B: computeGitBlobSha1 CRLF vs LF matches real manifest.json Git SHA-1
+  const manifestBytes = fs.readFileSync(path.join(ROOT_DIR, "manifest.json"));
+  const manifestCrlf = Buffer.from(manifestBytes.toString("utf8").replace(/\r?\n/g, "\r\n"), "utf8");
+  const shaLf = await U.computeGitBlobSha1(new Uint8Array(manifestBytes));
+  const shaCrlf = await U.computeGitBlobSha1(new Uint8Array(manifestCrlf));
+  assert.strictEqual(shaLf, sha1HexSync(manifestBytes), "Blob SHA-1 của manifest.json phải khớp chuẩn Git SHA-1!");
+  assert.strictEqual(shaLf, shaCrlf, "CRLF trên Windows phải cho cùng Git blob SHA-1 với LF!");
+
+  // 23C: Synced state -> no update, records knownSyncedRemoteSha, clears badge
+  const st1 = await U.checkForUpdates({ force: true, verifyLocalSync: true });
+  assert.strictEqual(st1.hasUpdate, false, "Khi code khớp 100% GitHub thì không báo cập nhật!");
+  assert.strictEqual(st1.knownSyncedRemoteSha, "sha1_commit_aaaa111");
+  assert.strictEqual(badgeText, "");
+
+  // 23D: New commit on GitHub main (same version 0.8.2, changed api/gtx.js) -> notifies!
+  remoteSha = "sha2_commit_bbbb222";
+  remoteFiles["api/gtx.js"] = Buffer.from("// gtx v2 upgraded\n", "utf8");
+  const st2 = await U.checkForUpdates({ force: true, verifyLocalSync: true });
+  assert.strictEqual(st2.hasUpdate, true, "Commit mới cùng version nhưng đổi mã nguồn vẫn phải phát hiện cập nhật!");
+  assert.strictEqual(Array.from(st2.changedFiles).includes("api/gtx.js"), true);
+  assert.strictEqual(badgeText, "MỚI");
+  assert.strictEqual(badgeColor, "#f59e0b");
+
+  // 23E: Local dev edit while GitHub remoteCommitSha === knownSyncedRemoteSha -> no false alarm
+  remoteSha = "sha1_commit_aaaa111";
+  remoteFiles = {
+    "manifest.json": Buffer.from('{"manifest_version":3,"version":"0.8.2"}\n', "utf8"),
+    "api/gtx.js": Buffer.from("// gtx v1\n", "utf8")
+  };
+  await U.saveUpdateState({ ...st1, remoteCommitSha: "sha1_commit_aaaa111", knownSyncedRemoteSha: "sha1_commit_aaaa111", treeSha: "old" });
+  localFiles["api/gtx.js"] = Buffer.from("// local uncommitted edit\n", "utf8");
+  const st3 = await U.checkForUpdates({ force: true, verifyLocalSync: true });
+  assert.strictEqual(st3.hasUpdate, false, "Sửa code local khi GitHub chưa có commit mới không được báo nhầm!");
+
+  // 23F: Dismiss clears badge for current commit, newer commit sha3 re-triggers badge
+  localFiles["api/gtx.js"] = Buffer.from("// gtx v1\n", "utf8");
+  remoteSha = "sha2_commit_bbbb222";
+  remoteFiles["api/gtx.js"] = Buffer.from("// gtx v2 upgraded\n", "utf8");
+  const st4 = await U.checkForUpdates({ force: true, verifyLocalSync: true });
+  assert.strictEqual(st4.hasUpdate, true);
+  assert.strictEqual(badgeText, "MỚI");
+  await U.dismissUpdate(st4.updateId);
+  assert.strictEqual(badgeText, "", "Bấm bỏ qua phải xóa badge 'MỚI' cho commit hiện tại!");
+
+  remoteSha = "sha3_commit_cccc333";
+  remoteFiles["api/gtx.js"] = Buffer.from("// gtx v3\n", "utf8");
+  const st5 = await U.checkForUpdates({ force: true, verifyLocalSync: true });
+  assert.strictEqual(st5.hasUpdate, true);
+  assert.strictEqual(badgeText, "MỚI", "Commit mới hơn sha3 phải hiện lại badge 'MỚI'!");
+
+  // 23G: GitHub API 403 rate-limit -> fallback to raw manifest.json semver check
+  remoteMode = "rate_limit";
+  remoteManifestVersion = "0.9.0";
+  const st6 = await U.checkForUpdates({ force: true });
+  assert.strictEqual(st6.hasUpdate, true, "Khi API bị rate-limit 403, vẫn phải phát hiện bản mới qua raw manifest.json!");
+  assert.strictEqual(st6.remoteVersion, "0.9.0");
+  assert.strictEqual(badgeText, "MỚI");
+
+  console.log("   ✅ Đã kiểm tra VieUpdater: Semver, Git Blob SHA-1 CRLF/LF, Tree Diff, Badge 'MỚI' & Fallback 403 chuẩn 100%!\n");
+})();
+
+console.log("🎉 TOÀN BỘ 23 BÀI KIỂM TRA ĐỀU HOÀN TOÀN CHÍNH XÁC VÀ ĐẠT 100%!");
 
 })();

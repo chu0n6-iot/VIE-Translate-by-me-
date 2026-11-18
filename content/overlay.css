@@ -997,3 +997,37 @@
   color: #94a3b8;
   padding: 2px 6px;
 }
+
+.vie-update-toast {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 90%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid rgba(52, 211, 153, 0.65);
+  color: #f1f5f9;
+  font: 500 13px/1.35 "Segoe UI", Roboto, Arial, sans-serif;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+}
+.vie-update-toast button {
+  border: 0;
+  border-radius: 7px;
+  padding: 5px 10px;
+  font: 700 12px "Segoe UI", Roboto, Arial, sans-serif;
+  cursor: pointer;
+  background: #34d399;
+  color: #052e16;
+  white-space: nowrap;
+}
+.vie-update-toast button.vie-quota-close {
+  background: transparent;
+  color: #94a3b8;
+  padding: 2px 6px;
+}

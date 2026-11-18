@@ -171,6 +171,50 @@
     setTimeout(() => el.remove(), 20000);
   }
 
+  function maybeShowGithubUpdateToast() {
+    if (settings.enabled === false || settings.autoCheckUpdates === false) return;
+    const video = document.querySelector("video.html5-main-video") || document.querySelector("video");
+    if (!video) return;
+    try {
+      if (!chrome?.runtime?.id) return;
+      chrome.runtime.sendMessage({ type: "GET_UPDATE_STATUS" }, (res) => {
+        if (chrome.runtime.lastError || !res?.ok || !res.hasUpdate || !res.updateId) return;
+        if (res.dismissedCommitSha === res.updateId || res.toastShownForSha === res.updateId) return;
+        const host = video?.parentElement || document.body;
+        if (!host || host.querySelector(".vie-update-toast")) return;
+
+        chrome.runtime.sendMessage(
+          { type: "MARK_UPDATE_TOAST_SHOWN", updateId: res.updateId },
+          () => void chrome.runtime.lastError
+        );
+
+        const label = res.remoteVersion && res.remoteVersion !== res.localVersion
+          ? `v${res.remoteVersion}`
+          : `#${res.remoteShortSha || "mới"}`;
+        const el = document.createElement("div");
+        el.className = "vie-update-toast";
+        const span = document.createElement("span");
+        span.textContent = `🐸 VIE-Translate có cập nhật mới trên GitHub (${label})!`;
+        const openBtn = document.createElement("button");
+        openBtn.textContent = "Cập nhật";
+        openBtn.onclick = () => {
+          chrome.runtime.sendMessage({ type: "OPEN_KEY_SETUP" }, () => void chrome.runtime.lastError);
+          el.remove();
+        };
+        const close = document.createElement("button");
+        close.className = "vie-quota-close";
+        close.textContent = "✕";
+        close.onclick = () => {
+          chrome.runtime.sendMessage({ type: "DISMISS_UPDATE", updateId: res.updateId }, () => void chrome.runtime.lastError);
+          el.remove();
+        };
+        el.append(span, openBtn, close);
+        host.appendChild(el);
+        setTimeout(() => el.remove(), 18000);
+      });
+    } catch {}
+  }
+
   function onCaptionReceived(video, rawText, immediate = false, nextText = "") {
     if (!settings.enabled) {
       root.VieDOM?.hideOverlay(video);
@@ -463,6 +507,9 @@
     // Interval to ensure dynamic SPA video players (YouTube SPA nav, etc.) are always watched
     setInterval(watchVideosLight, 1200);
     startNoSubWatchdog();
+    if (typeof chrome !== "undefined" && chrome.runtime?.id) {
+      setTimeout(maybeShowGithubUpdateToast, 2800);
+    }
   }
 
   root.VieContent = {

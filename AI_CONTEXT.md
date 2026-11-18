@@ -11,6 +11,7 @@
 - [api/whisper.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/api/whisper.js): Whisper local (CPU/GPU, luân phiên/dự phòng) cho AI Nghe; server mẫu `tools/whisper_server.py`; UI `popup/whisper.js`.
 - [api/gtx.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/api/gtx.js): Bộ máy dự phòng Google Translate miễn phí tức thì (0ms latency, không cần Key).
 - [api/lyrics.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/api/lyrics.js): Tìm kiếm và parse lời bài hát đồng bộ thời gian (LRC) từ LRCLIB.
+- [api/updater.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/api/updater.js): Kiểm tra cập nhật tự động trên GitHub (semver `manifest.json` + diff SHA-1 blob cây mã nguồn `main`) và đồng bộ badge thông báo.
 - [background/background.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/background/background.js): Service worker: điều phối, nhận diện Persona, định dạng Multi-Speaker, ép Glossary & khóa xưng hô.
 - [content/content.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/content/content.js): Entry point mỏng nhẹ điều phối phụ đề, giữ preview 0ms & smart boundary debounce.
 - [content/dom.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/content/dom.js): Tạo & render phụ đề (phân tách dòng riêng biệt cho từng giọng nói A/B), thẻ từ điển & coach.
@@ -31,7 +32,9 @@
 1. **Luôn đọc `AI_CONTEXT.md` đầu tiên** để định vị chính xác file cần sửa theo đúng nhiệm vụ.
 2. **TUYỆT ĐỐI KHÔNG đọc toàn bộ codebase** nếu chỉ cần sửa một module riêng biệt.
 3. Không tái tạo "God file"; duy trì tính độc lập và kích thước nhỏ gọn của từng module.
-4. Ghi chú kiến trúc v0.8.1 (Khắc phục triệt để lỗi chuyển từ video nhạc sang video thường):
+4. Ghi chú kiến trúc v0.8.2 (Cập nhật GitHub tự động & tối ưu tốc độ dịch):
+- Tự động báo cập nhật GitHub qua `api/updater.js` (`VieUpdater.checkForUpdates`, so sánh semver + Git blob SHA-1), banner Popup & toast video.
+- Tối ưu dịch thuật: cache settings 0ms, watermark prefetch 10 cue (`prefetchUpcomingCues`), cross-dedup batch↔single `inFlight`, `[[N]]` GTX batch và `buildTranslationPrompts` đa ngôn ngữ.
 - Local AI qua Ollama (`api/ollama.js`) và Whisper local (`api/whisper.js`, `tools/whisper_server.py`).
 - Multi-Speaker tách dòng (`formatMultiSpeakerDialogue`), Glossary ép thuật ngữ (`applyGlossaryOverrides`), Persona tự nhận diện (`detectVideoPersona`), gộp câu thông minh (`smartMergeCaptions`).
 - Key Pool xoay tua & hồi phục 429 (`withKeyPool`, `keyCooldown`, `backupKeys`), toast hết key (`showQuotaToast`), cảnh báo F5 (`startNoSubWatchdog`).

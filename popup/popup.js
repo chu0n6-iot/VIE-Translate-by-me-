@@ -48,6 +48,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   const autoAudioNoCCInput = document.getElementById("autoAudioNoCC");
   const softenProfanityInput = document.getElementById("softenProfanity");
   const hoverPauseDictInput = document.getElementById("hoverPauseDict");
+  const autoCheckUpdatesInput = document.getElementById("autoCheckUpdates");
+  const checkUpdateMiniBtn = document.getElementById("checkUpdateMiniBtn");
+  const updateBanner = document.getElementById("updateBanner");
+  const updateBannerTitle = document.getElementById("updateBannerTitle");
+  const updateBannerMeta = document.getElementById("updateBannerMeta");
+  const dismissUpdateBtn = document.getElementById("dismissUpdateBtn");
+  const copyGitPullBtn = document.getElementById("copyGitPullBtn");
+  const openGithubUpdateLink = document.getElementById("openGithubUpdateLink");
+  const reloadExtBtn = document.getElementById("reloadExtBtn");
   const connectedKeyBar = document.getElementById("connectedKeyBar");
   const connectedKeyText = document.getElementById("connectedKeyText");
   const changeKeyBtn = document.getElementById("changeKeyBtn");
@@ -386,6 +395,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     autoAudioNoCC: true,
     softenProfanity: true,
     hoverPauseDict: true,
+    autoCheckUpdates: true,
     savedVocab: [],
     customGlossary: [],
     autoPersona: true,
@@ -426,6 +436,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   autoAudioNoCCInput.checked = Boolean(stored.autoAudioNoCC);
   if (softenProfanityInput) softenProfanityInput.checked = stored.softenProfanity !== false;
   if (hoverPauseDictInput) hoverPauseDictInput.checked = stored.hoverPauseDict !== false;
+  if (autoCheckUpdatesInput) autoCheckUpdatesInput.checked = stored.autoCheckUpdates !== false;
   if (autoPersonaInput) autoPersonaInput.checked = stored.autoPersona !== false;
   if (smartMergeCaptionsInput) smartMergeCaptionsInput.checked = stored.smartMergeCaptions !== false;
   if (multiSpeakerSplitInput) multiSpeakerSplitInput.checked = stored.multiSpeakerSplit !== false;
@@ -459,6 +470,106 @@ document.addEventListener("DOMContentLoaded", async () => {
     setToadSay(`Ộp! Đang kết nối mượt mà với [${activeModel}] 🐸🎧`);
   } else {
     hideModelList();
+  }
+
+  const localManifestVersion = (chrome.runtime.getManifest && chrome.runtime.getManifest()?.version) || "0.8.2";
+  if (checkUpdateMiniBtn) {
+    checkUpdateMiniBtn.textContent = `v${localManifestVersion} ↻`;
+  }
+
+  let currentUpdateId = "";
+  function renderUpdateBanner(st) {
+    if (!updateBanner) return;
+    const autoOn = !autoCheckUpdatesInput || autoCheckUpdatesInput.checked;
+    const shouldShow = Boolean(
+      st?.hasUpdate &&
+      st.updateId &&
+      st.dismissedCommitSha !== st.updateId &&
+      (autoOn || st._manualCheck)
+    );
+    if (!shouldShow) {
+      updateBanner.style.display = "none";
+      return;
+    }
+
+    currentUpdateId = st.updateId || "";
+    const verChanged = st.remoteVersion && st.remoteVersion !== (st.localVersion || localManifestVersion);
+    if (updateBannerTitle) {
+      updateBannerTitle.textContent = verChanged
+        ? `🚀 Có bản mới v${st.remoteVersion}!`
+        : `🚀 GitHub có cập nhật mới (#${st.remoteShortSha || "main"})!`;
+    }
+    if (updateBannerMeta) {
+      const msgPart = st.commitMessage ? `${st.commitMessage}` : "Phát hiện thay đổi mới trên nhánh main";
+      const fileCount = Array.isArray(st.changedFiles) ? st.changedFiles.length : 0;
+      const hint = fileCount > 0
+        ? ` (Thay đổi ${fileCount} file — kéo code mới rồi bấm Nạp lại)`
+        : " (Kéo code mới rồi bấm Nạp lại để áp dụng)";
+      updateBannerMeta.textContent = `${msgPart}${hint}`;
+    }
+    if (openGithubUpdateLink) {
+      openGithubUpdateLink.href = st.commitUrl || st.repoUrl || "https://github.com/chu0n6-iot/VIE-Translate-by-me-";
+    }
+    updateBanner.style.display = "block";
+  }
+
+  chrome.runtime.sendMessage({ type: "GET_UPDATE_STATUS" }, (res) => {
+    if (!chrome.runtime.lastError && res?.ok) {
+      renderUpdateBanner(res);
+    }
+  });
+
+  if (checkUpdateMiniBtn) {
+    checkUpdateMiniBtn.addEventListener("click", () => {
+      checkUpdateMiniBtn.disabled = true;
+      checkUpdateMiniBtn.textContent = "⏳...";
+      showStatus("⏳ Đang kiểm tra cập nhật trên GitHub...", "wait");
+      chrome.runtime.sendMessage({ type: "CHECK_GITHUB_UPDATE" }, (res) => {
+        checkUpdateMiniBtn.disabled = false;
+        checkUpdateMiniBtn.textContent = `v${localManifestVersion} ↻`;
+        if (chrome.runtime.lastError || !res?.ok) {
+          showStatus("⚠ Không kiểm tra được GitHub lúc này.", "err");
+          return;
+        }
+        if (res.hasUpdate) {
+          res._manualCheck = true;
+          renderUpdateBanner(res);
+          triggerToadHop();
+          setToadSay("Ộp! Có bản mới trên GitHub rồi nè! 🐸🚀");
+          showStatus("🚀 Đã phát hiện thay đổi mới trên GitHub!", "ok");
+        } else {
+          renderUpdateBanner(res);
+          triggerMicroToast("✅ Đang ở bản mới nhất!");
+          showStatus("✓ Bạn đang dùng phiên bản mới nhất trên GitHub!", "ok");
+        }
+      });
+    });
+  }
+
+  if (copyGitPullBtn) {
+    copyGitPullBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText("git pull origin main");
+      } catch {}
+      triggerMicroToast("📋 Đã copy: git pull origin main");
+    });
+  }
+
+  if (reloadExtBtn) {
+    reloadExtBtn.addEventListener("click", () => {
+      triggerMicroToast("🔄 Đang nạp lại tiện ích...");
+      chrome.runtime.sendMessage({ type: "RELOAD_EXTENSION" }, () => void chrome.runtime.lastError);
+    });
+  }
+
+  if (dismissUpdateBtn) {
+    dismissUpdateBtn.addEventListener("click", () => {
+      if (updateBanner) updateBanner.style.display = "none";
+      chrome.runtime.sendMessage(
+        { type: "DISMISS_UPDATE", updateId: currentUpdateId },
+        () => void chrome.runtime.lastError
+      );
+    });
   }
 
   if (!currentKey) {
@@ -501,6 +612,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       const newModel = changes.detectedModel.newValue;
       detectedModelBadge.textContent = `✓ Đang chạy: ${newModel} (Tự chuyển nếu hết Quota)`;
       detectedModelBadge.style.display = "inline-block";
+    }
+    if (changes.vieUpdateState?.newValue) {
+      const uv = changes.vieUpdateState.newValue;
+      const updateId = uv.remoteCommitSha || (uv.remoteVersion ? `v${uv.remoteVersion}` : "");
+      renderUpdateBanner({
+        ...uv,
+        localVersion: localManifestVersion,
+        updateId,
+        repoUrl: "https://github.com/chu0n6-iot/VIE-Translate-by-me-"
+      });
     }
   });
 
@@ -562,6 +683,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       autoAudioNoCC: autoAudioNoCCInput.checked,
       softenProfanity: softenProfanityInput ? softenProfanityInput.checked : true,
       hoverPauseDict: hoverPauseDictInput ? hoverPauseDictInput.checked : true,
+      autoCheckUpdates: autoCheckUpdatesInput ? autoCheckUpdatesInput.checked : true,
       autoPersona: autoPersonaInput ? autoPersonaInput.checked : true,
       smartMergeCaptions: smartMergeCaptionsInput ? smartMergeCaptionsInput.checked : true,
       multiSpeakerSplit: multiSpeakerSplitInput ? multiSpeakerSplitInput.checked : true,
@@ -588,6 +710,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     [fallbackInput, "Dự phòng Google Translate"],
     [autoAudioNoCCInput, "AI Nghe & Dịch"],
     [softenProfanityInput, "Chế độ thân thiện"],
+    [autoCheckUpdatesInput, "Tự báo cập nhật"],
     [autoPersonaInput, "Nhận diện Persona"],
     [smartMergeCaptionsInput, "Ghép câu thông minh"],
     [multiSpeakerSplitInput, "Tách giọng đối thoại"]

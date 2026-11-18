@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="#-tiếng-việt-bản-hướng-dẫn-đầy-đủ-từ-a-z">🇻🇳 Bản Tiếng Việt (A–Z)</a> •
-  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.8.1`)</a> •
+  <a href="#-lịch-sử-cập-nhật--các-cơ-chế-mới-changelog">🚀 Lịch Sử Cập Nhật (`v0.8.2`)</a> •
   <a href="#-english-complete-a-to-z-guide">🇬🇧 English Version (A–Z)</a> •
   <a href="#-version-history--new-mechanisms-changelog">📋 English Changelog</a>
 </p>
@@ -19,14 +19,14 @@
 ---
 
 > ⚡ **LƯU Ý DÀNH CHO CỘNG TÁC VIÊN / COLLABORATORS (TỐI ƯU HÓA AI INDEXING)**:
-> Codebase của dự án đã được đại tu và module hóa toàn diện (`v0.6.7` ➔ `v0.8.1`), loại bỏ hoàn toàn các God file cồng kềnh nhằm giúp các công cụ lập trình AI (Antigravity IDE, Cursor, GitHub Copilot...) đọc hiểu cực nhanh và tiết kiệm tối đa token.
+> Codebase của dự án đã được đại tu và module hóa toàn diện (`v0.6.7` ➔ `v0.8.2`), loại bỏ hoàn toàn các God file cồng kềnh nhằm giúp các công cụ lập trình AI (Antigravity IDE, Cursor, GitHub Copilot...) đọc hiểu cực nhanh và tiết kiệm tối đa token.
 > **Mẹo quan trọng:** Trước khi yêu cầu AI sửa lỗi hoặc phát triển tính năng mới, bạn **chỉ cần gõ kèm `@AI_CONTEXT.md` ở đầu câu lệnh**. AI sẽ lập tức nắm toàn bộ bản đồ kiến trúc mà **không cần quét lại toàn bộ codebase**, giúp tốc độ phản hồi tăng vọt!
 
 # 🇻🇳 TIẾNG VIỆT (Bản Hướng Dẫn Đầy Đủ Từ A–Z)
 
-**VIE-Translate (Translate Toad AI `v0.8.1` — Local AI Edition)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)**, kết hợp **Trợ Lý Học Ngoại Ngữ Chuyên Sâu (`Từ Loại POS • Ví Dụ Thực Tế • Fact Thú Vị & Mẹo Nhớ • Cụm Đi Kèm • Sổ Từ Vựng`)**, **Cân Chỉnh Độ Lệch Sub/Nhạc Tức Thì (`Sub Sync Calibration`)** và **Đọc Phát Âm Chuẩn Giọng Bản Xứ** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles**.
+**VIE-Translate (Translate Toad AI `v0.8.2` — Local AI Edition)** là tiện ích mở rộng trình duyệt (Chrome, Microsoft Edge, Brave, Cốc Cốc, Opera...) giúp dịch trực tiếp phụ đề video theo thời gian thực (**Real-Time**) sang **Tiếng Việt hoặc bất kỳ cặp song ngữ nào (Việt–Pháp, Việt–Anh, Việt–Nhật, Việt–Hàn, Việt–Trung...)**, kết hợp **Trợ Lý Học Ngoại Ngữ Chuyên Sâu (`Từ Loại POS • Ví Dụ Thực Tế • Fact Thú Vị & Mẹo Nhớ • Cụm Đi Kèm • Sổ Từ Vựng`)**, **Cân Chỉnh Độ Lệch Sub/Nhạc Tức Thì (`Sub Sync Calibration`)** và **Đọc Phát Âm Chuẩn Giọng Bản Xứ** bằng **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)** và **Google Translate** — kể cả trên **các video không có nút CC/Subtitles**.
 
-## ✨ Tính Năng Nổi Bật (`v0.8.1`)
+## ✨ Tính Năng Nổi Bật (`v0.8.2`)
 
 0. **🏠 MỚI `v0.8.1` — Local AI (chạy bằng phần cứng của bạn, miễn phí, riêng tư, không cần API Key)**:
    - **Dịch bằng Ollama**: Qwen / Llama / Gemma chạy ngay trên máy, giữ ngữ cảnh phim, vần điệu nhạc, xưng hô, thuật ngữ.
@@ -56,12 +56,25 @@
    - Tự động khóa cặp ngôi xưng chủ đạo (*Mình – Bạn*, *Tôi – Bạn*, *Anh/Chị – Em*) xuyên suốt toàn bộ video.
 8. **🎙️ Dịch Cả Video & Trang Web KHÔNG Có Nút CC / Subtitles (`Toad AI Nghe & Dịch`)**:
    - Tự động mở khóa `<track>` ẩn và thu âm thanh AI trực tiếp từ thẻ `<video>` (`2.2s` mỗi nhịp) qua **Groq Whisper** hoặc **Gemini Multimodal Audio**.
+9. **🔔 Tự Động Báo Cập Nhật GitHub (`Auto GitHub Update Notifier`)**:
+   - Tự động đối chiếu phiên bản `manifest.json` và mã băm cây mã nguồn Git trên nhánh `main`, hiển thị huy hiệu `MỚI` trên thanh công cụ, banner cập nhật kèm nút **`📋 Copy git pull`** / **`🔄 Đã kéo code — Nạp lại`** trong Popup, và thông báo nổi gọn nhẹ trên video.
 
 ---
 
 ## 🚀 Lịch Sử Cập Nhật & Các Cơ Chế Mới (Changelog)
 
-### 🌟 Phiên bản `v0.8.1` (Mới nhất) — *Khắc Phục Triệt Để Lỗi Chuyển Từ Video Nhạc Sang Video Thường Bị Giữ Nguyên Sub Cũ*
+### 🌟 Phiên bản `v0.8.2` (Mới nhất) — *Tự Động Báo Cập Nhật GitHub, Tối Ưu Tốc Độ & Nâng Cấp Bộ Máy Dịch Thuật*
+- 🔔 **Tự động phát hiện & thông báo cập nhật GitHub (`api/updater.js`)**:
+  - Tự động kiểm tra định kỳ (3 giờ/lần + ETag tiết kiệm rate-limit, tự fallback qua `raw.githubusercontent.com` khi chạm giới hạn API): phát hiện cả khi tăng version trong `manifest.json` lẫn khi có commit mới chưa đổi số phiên bản bằng đối chiếu Git blob SHA-1 chuẩn hóa CRLF/LF.
+  - Hiển thị huy hiệu **`MỚI`** trên biểu tượng extension, banner cập nhật ngay trong Popup (với **`📋 Copy git pull`**, **`⬇️ Mở GitHub`**, **`🔄 Đã kéo code — Nạp lại`** 1 chạm qua `chrome.runtime.reload()`), nút kiểm tra thủ công **`v0.8.2 ↻`** ở header và toast 1 lần trên video (có thể bật/tắt bằng mục **Tự báo cập nhật**).
+- ⚡ **Tối ưu tốc độ dịch thuật & giảm tối đa request thừa**:
+  - Cache cấu hình 0ms trong RAM (`VieStorage`), prefetch hàng loạt theo ngưỡng watermark 10 cue, phím tắt **0ms AI Cache Shortcut** khi preview, chống gọi trùng lặp giữa batch và câu đơn (`inFlight` cross-dedup), và gộp batch Google Translate `[[N]]` thành 1 HTTP request duy nhất.
+  - Sửa lỗi key Gemini `AIza...` gọi thừa sang Vertex endpoint, hỗ trợ tương thích model `gemma-3-*`, tự tắt suy luận thừa `/no_think` và lọc `<think>...</think>` cho model `qwen3`, cache danh sách model Ollama 60 giây.
+- 🧠 **Nâng cấp chất lượng dịch đa ngôn ngữ**:
+  - `buildTranslationPrompts` tách biệt chỉ dẫn đa ngôn ngữ sạch sẽ (không chèn quy tắc thuần Việt vào ngôn ngữ đích khác), lọc glossary liên quan ưu tiên cụm dài trước, hỗ trợ thuật ngữ CJK/Thái không khoảng trắng và mở rộng bảo vệ từ ghép tiếng Việt trong khóa ngôi xưng.
+- 🧪 **Mở rộng bộ kiểm thử tự động lên 23 bài test (`23/23 PASS`)**: Kiểm thử toàn diện module thật (`storage`, `gtx`, `gemini`, `groq`, `ollama`, `updater`, `background`, `captions`, `content`) và kiểm tra cú pháp toàn bộ 20 file JavaScript.
+
+### 🌟 Phiên bản `v0.8.1` — *Khắc Phục Triệt Để Lỗi Chuyển Từ Video Nhạc Sang Video Thường Bị Giữ Nguyên Sub Cũ*
 - 🔄 **Khắc phục dứt điểm lỗi đè sub khi đổi video**:
   1. Xác minh chặt chẽ `videoId` trong `getYouTubePlayerCaptionTracks` & `getVideoTitle`: Tuyệt đối không đọc nhầm track hoặc tiêu đề cũ của video trước.
   2. Bổ sung bộ lọc từ chối video thường trong `looksLikeMusicVideo`: Các video vlog, cắm trại (camping/solo), bài giảng, review có dấu gạch ngang (` - `) tuyệt đối không bị nhận nhầm thành MV ca nhạc.
@@ -228,7 +241,7 @@
 ### Bước B: Cài Đặt Lên Trình Duyệt (Chrome / Edge / Brave / Cốc Cốc)
 1. Mở trình duyệt và truy cập `chrome://extensions/` (hoặc `edge://extensions/`).
 2. Bật công tắc **Developer mode** ở góc trên bên phải.
-3. Nhấn **Load unpacked** và chọn thư mục `VIE-Translate-by-me-` (hoặc bấm nút **Reload 🔄** ở thẻ **VIE-Translate**).
+3. Nhấn **Load unpacked** và chọn thư mục `VIE-Translate-by-me-` (sau khi chạy `git pull origin main`, bạn có thể bấm nút **`🔄 Đã kéo code — Nạp lại`** ngay trong banner cập nhật của Popup hoặc bấm **Reload 🔄** ở thẻ **VIE-Translate**).
 4. **Ghim 📌** chú cóc **Translate Toad** lên thanh công cụ.
 
 ### Bước C: Tự Động Lấy & Kích Hoạt API Key Miễn Phí
@@ -270,9 +283,9 @@
 
 # 🇬🇧 ENGLISH (Complete A-to-Z Guide)
 
-**VIE-Translate (Translate Toad AI `v0.8.1` — Local AI Edition)** is a real-time browser extension that translates video subtitles into **Vietnamese or any custom bilingual pair**, acts as a **Multi-Dimensional Vocabulary & Scene Nuance Coach**, and provides **Instant Subtitle/Lyrics Timing Calibration & Native Voice Speech Synthesis** using **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)**, and **Google Translate**.
+**VIE-Translate (Translate Toad AI `v0.8.2` — Local AI Edition)** is a real-time browser extension that translates video subtitles into **Vietnamese or any custom bilingual pair**, acts as a **Multi-Dimensional Vocabulary & Scene Nuance Coach**, and provides **Instant Subtitle/Lyrics Timing Calibration & Native Voice Speech Synthesis** using **Google Gemini AI (Free Tier)**, **Groq Cloud (Free Tier)**, and **Google Translate**.
 
-## ✨ Key Features (`v0.8.1`)
+## ✨ Key Features (`v0.8.2`)
 
 0. **🏠 NEW in `v0.7.0` — Local AI (your own hardware, free, private, no API key)**:
    - **Ollama translation** (Qwen / Llama / Gemma) with movie context, lyric rhyme, pronoun lock and glossary.
@@ -301,12 +314,25 @@
    - Locks dominant Vietnamese addressing styles (*Mình – Bạn*, *Tôi – Bạn*, *Anh/Chị – Em*) throughout the entire video.
 8. **🎙️ Translate Videos on Websites WITHOUT CC / Subtitles**:
    - Captures direct video audio via Groq Whisper or Gemini Multimodal Audio.
+9. **🔔 Automatic GitHub Update Notifier (`Auto GitHub Update Notifier`)**:
+   - Tracks both `manifest.json` version bumps and raw Git commit tree blob SHA-1 changes on `main`, showing a `MỚI` toolbar badge, a Popup update banner with **`📋 Copy git pull`** / **`🔄 Reload`**, and a non-intrusive once-per-update video toast.
 
 ---
 
 ## 📋 Version History & New Mechanisms (Changelog)
 
-### 🌟 `v0.8.1` (Latest) — *Fix Subtitle Sticking When Switching From Music Video to Normal Video*
+### 🌟 `v0.8.2` (Latest) — *Automatic GitHub Update Notifier, Speed Optimizations & Multilingual Translation Upgrade*
+- 🔔 **Automatic GitHub Update Notifier (`api/updater.js`)**:
+  - Checks `main` every 3 hours (with ETag caching and automatic `raw.githubusercontent.com` fallback on API rate-limits), detecting both semver bumps in `manifest.json` and same-version code commits via CRLF/LF-normalized Git blob SHA-1 comparison.
+  - Surfaces a **`MỚI`** toolbar badge, an interactive Popup update banner (`📋 Copy git pull`, `⬇️ Open GitHub`, and 1-click `🔄 Reload` via `chrome.runtime.reload()`), a clickable `v0.8.2 ↻` header check button, and a one-time in-video update toast (configurable via `autoCheckUpdates`).
+- ⚡ **Translation Speed & API Latency Optimizations**:
+  - 0ms RAM settings cache (`VieStorage`), 10-cue watermark lookahead prefetching, 0ms cached AI preview shortcut, batch-to-single `inFlight` cross-deduplication, and single-request GTX `[[N]]` batching.
+  - Eliminated redundant Vertex endpoint calls on `AIza` Gemini keys, added `gemma-3-*` inline system prompt support, `/no_think` & `<think>` stripping for `qwen3`, and 60s Ollama `/api/tags` discovery caching.
+- 🧠 **Multilingual Prompt & Glossary Upgrades**:
+  - Clean language-isolated `buildTranslationPrompts`, longest-match-first relevant glossary filtering, CJK/Thai unspaced glossary matching, and expanded Vietnamese compound pronoun protection.
+- 🧪 **Expanded 23-Test Automated Suite (`23/23 PASS`)**: Integration coverage across real modules plus syntax verification across all 20 JavaScript files.
+
+### 🌟 `v0.8.1` — *Fix Subtitle Sticking When Switching From Music Video to Normal Video*
 - 🔄 **Bulletproof video switch reset & subtitle clearing**:
   1. Strict `videoId` matching in `getYouTubePlayerCaptionTracks` and `getVideoTitle`: Never read caption tracks or titles of previous videos.
   2. Non-music content filter in `looksLikeMusicVideo`: Vlogs, camping, tutorials, reviews with hyphens are never misclassified as music videos.
@@ -460,7 +486,7 @@ git pull origin main
 ```
 
 ### Step B: Load or Reload in Your Browser
-1. Open `chrome://extensions/`, enable **Developer mode**, and click **Reload 🔄** on the **VIE-Translate** card.
+1. Open `chrome://extensions/`, enable **Developer mode**, and click **Reload 🔄** on the **VIE-Translate** card (or click **`🔄 Đã kéo code — Nạp lại`** right inside the Popup update banner after `git pull origin main`).
 2. Pin 📌 the **Translate Toad** icon to your toolbar.
 
 ### Step C: Calibrate Timing & Learn Languages While Watching
