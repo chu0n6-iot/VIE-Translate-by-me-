@@ -10,7 +10,8 @@ importScripts(
   "/api/ollama.js",
   "/api/whisper.js",
   "/api/gtx.js",
-  "/api/lyrics.js"
+  "/api/lyrics.js",
+  "/api/updater.js"
 );
 
 const MAX_CACHE_SIZE = 800;
@@ -627,6 +628,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const tabId = sender.tab?.id ?? "global";
 
   if (msg.type === "TRANSLATE") {
+    self.VieUpdater?.maybeAutoCheck?.();
     handleTranslate(msg.text, (msg.videoTitle || "") + (msg.videoContext ? " | Mô tả: " + msg.videoContext : ""), tabId, msg.fastPreviewOnly === true, msg.nextText || "")
       .then(sendResponse)
       .catch((err) => sendResponse({ error: err.message || "Lỗi dịch phụ đề" }));
@@ -907,6 +909,59 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse({ ok: true });
     return true;
   }
+
+  if (msg.type === "GET_UPDATE_STATUS") {
+    self.VieUpdater.getStatus()
+      .then((st) => sendResponse({ ok: true, ...st }))
+      .catch((e) => sendResponse({ ok: false, error: e.message }));
+    return true;
+  }
+
+  if (msg.type === "CHECK_GITHUB_UPDATE") {
+    self.VieUpdater.checkForUpdates({ force: true, verifyLocalSync: true })
+      .then((st) => sendResponse({ ok: true, ...st }))
+      .catch((e) => sendResponse({ ok: false, error: e.message }));
+    return true;
+  }
+
+  if (msg.type === "DISMISS_UPDATE") {
+    self.VieUpdater.dismissUpdate(msg.updateId || "")
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+
+  if (msg.type === "MARK_UPDATE_TOAST_SHOWN") {
+    self.VieUpdater.markToastShown(msg.updateId || "")
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+
+  if (msg.type === "RELOAD_EXTENSION") {
+    sendResponse({ ok: true });
+    setTimeout(() => {
+      try { chrome.runtime.reload(); } catch {}
+    }, 80);
+    return true;
+  }
+});
+
+// Tự động kiểm tra cập nhật GitHub khi Service Worker khởi động & khi cài đặt / nạp lại extension
+if (typeof chrome !== "undefined" && chrome.runtime?.id) {
+  setTimeout(() => self.VieUpdater?.maybeAutoCheck?.(), 3500);
+}
+
+self.VieStorage?.onChanged?.((changes) => {
+  if ("autoCheckUpdates" in changes) {
+    if (changes.autoCheckUpdates.newValue === false) {
+      self.VieUpdater?.getStatus?.()
+        .then((st) => self.VieUpdater.syncActionBadge(st, false))
+        .catch(() => {});
+    } else {
+      self.VieUpdater?.maybeAutoCheck?.();
+    }
+  }
 });
 
 // Context Menu (Right click to translate selected text)
@@ -916,6 +971,7 @@ chrome.runtime.onInstalled.addListener(() => {
     title: "🐸 Dịch với VIE-Translate Toad",
     contexts: ["selection"]
   });
+  self.VieUpdater?.checkForUpdates?.({ force: true, verifyLocalSync: true })?.catch(() => {});
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {

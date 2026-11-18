@@ -110,6 +110,7 @@
     softenProfanity: true,
     hoverPauseDict: true,
     selectionTranslate: true,
+    autoCheckUpdates: true,
     savedVocab: []
   };
 

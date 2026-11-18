@@ -18,7 +18,7 @@
       <div class="toad-title-row">
         <span class="toad-brand">Translate Toad AI</span>
         <button type="button" id="sfxToggle" class="sfx-toggle" title="Bật/tắt âm thanh">🔊</button>
-        <span class="toad-badge">v0.7.2</span>
+        <button type="button" id="checkUpdateMiniBtn" class="toad-badge toad-badge-btn" title="Bấm để kiểm tra cập nhật mới trên GitHub">v0.8.2 ↻</button>
       </div>
       <div id="toadSpeech" class="toad-speech">
         Ộp! Mở video lên là Cóc tự dịch cho bạn.
@@ -33,6 +33,20 @@
           <span>2 dòng (gốc + dịch)</span>
         </label>
       </div>
+    </div>
+  </div>
+
+  <!-- GITHUB AUTO-UPDATE BANNER -->
+  <div id="updateBanner" class="update-banner" style="display: none;">
+    <div class="update-banner-top">
+      <span id="updateBannerTitle" class="update-banner-title">🚀 Có cập nhật mới trên GitHub!</span>
+      <button type="button" id="dismissUpdateBtn" class="update-dismiss-btn" title="Bỏ qua bản này">✕</button>
+    </div>
+    <div id="updateBannerMeta" class="update-banner-meta"></div>
+    <div class="update-banner-actions">
+      <button type="button" id="copyGitPullBtn" class="update-btn">📋 Copy git pull</button>
+      <a id="openGithubUpdateLink" class="update-btn" href="https://github.com/chu0n6-iot/VIE-Translate-by-me-" target="_blank" rel="noopener noreferrer">⬇️ Mở GitHub</a>
+      <button type="button" id="reloadExtBtn" class="update-btn update-btn-primary">🔄 Đã kéo code — Nạp lại</button>
     </div>
   </div>
 
@@ -163,6 +177,10 @@
       <label class="checkbox-row" title="Rê chuột vào phụ đề để tự động tạm dừng video, bấm từ tra từ điển hoặc bấm 'Xem thêm' để phân tích ngữ cảnh & cách dùng thực tế">
         <input type="checkbox" id="hoverPauseDict" checked>
         <span><b>Chế độ học</b>: rê chuột để dừng video, bấm từ để tra</span>
+      </label>
+      <label class="checkbox-row" title="Tự động kiểm tra thay đổi mới trên kho GitHub và thông báo khi có bản cập nhật">
+        <input type="checkbox" id="autoCheckUpdates" checked>
+        <span><b>Tự báo cập nhật</b> khi GitHub có bản mới</span>
       </label>
     </div>
   </div>
