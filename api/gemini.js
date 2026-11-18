@@ -26,7 +26,10 @@
   ];
 
   const discoveredGeminiModelsByKey = new Map();
+  const inFlightGeminiDiscovery = new Map();
   const cooldownGeminiModels = new Map();
+  const workingEndpointByKey = new Map();
+  const lastWorkingModelByKey = new Map();
 
   function isModelInCooldown(apiKey, modelId) {
     const key = `${apiKey}:${modelId}`;
@@ -76,52 +79,59 @@
     if (discoveredGeminiModelsByKey.has(cleanKey)) {
       return discoveredGeminiModelsByKey.get(cleanKey);
     }
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`;
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 4000);
-      const res = await fetch(url, { signal: ctrl.signal });
-      clearTimeout(timer);
-      if (!res.ok) return [...FALLBACK_GEMINI_MODELS];
-      const data = await res.json();
-      const list = (data?.models || [])
-        .map((m) => (m.name || "").replace(/^models\//, ""))
-        .filter((id) => id && scoreGeminiModel(id) > 0)
-        .sort((a, b) => scoreGeminiModel(b) - scoreGeminiModel(a));
-      const finalModels = list.length ? list : [...FALLBACK_GEMINI_MODELS];
-      discoveredGeminiModelsByKey.set(cleanKey, finalModels);
-      return finalModels;
-    } catch {
-      return [...FALLBACK_GEMINI_MODELS];
+    if (inFlightGeminiDiscovery.has(cleanKey)) {
+      return inFlightGeminiDiscovery.get(cleanKey);
     }
+    const promise = (async () => {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`;
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 3500);
+        const res = await fetch(url, { signal: ctrl.signal });
+        clearTimeout(timer);
+        if (!res.ok) return [...FALLBACK_GEMINI_MODELS];
+        const data = await res.json();
+        const list = (data?.models || [])
+          .map((m) => (m.name || "").replace(/^models\//, ""))
+          .filter((id) => id && scoreGeminiModel(id) > 0)
+          .sort((a, b) => scoreGeminiModel(b) - scoreGeminiModel(a));
+        const finalModels = list.length ? list : [...FALLBACK_GEMINI_MODELS];
+        discoveredGeminiModelsByKey.set(cleanKey, finalModels);
+        return finalModels;
+      } catch {
+        return [...FALLBACK_GEMINI_MODELS];
+      } finally {
+        inFlightGeminiDiscovery.delete(cleanKey);
+      }
+    })();
+    inFlightGeminiDiscovery.set(cleanKey, promise);
+    return promise;
   }
 
-  async function callGeminiEndpoint({ model, apiKey, body, timeoutMs = 7500 }) {
+  async function callGeminiEndpoint({ model, apiKey, body, timeoutMs = 6000 }) {
     const cleanKey = (apiKey || "").trim();
-    const isAqKey = cleanKey.startsWith("AQ.");
-    const endpoints = isAqKey
-      ? [
-          {
-            type: "vertex",
-            url: `https://aiplatform.googleapis.com/v1/publishers/google/models/${encodeURIComponent(model)}:generateContent?key=${cleanKey}`
-          },
-          {
-            type: "developer",
-            url: `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${cleanKey}`
-          }
-        ]
-      : [
-          {
-            type: "developer",
-            url: `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${cleanKey}`
-          },
-          {
-            type: "vertex",
-            url: `https://aiplatform.googleapis.com/v1/publishers/google/models/${encodeURIComponent(model)}:generateContent?key=${cleanKey}`
-          }
-        ];
+    const developerEp = {
+      type: "developer",
+      url: `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${cleanKey}`
+    };
+    const vertexEp = {
+      type: "vertex",
+      url: `https://aiplatform.googleapis.com/v1/publishers/google/models/${encodeURIComponent(model)}:generateContent?key=${cleanKey}`
+    };
+
+    let endpoints;
+    if (cleanKey.startsWith("AIza")) {
+      endpoints = [developerEp];
+    } else if (workingEndpointByKey.get(cleanKey) === "developer") {
+      endpoints = [developerEp, vertexEp];
+    } else if (workingEndpointByKey.get(cleanKey) === "vertex" || cleanKey.startsWith("AQ.")) {
+      endpoints = [vertexEp, developerEp];
+    } else {
+      endpoints = [developerEp, vertexEp];
+    }
 
     let lastError = null;
+    let quotaError = null;
     for (const ep of endpoints) {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -144,15 +154,17 @@
           err.isQuotaExceeded = res.status === 429 || /quota|resource_exhausted|rate_limit|exceeded your current quota/i.test(errMsg);
           throw err;
         }
+        workingEndpointByKey.set(cleanKey, ep.type);
         const data = await res.json();
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
         return text.trim();
       } catch (err) {
         clearTimeout(timer);
+        if (err?.isQuotaExceeded && !quotaError) quotaError = err;
         lastError = err;
       }
     }
-    throw lastError || new Error("Gemini API call failed.");
+    throw quotaError || lastError || new Error("Gemini API call failed.");
   }
 
   async function translateWithGeminiAuto({
@@ -169,98 +181,95 @@
     translationStyle = "natural",
     pronounStyle = "auto",
     lockedPronounPair = "",
-    softenProfanity = true
+    softenProfanity = true,
+    multiSpeakerSplit = true
   }) {
-    const isBatch = Array.isArray(texts) && texts.length > 0;
+    const { systemPrompt, userPrompt, isBatch } = root.VieStorage?.buildTranslationPrompts
+      ? root.VieStorage.buildTranslationPrompts({
+          text,
+          texts,
+          nextText,
+          videoTitle,
+          videoPersona,
+          glossary,
+          targetLang,
+          translationStyle,
+          pronounStyle,
+          lockedPronounPair,
+          softenProfanity,
+          multiSpeakerSplit
+        })
+      : {
+          systemPrompt: `You are an elite subtitle translator. Target language: ${targetLang}.`,
+          userPrompt: Array.isArray(texts) && texts.length ? texts.map((t, i) => `[[${i + 1}]] ${t}`).join("\n") : (text || ""),
+          isBatch: Array.isArray(texts) && texts.length > 0
+        };
+
     const candidates = await discoverGeminiModels(apiKey);
     const ordered = [];
+    const stickyModel = lastWorkingModelByKey.get(apiKey);
     if (preferredModel && preferredModel !== "auto" && candidates.includes(preferredModel)) {
       ordered.push(preferredModel);
+    } else if (stickyModel && candidates.includes(stickyModel) && !isModelInCooldown(apiKey, stickyModel)) {
+      ordered.push(stickyModel);
     }
     for (const m of candidates) {
       if (!ordered.includes(m)) ordered.push(m);
     }
 
-    const validGlossary = Array.isArray(glossary)
-      ? glossary.filter((g) => g && g.src && g.target && g.enabled !== false)
-      : [];
-
-    const sysInstruction = [
-      `You are an elite bilingual video subtitle translator. Target language: ${targetLang}.`,
-      videoTitle ? `VIDEO CONTEXT: "${videoTitle}".` : "",
-      "PROFESSIONAL COHESION & FLOW (LIÊN KẾT MẠCH LẠC CÂU TRƯỚC - CÂU SAU):",
-      "- TUYỆT ĐỐI KHÔNG dịch ngang từ-nối-từ 1:1 theo cấu trúc tiếng Tây máy móc.",
-      "- Phải đọc hiểu mạch ngữ cảnh từ các câu thoại trước đó (history) và câu sau (nếu có). Kết nối ý tứ liền mạch, trôi chảy, giàu nhạc điệu và cảm xúc như dịch giả Netflix/HBO.",
-      "- Sử dụng liên từ tiếng Việt tự nhiên ('Nhưng rồi', 'Thế là', 'Hóa ra', 'Chẳng ngờ', 'Dẫu vậy...') khi câu là vế nối tiếp hoặc câu rút gọn.",
-      "- Xử lý các đại từ quy chiếu (it, that, they...) sát theo đối tượng ở câu trước thay vì dịch cứng nhắc.",
-      "- Với video ca nhạc/lyrics: dịch giàu vần điệu, hình ảnh thơ ca, giữ trọn hồn bài hát.",
-      "MULTI-SPEAKER DIALOGUE & LINE SEPARATION (HỘI THOẠI NHIỀU NGƯỜI NÓI):",
-      "- Khi câu thoại có từ 2 người nói trở lên (dấu hiệu: có gạch đầu dòng '- ', ký hiệu '>>', tên nhân vật, ngoặc kép, hoặc câu hỏi - đáp qua lại giữa hai người):",
-      "- BẮT BUỘC TÁCH MỖI NGƯỜI NÓI THÀNH MỘT DÒNG RIÊNG BIỆT. Mỗi dòng PHẢI bắt đầu bằng dấu gạch ngang và dấu cách: '- [Lời dịch người A]\\n- [Lời dịch người B]'.",
-      "- TUYỆT ĐỐI KHÔNG gộp lời nói của 2 người khác nhau thành 1 câu dính liền trên cùng một dòng.",
-      "- Giữ nguyên vị thế xưng hô, ngữ khí và thái độ riêng của từng người nói một cách độc lập.",
-      videoPersona && root.VieStorage?.PERSONA_INSTRUCTIONS[videoPersona]
-        ? root.VieStorage.PERSONA_INSTRUCTIONS[videoPersona]
-        : "",
-      root.VieStorage?.STYLE_INSTRUCTIONS[translationStyle] || "",
-      root.VieStorage?.PRONOUN_INSTRUCTIONS[pronounStyle] || "",
-      lockedPronounPair ? `LOCKED PRONOUN: ${lockedPronounPair}.` : "",
-      validGlossary.length > 0
-        ? `STRICT GLOSSARY ENFORCEMENT: You MUST translate the following terms exactly as mapped without exception: ${validGlossary
-            .map((g) => `"${g.src}" => "${g.target}"`)
-            .join(", ")}.`
-        : "",
-      softenProfanity
-        ? "FAMILY-FRIENDLY: Soften severe profanities/vulgar insults into mild natural expressions (e.g. 'chết tiệt', 'khốn kiếp', 'trời đất ơi'). NEVER refuse or stop translating."
-        : "UNCENSORED: Faithfully translate any colloquial expressions and slang.",
-      "If <context_next> is provided, use it ONLY as lookahead context for grammar/pronouns — NEVER translate <context_next>. Translate ONLY <translate_now> and output ONLY the translated subtitle text without XML tags, notes, quotes or intro."
-    ].filter(Boolean).join(" ");
-
-    let promptContent = "";
-    if (isBatch) {
-      promptContent =
-        `Translate each numbered subtitle line below in continuous context. Keep exact numbering format '1. ...' \\n '2. ...':\n` +
-        texts.map((t, i) => `${i + 1}. ${t}`).join("\n");
-    } else if (nextText && nextText.trim()) {
-      promptContent = `<context_next>${nextText.trim()}</context_next>\n<translate_now>${text}</translate_now>`;
-    } else {
-      promptContent = text;
-    }
-
-    if (!isBatch && (root.VieStorage?.isMultiSpeakerDialogue?.(text) || text.includes("\n-"))) {
-      promptContent = `[Multi-speaker dialogue. Keep each speaker on separate line with '- ']:\n${promptContent}`;
-    }
-
-    const contents = [
+    const baseContents = [
       ...history.slice(-6).map((h) => [
         { role: "user", parts: [{ text: h.src }] },
         { role: "model", parts: [{ text: h.vi }] }
       ]).flat(),
-      { role: "user", parts: [{ text: promptContent }] }
+      { role: "user", parts: [{ text: userPrompt }] }
     ];
 
-    const body = {
-      contents,
-      systemInstruction: { parts: [{ text: sysInstruction }] },
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 1024
-      }
+    const generationConfig = {
+      temperature: 0.2,
+      maxOutputTokens: isBatch ? 1536 : 320
     };
+    const timeoutMs = isBatch ? 9000 : 5000;
 
     const cleanFn = root.VieStorage?.cleanTranslatedOutput || ((s) => (s || "").trim());
     const parseBatchFn =
       root.VieStorage?.parseBatchTranslations ||
       ((raw) => raw.split("\n").map((l) => l.replace(/^\d+[\.\)]\s*/, "").trim()).filter(Boolean));
 
+    const MAX_ATTEMPTS = 3;
+    let attempts = 0;
     let lastErr = null;
     for (const m of ordered) {
       if (isModelInCooldown(apiKey, m)) continue;
+      if (attempts >= MAX_ATTEMPTS) break;
+      attempts++;
+
+      const isGemma = m.toLowerCase().startsWith("gemma");
+      let reqBody;
+      if (isGemma) {
+        const gemmaContents = baseContents.map((item, idx) => {
+          if (idx !== 0) return item;
+          const origTxt = item?.parts?.[0]?.text || "";
+          return {
+            role: item.role || "user",
+            parts: [{ text: `${systemPrompt}\n\n${origTxt}` }]
+          };
+        });
+        reqBody = { contents: gemmaContents, generationConfig };
+      } else {
+        reqBody = {
+          contents: baseContents,
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          generationConfig
+        };
+      }
+
       try {
-        const out = await callGeminiEndpoint({ model: m, apiKey, body });
-        if (looksLikeRefusal(out)) {
-          throw new Error("Gemini refused output.");
+        const out = await callGeminiEndpoint({ model: m, apiKey, body: reqBody, timeoutMs });
+        if (!out || looksLikeRefusal(out)) {
+          throw new Error("Gemini returned empty or refused output.");
         }
+        lastWorkingModelByKey.set(apiKey, m);
         if (isBatch) {
           const lines = parseBatchFn(out, texts.length);
           return { translations: lines, modelUsed: m };
@@ -268,6 +277,9 @@
         return { vi: cleanFn(out), modelUsed: m };
       } catch (err) {
         lastErr = err;
+        if (err?.status === 401 || err?.status === 403) {
+          break;
+        }
         const isQuota = err.isQuotaExceeded || err.status === 429 || /quota|resource_exhausted|429/i.test(err.message || "");
         markModelCooldown(apiKey, m, isQuota ? 3600000 : 120000);
       }

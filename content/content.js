@@ -8,17 +8,42 @@
 
   let settings = root.VieStorage ? { ...root.VieStorage.DEFAULT_SETTINGS } : {};
   const localCache = new Map();
+  const knownVideos = new WeakSet();
 
-  function ingestBatchTranslations(resultsMap) {
+  function setLocalCache(ck, val) {
+    localCache.set(ck, val);
+    if (localCache.size > 500) {
+      localCache.delete(localCache.keys().next().value);
+    }
+  }
+
+  function ingestBatchTranslations(resultsMap, sub2Map = {}) {
     if (!resultsMap || typeof resultsMap !== "object") return;
+    const splitMulti = settings.multiSpeakerSplit !== false;
+    const updated = new Map();
+
     for (const [src, vi] of Object.entries(resultsMap)) {
       if (!src || !vi) continue;
-      const cleanSrc = root.VieCaptions ? root.VieCaptions.normalizeSubtitleText(src) : src.trim();
+      const cleanSrc = root.VieCaptions
+        ? root.VieCaptions.normalizeSubtitleText(src, splitMulti)
+        : src.trim();
+      const sub2 = (sub2Map && sub2Map[src]) || "";
       const ck = root.VieStorage.getCacheKey(cleanSrc, settings);
-      localCache.set(ck, { vi, sub2: "" });
-      if (localCache.size > 500) {
-        localCache.delete(localCache.keys().next().value);
-      }
+      setLocalCache(ck, { vi, sub2 });
+      updated.set(cleanSrc, { vi, sub2 });
+    }
+
+    if (updated.size > 0 && typeof document !== "undefined") {
+      document.querySelectorAll("video").forEach((v) => {
+        const st = root.VieCaptions?.getVideoState?.(v);
+        if (!st || !st.lastText || !updated.has(st.lastText)) return;
+        const ov = v._vieOverlay || root.VieDOM?.getContainer?.(v)?.querySelector(".vie-overlay");
+        const viEl = ov?.querySelector(".vie-vi");
+        if (viEl && viEl.classList.contains("vie-preview")) {
+          const entry = updated.get(st.lastText);
+          renderSubtitles(v, st.lastText, entry.vi, entry.sub2, false, false);
+        }
+      });
     }
   }
 
@@ -153,7 +178,7 @@
     }
 
     const state = root.VieCaptions.getVideoState(video);
-    const cleanText = root.VieCaptions.normalizeSubtitleText(rawText);
+    const cleanText = root.VieCaptions.normalizeSubtitleText(rawText, settings.multiSpeakerSplit !== false);
 
     if (!cleanText) {
       if (state.throttleTimer) clearTimeout(state.throttleTimer);
@@ -172,8 +197,17 @@
     const ck = root.VieStorage.getCacheKey(cleanText, settings);
     if (localCache.has(ck)) {
       const cached = localCache.get(ck);
-      renderSubtitles(video, cleanText, cached.vi, cached.sub2, false, false);
-      return;
+      const needsSub2 = Boolean(
+        settings.dualSub &&
+        settings.secondaryLang &&
+        settings.secondaryLang !== "orig" &&
+        settings.secondaryLang !== "none" &&
+        settings.secondaryLang !== settings.targetLang
+      );
+      if (!needsSub2 || cached.sub2) {
+        renderSubtitles(video, cleanText, cached.vi, cached.sub2, false, false);
+        return;
+      }
     }
 
     const now = Date.now();
@@ -183,8 +217,9 @@
     const doTranslate = () => {
       state.lastSendAt = Date.now();
       const currentSeq = ++state.reqSeq;
+      let gotFinalFromPreview = false;
 
-      // Fast preview stream (0ms instant preview)
+      // Fast preview stream (0ms instant preview — or instant 0ms final AI if already cached in background)
       if (settings.provider !== "gtx") {
         chrome.runtime.sendMessage({
           type: "TRANSLATE",
@@ -196,13 +231,25 @@
           fastPreviewOnly: true
         }, (previewRes) => {
           if (!chrome.runtime.lastError && previewRes?.vi && currentSeq >= state.lastRenderedSeq && currentSeq === state.reqSeq) {
-            state.lastRenderedSeq = currentSeq;
-            renderSubtitles(video, cleanText, previewRes.vi, previewRes.sub2 || "", true, false);
+            if (previewRes.isFinalAi) {
+              gotFinalFromPreview = true;
+              setLocalCache(ck, { vi: previewRes.vi, sub2: previewRes.sub2 || "" });
+              if (state.aiRefineTimer) {
+                clearTimeout(state.aiRefineTimer);
+                state.aiRefineTimer = null;
+              }
+              state.lastRenderedSeq = currentSeq;
+              renderSubtitles(video, cleanText, previewRes.vi, previewRes.sub2 || "", false, false);
+            } else {
+              state.lastRenderedSeq = currentSeq;
+              renderSubtitles(video, cleanText, previewRes.vi, previewRes.sub2 || "", true, false);
+            }
           }
         });
       }
 
       const executeAiTranslate = () => {
+        if (gotFinalFromPreview || currentSeq !== state.reqSeq) return;
         chrome.runtime.sendMessage({
           type: "TRANSLATE",
           text: cleanText,
@@ -214,10 +261,7 @@
         }, (res) => {
           if (!chrome.runtime.lastError && res?.quotaExhausted) showQuotaToast(video);
           if (!chrome.runtime.lastError && res?.vi && currentSeq >= state.lastRenderedSeq) {
-            localCache.set(ck, { vi: res.vi, sub2: res.sub2 || "" });
-            if (localCache.size > 500) {
-              localCache.delete(localCache.keys().next().value);
-            }
+            setLocalCache(ck, { vi: res.vi, sub2: res.sub2 || "" });
             if (currentSeq !== state.reqSeq) return;
             state.lastRenderedSeq = currentSeq;
             renderSubtitles(video, cleanText, res.vi, res.sub2 || "", false, false);
@@ -230,10 +274,10 @@
         state.aiRefineTimer = null;
       }
 
-      // Ghép câu thông minh (Cơ chế 4): Nếu câu chưa trọn vẹn ngữ pháp, đợi nhẹ 280ms để ghép trọn câu
+      // Ghép câu thông minh (Cơ chế 4): Chỉ trễ nhẹ 180ms cho stream CC chưa ngắt câu (không trễ với cue rời rạc immediate === true)
       const isIncomplete = settings.smartMergeCaptions !== false && root.VieCaptions?.isIncompleteClause?.(cleanText);
-      if (isIncomplete && !nextText && settings.provider !== "gtx") {
-        state.aiRefineTimer = setTimeout(executeAiTranslate, 280);
+      if (!immediate && isIncomplete && !nextText && settings.provider !== "gtx") {
+        state.aiRefineTimer = setTimeout(executeAiTranslate, 180);
       } else {
         executeAiTranslate();
       }
@@ -249,9 +293,24 @@
     }
   }
 
+  function watchVideosLight() {
+    let foundNew = false;
+    document.querySelectorAll("video").forEach((video) => {
+      if (!knownVideos.has(video)) {
+        knownVideos.add(video);
+        foundNew = true;
+      }
+      root.VieCaptions.watchVideo(video, onCaptionReceived);
+    });
+    if (foundNew) {
+      root.VieDOM?.applySettingsToDOM(settings);
+    }
+  }
+
   function scanAndWatchVideos() {
     root.VieDOM?.applySettingsToDOM(settings);
     document.querySelectorAll("video").forEach((video) => {
+      knownVideos.add(video);
       root.VieCaptions.watchVideo(video, onCaptionReceived);
     });
   }
@@ -265,7 +324,7 @@
       for (const [k, c] of Object.entries(changes)) {
         if (k in settings) {
           settings[k] = c.newValue;
-          if (["provider", "targetLang", "secondaryLang", "translationStyle", "pronounStyle", "softenProfanity", "customGlossary", "enabled"].includes(k)) {
+          if (["provider", "targetLang", "secondaryLang", "translationStyle", "pronounStyle", "softenProfanity", "customGlossary", "multiSpeakerSplit", "enabled"].includes(k)) {
             clearCache = true;
           }
         }
@@ -286,6 +345,7 @@
       "play",
       (e) => {
         if (e.target && e.target.tagName === "VIDEO") {
+          knownVideos.add(e.target);
           root.VieCaptions?.watchVideo(e.target, onCaptionReceived);
         }
       },
@@ -296,6 +356,7 @@
       "playing",
       (e) => {
         if (e.target && e.target.tagName === "VIDEO") {
+          knownVideos.add(e.target);
           root.VieCaptions?.watchVideo(e.target, onCaptionReceived);
         }
       },
@@ -326,8 +387,23 @@
     window.addEventListener("seeking", handleGlobalSeek, true);
     window.addEventListener("seeked", handleGlobalSeek, true);
 
-    // DOM Observer cho các video được chèn động vào trang
-    const observer = new MutationObserver(() => scanAndWatchVideos());
+    // DOM Observer có bộ lọc & gom lô 120ms để tránh chạy lại khi chính extension cập nhật phụ đề
+    let mutationScanTimer = null;
+    const OWN_UI_SELECTOR = ".vie-overlay, #vie-selection-bubble, .vie-toad-audio-btn, .vie-quick-sub-toggle";
+    const isOwnUiNode = (node) => {
+      const el = node instanceof Element ? node : node?.parentElement;
+      return Boolean(el && el.closest(OWN_UI_SELECTOR));
+    };
+    const observer = new MutationObserver((mutations) => {
+      const hasExternalMutation = mutations.some((m) => !isOwnUiNode(m.target));
+      if (!hasExternalMutation) return;
+      if (!mutationScanTimer) {
+        mutationScanTimer = setTimeout(() => {
+          mutationScanTimer = null;
+          watchVideosLight();
+        }, 120);
+      }
+    });
     if (document.documentElement) {
       observer.observe(document.documentElement, { childList: true, subtree: true });
     }
@@ -352,7 +428,7 @@
         root.VieCaptions?.autoEnsureYouTubeCC?.(v);
         root.VieCaptions?.watchVideo?.(v, onCaptionReceived);
       });
-      scanAndWatchVideos();
+      watchVideosLight();
     };
 
     const onYouTubeNavStart = () => {
@@ -372,17 +448,20 @@
     window.addEventListener("yt-page-data-updated", onYouTubePageChange);
     window.addEventListener("popstate", onYouTubePageChange);
 
-    // Interval phát hiện URL đổi tức thì ngay cả khi YouTube không bắn event SPA (100ms)
+    // Interval phát hiện URL đổi tức thì ngay cả khi YouTube không bắn event SPA (120ms)
+    let lastCheckedUrl = "";
     setInterval(() => {
       if (!location.hostname.includes("youtube.com")) return;
-      const curVid = new URL(location.href).searchParams.get("v") || "";
+      if (location.href === lastCheckedUrl) return;
+      lastCheckedUrl = location.href;
+      const curVid = new URL(lastCheckedUrl).searchParams.get("v") || "";
       if (curVid && curVid !== lastHandledVid) {
         onYouTubePageChange();
       }
     }, 120);
 
-    // Interval to ensure dynamic SPA video players (YouTube SPA nav, etc.) are always watched and have styles applied
-    setInterval(scanAndWatchVideos, 1200);
+    // Interval to ensure dynamic SPA video players (YouTube SPA nav, etc.) are always watched
+    setInterval(watchVideosLight, 1200);
     startNoSubWatchdog();
   }
 

@@ -78,12 +78,12 @@
     return state;
   }
 
-  function normalizeSubtitleText(rawText) {
+  function normalizeSubtitleText(rawText, enableMultiSpeaker = true) {
     const deglue = (t) => t
       .replace(/([a-z]{3,})([A-Z][a-z])/g, "$1 $2")
       .replace(/([.,!?;:])([A-Za-z])/g, "$1 $2");
     if (root.VieStorage?.formatMultiSpeakerDialogue) {
-      return root.VieStorage.formatMultiSpeakerDialogue(rawText)
+      return root.VieStorage.formatMultiSpeakerDialogue(rawText, enableMultiSpeaker)
         .split("\n")
         .map((l) => deglue(l).replace(/\s+/g, " ").trim())
         .filter(Boolean)
@@ -229,12 +229,33 @@
     if (!text) return false;
     const trimmed = text.trim();
     if (!trimmed) return false;
+    if (/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]/.test(trimmed)) {
+      if (/[.?!…。？！…」』♪]$/.test(trimmed)) return false;
+      return /(?:[、，]|が|を|に|で|と|から|けど|けれど|ので|のに|て|たり|ながら)$/.test(trimmed);
+    }
     if (/[.?!…”♪]$/.test(trimmed)) return false;
+    if (/[,—–-]$/.test(trimmed)) return true;
     if (/\b(to|with|of|for|at|from|by|in|on|about|into|through|and|or|but|because|although|that|which|who|if|so|when|while|as|like|than|the|a|an|my|your|his|her|its|our|their|is|are|was|were|be|been|being)\s*$/i.test(trimmed)) {
       return true;
     }
     const words = trimmed.split(/\s+/);
-    return words.length <= 4;
+    return words.length <= 2;
+  }
+
+  function findCueIndexAtTime(cues, timeSec) {
+    if (!Array.isArray(cues) || !cues.length) return -1;
+    const t = Math.max(0, Number(timeSec) || 0);
+    let lo = 0, hi = cues.length - 1, idx = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (cues[mid].start <= t) {
+        idx = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    return idx;
   }
 
   function mergeEventsIntoSentences(events) {
@@ -604,8 +625,9 @@
             });
           }
 
-          // Tiền dịch trước các câu đầu tiên để người xem có phụ đề ngay khi nhạc chạy
-          prefetchUpcomingCues(res.cues, 0, 8);
+          // Tiền dịch trước các câu gần thời điểm phát hiện tại để người xem có phụ đề ngay khi nhạc chạy
+          const curIdx = Math.max(0, findCueIndexAtTime(res.cues, video?.currentTime || 0));
+          prefetchUpcomingCues(res.cues, curIdx, 10, true);
 
           updateOverlaySyncUI(video);
           renderYouTubeByTime(video);
@@ -617,18 +639,44 @@
     });
   }
 
-  function prefetchUpcomingCues(cues, startIdx = 0, count = 5) {
+  function prefetchUpcomingCues(cues, startIdx = 0, batchSize = 10, force = false) {
     if (!Array.isArray(cues) || !cues.length) return;
-    const slice = cues.slice(Math.max(0, startIdx), Math.max(0, startIdx) + count);
+    const sIdx = Math.max(0, startIdx);
+    if (sIdx >= cues.length) return;
+
+    const windowCues = cues.slice(sIdx, sIdx + Math.max(batchSize, 10));
+    const immediateMissing = cues.slice(sIdx, sIdx + 2).some((c) => {
+      const t = (c?.text || "").trim();
+      return t && !ytCueState.sent.has(t);
+    });
+
+    let nonEmptyInWindow = 0;
+    let alreadySentInWindow = 0;
+    for (const c of windowCues) {
+      const t = (c?.text || "").trim();
+      if (!t) continue;
+      nonEmptyInWindow++;
+      if (ytCueState.sent.has(t)) alreadySentInWindow++;
+    }
+    const minWatermark = Math.min(4, nonEmptyInWindow);
+
+    if (!force && !immediateMissing && alreadySentInWindow >= minWatermark) {
+      return;
+    }
+
+    const scanSlice = cues.slice(sIdx, sIdx + batchSize + 4);
     const toSend = [];
-    for (const c of slice) {
+    for (const c of scanSlice) {
       const t = (c?.text || "").trim();
       if (t && !ytCueState.sent.has(t)) {
         ytCueState.sent.add(t);
         toSend.push(t);
+        if (toSend.length >= batchSize) break;
       }
     }
     if (!toSend.length) return;
+
+    const token = ytCueState.navToken || 0;
     chrome.runtime.sendMessage(
       {
         type: "TRANSLATE_BATCH",
@@ -637,9 +685,12 @@
         videoContext: getVideoContext()
       },
       (res) => {
-        if (!chrome.runtime.lastError && res?.results) {
-          root.VieContent?.ingestBatchTranslations?.(res.results);
+        if ((ytCueState.navToken || 0) !== token) return;
+        if (chrome.runtime.lastError || !res?.results) {
+          for (const t of toSend) ytCueState.sent.delete(t);
+          return;
         }
+        root.VieContent?.ingestBatchTranslations?.(res.results, res.sub2Results || {});
       }
     );
   }
@@ -779,7 +830,8 @@
         if (ytCueState.navToken === token && ytCueState.vid === vid && cues.length > 0) {
           ytCueState.cues = cues;
           ytCueState.isLyrics = false;
-          prefetchUpcomingCues(cues, 0, 6);
+          const curIdx = Math.max(0, findCueIndexAtTime(cues, video?.currentTime || 0));
+          prefetchUpcomingCues(cues, curIdx, 10, true);
           if (video) renderYouTubeByTime(video);
         }
       }
@@ -805,16 +857,7 @@
       return true;
     }
     const t = Math.max(0, (video.currentTime || 0) - (state.subSyncOffset || 0));
-    let lo = 0, hi = cues.length - 1, idx = -1;
-    while (lo <= hi) {
-      const mid = (lo + hi) >> 1;
-      if (cues[mid].start <= t) {
-        idx = mid;
-        lo = mid + 1;
-      } else {
-        hi = mid - 1;
-      }
-    }
+    const idx = findCueIndexAtTime(cues, t);
 
     const cue = idx >= 0 && t <= cues[idx].end ? cues[idx] : null;
     if (!cue) {
@@ -833,7 +876,7 @@
       const nextCue = cues[idx + 1];
       const nextText = nextCue ? nextCue.text : "";
       root.VieContent?.onCaptionReceived(video, cue.text, true, nextText);
-      prefetchUpcomingCues(cues, idx + 1, 5);
+      prefetchUpcomingCues(cues, idx + 1, 10, false);
     }
     return true;
   }
@@ -848,10 +891,12 @@
       }, 1500);
     }
     if (!ytCueState.renderTimer) {
+      let lastHref = "";
       ytCueState.renderTimer = setInterval(() => {
         const cur = getActiveVideo(video);
-        if (location.hostname.includes("youtube.com")) {
-          const nv = new URL(location.href).searchParams.get("v") || "";
+        if (location.hostname.includes("youtube.com") && location.href !== lastHref) {
+          lastHref = location.href;
+          const nv = new URL(lastHref).searchParams.get("v") || "";
           if (nv && nv !== ytCueState.vid) {
             resetForNewVideo(cur, nv);
             loadYouTubeCues(cur);
@@ -1208,11 +1253,11 @@
         if (curIdx >= 0 && curIdx + 1 < allCues.length) {
           nextText = normalizeSubtitleText(allCues[curIdx + 1].text || "");
           const upcoming = allCues
-            .slice(curIdx + 1, curIdx + 5)
+            .slice(curIdx + 1, curIdx + 11)
             .map((c) => ({ text: normalizeSubtitleText(c.text || "") }))
             .filter((c) => c.text);
           if (upcoming.length > 0) {
-            prefetchUpcomingCues(upcoming, 0, 4);
+            prefetchUpcomingCues(upcoming, 0, 8, false);
           }
         }
       }
@@ -1316,6 +1361,8 @@
     correlateCuesWithReferenceTracks,
     correlateLiveAudioWithCues,
     isIncompleteClause,
+    findCueIndexAtTime,
+    prefetchUpcomingCues,
     mergeEventsIntoSentences,
     ytCueState
   };
