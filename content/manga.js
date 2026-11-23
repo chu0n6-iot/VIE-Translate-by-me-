@@ -8,7 +8,8 @@
     cachedOcr: new Map(),
     preflightDone: false,
     textTranslations: new Map(),
-    textShowing: false
+    textShowing: false,
+    previousLines: []
   };
 
   function sendMessage(payload) {
@@ -108,6 +109,10 @@
       imageBase64: fetched.imageBase64,
       mimeType: fetched.mimeType
     });
+    if (ocr?.ok) {
+      ocr.imageBase64 = fetched.imageBase64;
+      ocr.mimeType = fetched.mimeType;
+    }
     if (!ocr?.ok && ocr?.error === "NO_KEY" && "TextDetector" in window) {
       try {
         const detector = new TextDetector();
@@ -175,6 +180,29 @@
     });
   }
 
+  async function translateMangaOcr(ocr) {
+    if (!ocr?.regions?.length) return [];
+    const batch = await sendMessage({
+      type: "TRANSLATE_MANGA_BATCH",
+      imageBase64: ocr.imageBase64,
+      mimeType: ocr.mimeType,
+      regions: ocr.regions,
+      previousLines: state.previousLines.slice(-5)
+    });
+    const translated = batch?.regions || [];
+    const translations = ocr.regions.map((_, i) => translated.find((r) => Number(r.index) === i)?.text || "");
+    translated.forEach((item) => {
+      const index = Number(item.index);
+      if (ocr.regions[index]) {
+        ocr.regions[index].type = item.type || ocr.regions[index].type || "dialogue";
+        ocr.regions[index].font = item.font || "normal";
+      }
+    });
+    state.previousLines.push(...translations.filter(Boolean).slice(-5));
+    state.previousLines = state.previousLines.slice(-5);
+    return translations;
+  }
+
   async function paintTranslatedPage(img, records) {
     if (!records.length) return;
     const layer = ensureLayer(img);
@@ -233,14 +261,25 @@
       ctx.fillStyle = `rgb(${median.join(",")})`;
       ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
 
-      const fontName = [
+      const preferredFonts = record.font === "brush" || record.type === "sfx" ? [
+        "Impact",
+        "CC Wild Words",
+        "Anime Ace 3",
+        "Arial"
+      ] : record.font === "italic" || record.type === "thought" ? [
+        "Georgia",
+        "Comic Sans MS",
+        "Anime Ace 2",
+        "Arial"
+      ] : [
         "Anime Ace 3",
         "Anime Ace 2",
         "Anime Ace",
         "CC Wild Words",
         "Comic Sans MS",
         "Arial"
-      ].find((name) => (typeof document.fonts?.check === "function" && document.fonts.check(`16px "${name}"`)) || name === "Arial") || "Arial";
+      ];
+      const fontName = preferredFonts.find((name) => (typeof document.fonts?.check === "function" && document.fonts.check(`16px "${name}"`)) || name === "Arial") || "Arial";
 
       const text = String(record.vi || "").replace(/\r/g, "").trim();
       if (!text) return;
@@ -251,7 +290,9 @@
       ctx.strokeStyle = "#111111";
 
       const wrapText = (size) => {
-        ctx.font = `700 ${size}px "${fontName}", sans-serif`;
+        const style = record.font === "italic" || record.type === "thought" ? "italic" : "normal";
+        const weight = record.font === "brush" || record.type === "sfx" ? 900 : 700;
+        ctx.font = `${style} ${weight} ${size}px "${fontName}", sans-serif`;
         const words = text.split(/\s+/);
         const lines = [];
         let line = "";
@@ -294,8 +335,8 @@
     if (Array.isArray(ocr.translations)) {
       translations = ocr.translations;
     } else if (texts.length) {
-      const batch = await sendMessage({ type: "TRANSLATE_BATCH", texts, videoTitle: document.title, videoContext: "Manga/comic page context" });
-      translations = batch?.results || batch?.translations || [];
+      translations = await translateMangaOcr(ocr);
+      ocr.translations = translations;
     }
     const records = [];
     (ocr.regions || []).forEach((r, i) => {
@@ -306,12 +347,12 @@
       el.style.top = `${Math.max(0, r.y || 0)}%`;
       el.style.width = `${Math.max(3, r.w || 8)}%`;
       el.style.height = `${Math.max(3, r.h || 5)}%`;
-      el.title = `${r.kind || "bubble"} · OCR ${Math.round((r.confidence || 0) * 100)}% · bấm đúp để sửa`;
+      el.title = `${r.type || r.kind || "bubble"} · OCR ${Math.round((r.confidence || 0) * 100)}% · bấm đúp để sửa`;
       const ta = document.createElement("textarea");
       ta.value = translations[i]?.vi || translations[i] || r.text;
       el.appendChild(ta);
       layer.appendChild(el);
-      const record = { img, el, orig: r.text, vi: ta.value, x: r.x || 0, y: r.y || 0, w: r.w || 8, h: r.h || 5 };
+      const record = { img, el, orig: r.text, vi: ta.value, type: r.type || r.kind || "dialogue", font: r.font || "normal", x: r.x || 0, y: r.y || 0, w: r.w || 8, h: r.h || 5 };
       state.regions.push(record);
       records.push(record);
       ta.addEventListener("input", () => { record.vi = ta.value; });
@@ -451,13 +492,7 @@
           const ocr = await scanImage(img);
           const texts = (ocr.regions || []).map((r) => r.text).filter(Boolean);
           if (texts.length) {
-            const batch = await sendMessage({
-              type: "TRANSLATE_BATCH",
-              texts,
-              videoTitle: document.title,
-              videoContext: "Manga/comic page context"
-            });
-            ocr.translations = batch?.results || batch?.translations || [];
+            ocr.translations = await translateMangaOcr(ocr);
           }
           state.cachedOcr.set(img, ocr);
         } catch (err) {
@@ -495,13 +530,7 @@
           const ocr = await scanImage(img);
           const texts = (ocr.regions || []).map((r) => r.text).filter(Boolean);
           if (texts.length) {
-            const batch = await sendMessage({
-              type: "TRANSLATE_BATCH",
-              texts,
-              videoTitle: document.title,
-              videoContext: "Manga/comic page context"
-            });
-            ocr.translations = batch?.results || batch?.translations || [];
+            ocr.translations = await translateMangaOcr(ocr);
           }
           state.cachedOcr.set(img, ocr);
         } catch (err) {
@@ -599,7 +628,9 @@
         ctx.fillStyle = `rgb(${median.join(",")})`;
         ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
         ctx.fillStyle = "#111";
-        ctx.font = `700 ${Math.max(10, h * 0.16)}px "Anime Ace 3", "Anime Ace 2", "Anime Ace", "CC Wild Words", "Comic Sans MS", sans-serif`;
+        const exportStyle = r.font === "italic" || r.type === "thought" ? "italic" : "normal";
+        const exportWeight = r.font === "brush" || r.type === "sfx" ? 900 : 700;
+        ctx.font = `${exportStyle} ${exportWeight} ${Math.max(10, h * 0.16)}px "Anime Ace 3", "Anime Ace 2", "Anime Ace", "CC Wild Words", "Comic Sans MS", sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         const lines = String(r.vi || "").split(/\n|(?<=。)/).slice(0, 8);

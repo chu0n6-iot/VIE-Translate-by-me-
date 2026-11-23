@@ -1366,6 +1366,9 @@ console.log("2️⃣4️⃣ Kiểm tra quét ngầm truyện & dịch văn bản
   assert.ok(mangaSource.includes("paintTranslatedPage"), "Phải có cơ chế chèn bản dịch trực tiếp lên ảnh!");
   assert.ok(mangaSource.includes("Anime Ace"), "Phải ưu tiên họ font truyện Anime Ace/ACE!");
   assert.ok(mangaSource.includes("Chưa dịch được vùng nào"), "Không được báo đã dịch khi OCR không tìm thấy vùng!");
+  assert.ok(mangaSource.includes("TRANSLATE_MANGA_BATCH"), "Phải dùng luồng dịch manga có ảnh kèm OCR!");
+  assert.ok(mangaSource.includes("previousLines"), "Phải giữ tối thiểu 3-5 thoại cuối làm ngữ cảnh chương!");
+  assert.ok(mangaSource.includes("type"), "Phải phân loại dialogue/thought/sfx/narration cho typesetting!");
   console.log("   ✅ Đã kiểm tra preflight truyện và social text/AO3 chuẩn cho bản 0.8.3!\n");
 })();
 

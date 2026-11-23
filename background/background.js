@@ -906,6 +906,47 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg.type === "TRANSLATE_MANGA_BATCH") {
+    (async () => {
+      const s = await self.VieStorage.getSettings();
+      const apiKey = s.apiKey || s.geminiApiKey || "";
+      const regions = Array.isArray(msg.regions) ? msg.regions : [];
+      if (!regions.length) return { ok: true, regions: [] };
+      if (apiKey) {
+        try {
+          return await self.VieGemini.translateMangaRegions({
+            imageBase64: msg.imageBase64,
+            mimeType: msg.mimeType || "image/jpeg",
+            regions,
+            previousLines: Array.isArray(msg.previousLines) ? msg.previousLines : [],
+            apiKey,
+            targetLang: s.targetLang || "vi",
+            translationStyle: s.translationStyle || "natural",
+            pronounStyle: s.pronounStyle || "auto",
+            glossary: s.customGlossary || []
+          });
+        } catch (err) {
+          console.warn("[VIE Manga] Multimodal translation fallback:", err.message);
+        }
+      }
+      const texts = regions.map((r) => r.text).filter(Boolean);
+      const translations = await translateGtxBatch(texts, s.targetLang || "vi", s.customGlossary || []);
+      return {
+        ok: true,
+        fallback: true,
+        regions: regions.map((r, i) => ({
+          index: i,
+          text: translations[i] || r.text,
+          type: r.type || r.kind || "dialogue",
+          font: r.type === "thought" ? "italic" : r.type === "sfx" ? "brush" : "normal"
+        }))
+      };
+    })()
+      .then(sendResponse)
+      .catch((err) => sendResponse({ ok: false, error: err.message || "Lỗi dịch manga" }));
+    return true;
+  }
+
   if (msg.type === "SCAN_MANGA_PAGE") {
     (async () => {
       const s = await self.VieStorage.getSettings();

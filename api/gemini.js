@@ -484,11 +484,69 @@ Trả về duy nhất JSON hợp lệ (không markdown, không codeblock):
     throw new Error("Không thể phân tích ngữ cảnh lúc này.");
   }
 
+  async function translateMangaRegions({ imageBase64, mimeType = "image/jpeg", regions = [], previousLines = [], apiKey, targetLang = "vi", translationStyle = "natural", pronounStyle = "auto", glossary = [] }) {
+    if (!imageBase64) throw new Error("Không có dữ liệu ảnh truyện.");
+    const regionInput = regions.map((r, i) => ({
+      index: i,
+      type: r.type || r.kind || "dialogue",
+      text: r.text || ""
+    }));
+    const glossaryText = glossary
+      .filter((g) => g && g.enabled !== false && g.src && g.target)
+      .slice(0, 30)
+      .map((g) => `"${g.src}" -> "${g.target}"`)
+      .join("\n");
+    const prompt = `Bạn là biên tập truyện tranh chuyên nghiệp.
+Nhiệm vụ: dịch các thoại từ ảnh trang truyện sang "${targetLang}".
+
+QUAN TRỌNG:
+- Xem trực tiếp ảnh để nhận nhân vật, giới tính, biểu cảm, quan hệ, suy nghĩ và hướng nhìn.
+- Phục hồi text OCR bị sai, dính ký tự, thiếu nét, che mờ, furigana hoặc watermark.
+- Dịch tự nhiên, giàu cảm xúc, phù hợp văn phong truyện, không dịch từng chữ máy móc.
+- Suy đoán xưng hô theo quan hệ: tao-mày, tớ-cậu, anh-em, tôi-cô/cậu, lão phu-ngươi, ta-ngươi...
+- Giữ hậu tố văn hóa như senpai/sensei/san/kun/chan khi phù hợp.
+- Từ thoại ngắn gọn, vừa bong bóng.
+- SFX ngắn gợi thanh/gợi hình.
+- Giữ 3-5 thoại cuối trang trước để xưng hô xuyên chương:
+${previousLines.length ? previousLines.slice(-5).map((x, i) => `${i + 1}. ${x}`).join("\n") : "(Chưa có)"}
+- Glossary:
+${glossaryText || "(Không có)"}
+- Style: ${translationStyle}
+- Pronoun: ${pronounStyle}
+
+OCR/regions đầu vào:
+${JSON.stringify(regionInput)}
+
+Trả về DUY NHẤT JSON hợp lệ:
+{"regions":[{"index":0,"text":"bản dịch tiếng Việt tự nhiên","type":"dialogue|thought|sfx|narration","font":"normal|italic|bold|brush"}]}
+`;
+    const body = {
+      contents: [{ role: "user", parts: [
+        { inlineData: { mimeType: mimeType || "image/jpeg", data: imageBase64 } },
+        { text: prompt }
+      ] }],
+      generationConfig: { temperature: 0.15, maxOutputTokens: 3000, responseMimeType: "application/json" }
+    };
+    const candidates = await discoverGeminiModels(apiKey);
+    for (const m of candidates) {
+      if (isModelInCooldown(apiKey, m)) continue;
+      try {
+        const raw = await callGeminiEndpoint({ model: m, apiKey, body, timeoutMs: 25000 });
+        const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
+        if (!Array.isArray(parsed.regions)) throw new Error("Manga translation JSON invalid.");
+        return { ok: true, regions: parsed.regions, modelUsed: m };
+      } catch (err) {
+        markModelCooldown(apiKey, m, /quota|429/i.test(err.message || "") ? 3600000 : 120000);
+      }
+    }
+    throw new Error("Không thể dịch manga bằng Gemini.");
+  }
+
   async function scanMangaPage({ imageBase64, mimeType = "image/jpeg", apiKey, targetLang = "vi" }) {
     if (!imageBase64) throw new Error("Không có dữ liệu ảnh truyện.");
     const prompt = `Analyze this manga/comic page and detect every readable speech bubble or caption.
 Return ONLY valid JSON:
-{"language":"ja|ko|zh-CN|zh-TW|en|es|other","regions":[{"x":0,"y":0,"w":100,"h":100,"text":"original text","confidence":0.95,"kind":"bubble|caption|sfx"}]}
+{"language":"ja|ko|zh-CN|zh-TW|en|es|other","regions":[{"x":0,"y":0,"w":100,"h":100,"text":"recovered original text","confidence":0.95,"type":"dialogue|thought|sfx|narration","kind":"bubble|caption|sfx"}]}
 Coordinates must be percentages of the whole image (0-100). Do not include prose outside JSON.
 Ignore decorative art. Preserve line breaks. Detect Japanese, Korean, Chinese, English, Spanish and other Latin scripts.
 The target language is ${targetLang}. Do not translate in this OCR step.`;
@@ -582,6 +640,7 @@ Trả về JSON duy nhất (không bọc code block markdown):
     scanAndTranslateVisualText,
     lookupWordWithGemini,
     explainSceneWithGemini,
+    translateMangaRegions,
     looksLikeRefusal
   };
 })(typeof self !== "undefined" ? self : this);
