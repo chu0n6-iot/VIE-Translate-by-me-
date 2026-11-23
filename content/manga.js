@@ -7,10 +7,26 @@
     return new Promise((resolve) => chrome.runtime.sendMessage(payload, (res) => resolve(res)));
   }
 
+  function collectAcrossShadowRoots(selector) {
+    const roots = [document];
+    const found = [];
+    const visited = new Set();
+    while (roots.length) {
+      const root = roots.pop();
+      if (!root || visited.has(root)) continue;
+      visited.add(root);
+      found.push(...root.querySelectorAll(selector));
+      root.querySelectorAll("*").forEach((element) => {
+        if (element.shadowRoot) roots.push(element.shadowRoot);
+      });
+    }
+    return found;
+  }
+
   function findPageImages() {
     const candidates = [
-      ...document.querySelectorAll("img"),
-      ...document.querySelectorAll("canvas")
+      ...collectAcrossShadowRoots("img"),
+      ...collectAcrossShadowRoots("canvas")
     ];
     return candidates.filter((element) => {
       const r = element.getBoundingClientRect();
@@ -186,13 +202,34 @@
   async function scanVisiblePages() {
     ensureToolbar();
     state.active = true;
+    const originalScroll = { x: scrollX, y: scrollY };
+    const scrollers = collectAcrossShadowRoots("*").filter((element) => {
+      const style = getComputedStyle(element);
+      return element.scrollHeight > element.clientHeight + 500 &&
+        /(auto|scroll)/.test(`${style.overflowY} ${style.overflow}`);
+    });
+    scrollers.push(document.documentElement);
+    scrollers.push(document.body);
+
+    const uniqueScrollers = [...new Set(scrollers)].slice(0, 30);
+    for (const scroller of uniqueScrollers) {
+      const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+      if (!max) continue;
+      for (let y = 0; y <= max; y += Math.max(500, scroller.clientHeight || 500)) {
+        scroller.scrollTop = y;
+        await new Promise((resolve) => setTimeout(resolve, 260));
+      }
+      scroller.scrollTop = 0;
+    }
+    window.scrollTo(originalScroll.x, originalScroll.y);
+
     let images = [];
-    for (let attempt = 0; attempt < 4 && !images.length; attempt++) {
+    for (let attempt = 0; attempt < 6 && !images.length; attempt++) {
       images = findPageImages().filter((img) => {
         const r = img.getBoundingClientRect();
-        return r.bottom > 0 && r.top < innerHeight * 1.5;
-      }).slice(0, 12);
-      if (!images.length) await new Promise((resolve) => setTimeout(resolve, 800));
+        return r.width >= 240 && r.height >= 300;
+      }).slice(0, 100);
+      if (!images.length) await new Promise((resolve) => setTimeout(resolve, 500));
     }
     if (!images.length) {
       const toolbar = ensureToolbar();
@@ -202,17 +239,21 @@
     }
     const toolbar = ensureToolbar();
     toolbar.querySelector('[data-action="scan"]').textContent = "⏳ Đang quét";
-    for (const img of images) {
-      if (state.scannedImages.has(img)) continue;
-      try {
-        const ocr = await scanImage(img);
-        await renderRegions(img, ocr);
-        state.scannedImages.add(img);
-      } catch (err) {
-        console.warn("[VIE Manga]", err);
-      }
+    const pending = images.filter((img) => !state.scannedImages.has(img));
+    for (let offset = 0; offset < pending.length; offset += 3) {
+      await Promise.all(pending.slice(offset, offset + 3).map(async (img) => {
+        try {
+          const ocr = await scanImage(img);
+          await renderRegions(img, ocr);
+          state.scannedImages.add(img);
+        } catch (err) {
+          console.warn("[VIE Manga]", err);
+        }
+      }));
     }
-    toolbar.querySelector('[data-action="scan"]').textContent = "✅ Đã quét";
+    const scannedCount = state.scannedImages.size;
+    toolbar.querySelector('[data-action="scan"]').textContent =
+      scannedCount ? `✅ ${scannedCount} trang` : "⚠️ Chưa thấy trang";
   }
 
   async function rescanMissing() {
