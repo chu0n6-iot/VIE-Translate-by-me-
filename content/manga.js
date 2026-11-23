@@ -8,9 +8,19 @@
   }
 
   function findPageImages() {
-    return [...document.querySelectorAll("img")].filter((img) => {
-      const r = img.getBoundingClientRect();
-      return r.width >= 240 && r.height >= 300 && img.naturalWidth >= 240 && img.naturalHeight >= 300;
+    const candidates = [
+      ...document.querySelectorAll("img"),
+      ...document.querySelectorAll("canvas")
+    ];
+    return candidates.filter((element) => {
+      const r = element.getBoundingClientRect();
+      if (r.width < 240 || r.height < 300) return false;
+      if (element.tagName === "CANVAS") {
+        return element.width >= 240 && element.height >= 300;
+      }
+      const hasSource = element.currentSrc || element.src || element.dataset?.src ||
+        element.dataset?.original || element.getAttribute("data-src") || element.srcset;
+      return Boolean(hasSource) || Boolean(element.naturalWidth || element.width);
     });
   }
 
@@ -41,7 +51,22 @@
   }
 
   async function fetchImageData(img) {
-    let src = img.currentSrc || img.src;
+    if (img.tagName === "CANVAS") {
+      try {
+        const dataUrl = img.toDataURL("image/jpeg", 0.92);
+        img._vieMangaDataUrl = dataUrl;
+        return {
+          ok: true,
+          imageBase64: dataUrl.replace(/^data:[^;]+;base64,/, ""),
+          mimeType: "image/jpeg"
+        };
+      } catch (err) {
+        throw new Error("Canvas truyện đang bị bảo vệ bởi nguồn chéo.");
+      }
+    }
+    let src = img.currentSrc || img.src || img.dataset?.src || img.dataset?.original ||
+      img.getAttribute("data-src") || "";
+    if (!src && img.srcset) src = img.srcset.split(",")[0]?.trim().split(/\s+/)[0] || "";
     if (!src) throw new Error("Trang không có ảnh đọc được.");
     if (src.startsWith("data:image/")) {
       return { ok: true, imageBase64: src.replace(/^data:[^;]+;base64,/, ""), mimeType: src.match(/^data:([^;]+)/)?.[1] || "image/jpeg" };
@@ -161,12 +186,18 @@
   async function scanVisiblePages() {
     ensureToolbar();
     state.active = true;
-    const images = findPageImages().filter((img) => {
-      const r = img.getBoundingClientRect();
-      return r.bottom > 0 && r.top < innerHeight * 1.5;
-    }).slice(0, 12);
+    let images = [];
+    for (let attempt = 0; attempt < 4 && !images.length; attempt++) {
+      images = findPageImages().filter((img) => {
+        const r = img.getBoundingClientRect();
+        return r.bottom > 0 && r.top < innerHeight * 1.5;
+      }).slice(0, 12);
+      if (!images.length) await new Promise((resolve) => setTimeout(resolve, 800));
+    }
     if (!images.length) {
-      alert("Không tìm thấy ảnh trang truyện đủ lớn.");
+      const toolbar = ensureToolbar();
+      toolbar.querySelector('[data-action="scan"]').textContent = "⚠️ Chưa thấy trang";
+      console.warn("[VIE Manga] Không tìm thấy ảnh/canvas truyện đang hiển thị.");
       return;
     }
     const toolbar = ensureToolbar();
@@ -226,7 +257,9 @@
     canvas.height = img.naturalHeight || img.height;
     const ctx = canvas.getContext("2d");
     try {
-      if (img._vieMangaDataUrl) {
+      if (img.tagName === "CANVAS") {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      } else if (img._vieMangaDataUrl) {
         const safeImg = await new Promise((resolve, reject) => {
           const copy = new Image();
           copy.onload = () => resolve(copy);
