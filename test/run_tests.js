@@ -1363,6 +1363,9 @@ console.log("2️⃣4️⃣ Kiểm tra quét ngầm truyện & dịch văn bản
   assert.ok(mangaSource.includes("archiveofourown"), "Phải hỗ trợ dịch văn bản Archive of Our Own!");
   assert.ok(mangaSource.includes("facebook"), "Phải hỗ trợ dịch nội dung Facebook!");
   assert.ok(mangaSource.includes("Xem bản dịch"), "Thanh công cụ phải yêu cầu người dùng bấm xem bản dịch!");
+  assert.ok(mangaSource.includes("paintTranslatedPage"), "Phải có cơ chế chèn bản dịch trực tiếp lên ảnh!");
+  assert.ok(mangaSource.includes("Anime Ace"), "Phải ưu tiên họ font truyện Anime Ace/ACE!");
+  assert.ok(mangaSource.includes("Chưa dịch được vùng nào"), "Không được báo đã dịch khi OCR không tìm thấy vùng!");
   console.log("   ✅ Đã kiểm tra preflight truyện và social text/AO3 chuẩn cho bản 0.8.3!\n");
 })();
 

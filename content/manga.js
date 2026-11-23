@@ -175,6 +175,116 @@
     });
   }
 
+  async function paintTranslatedPage(img, records) {
+    if (!records.length) return;
+    const layer = ensureLayer(img);
+    if (!layer) return;
+
+    const canvas = document.createElement("canvas");
+    canvas.className = "vie-manga-inpaint-canvas";
+    canvas.width = img.naturalWidth || img.width || 1000;
+    canvas.height = img.naturalHeight || img.height || 1400;
+
+    let source;
+    try {
+      if (img.tagName === "CANVAS") {
+        source = img;
+      } else if (img._vieMangaDataUrl) {
+        source = await new Promise((resolve, reject) => {
+          const copy = new Image();
+          copy.onload = () => resolve(copy);
+          copy.onerror = reject;
+          copy.src = img._vieMangaDataUrl;
+        });
+      } else {
+        return;
+      }
+    } catch {
+      return;
+    }
+
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+
+    records.forEach((record) => {
+      const x = Math.round(canvas.width * record.x / 100);
+      const y = Math.round(canvas.height * record.y / 100);
+      const w = Math.round(canvas.width * record.w / 100);
+      const h = Math.round(canvas.height * record.h / 100);
+      if (w < 8 || h < 8) return;
+
+      const samplePoints = [
+        [Math.max(0, x - 1), y + h / 2],
+        [Math.min(canvas.width - 1, x + w + 1), y + h / 2],
+        [x + w / 2, Math.max(0, y - 1)],
+        [x + w / 2, Math.min(canvas.height - 1, y + h + 1)]
+      ];
+      const sampled = samplePoints.map(([sx, sy]) => {
+        try {
+          return Array.from(ctx.getImageData(Math.round(sx), Math.round(sy), 1, 1).data).slice(0, 3);
+        } catch {
+          return [255, 255, 255];
+        }
+      }).filter((p) => p.length === 3);
+
+      const median = [0, 1, 2].map((channel) =>
+        [...sampled.map((p) => p[channel]).sort((a, b) => a - b)][Math.floor(sampled.length / 2)] || 255
+      );
+      ctx.fillStyle = `rgb(${median.join(",")})`;
+      ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+
+      const fontName = [
+        "Anime Ace 3",
+        "Anime Ace 2",
+        "Anime Ace",
+        "CC Wild Words",
+        "Comic Sans MS",
+        "Arial"
+      ].find((name) => (typeof document.fonts?.check === "function" && document.fonts.check(`16px "${name}"`)) || name === "Arial") || "Arial";
+
+      const text = String(record.vi || "").replace(/\r/g, "").trim();
+      if (!text) return;
+      let fontSize = Math.max(8, Math.min(32, h * 0.18));
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#111111";
+      ctx.strokeStyle = "#111111";
+
+      const wrapText = (size) => {
+        ctx.font = `700 ${size}px "${fontName}", sans-serif`;
+        const words = text.split(/\s+/);
+        const lines = [];
+        let line = "";
+        words.forEach((word) => {
+          const test = line ? `${line} ${word}` : word;
+          if (ctx.measureText(test).width <= w - 12) {
+            line = test;
+          } else {
+            if (line) lines.push(line);
+            line = word;
+          }
+        });
+        if (line) lines.push(line);
+        return lines;
+      };
+
+      let lines = wrapText(fontSize);
+      while (fontSize > 8 && (lines.length * fontSize * 1.18 > h - 8 || lines.some((line) => ctx.measureText(line).width > w - 12))) {
+        fontSize -= 1;
+        lines = wrapText(fontSize);
+      }
+
+      const lineHeight = fontSize * 1.18;
+      const startY = y + h / 2 - ((lines.length - 1) * lineHeight) / 2;
+      lines.forEach((line, i) => {
+        ctx.fillText(line, x + w / 2, startY + i * lineHeight, w - 12);
+      });
+    });
+
+    layer.querySelectorAll(".vie-manga-inpaint-canvas").forEach((el) => el.remove());
+    layer.appendChild(canvas);
+  }
+
   async function renderRegions(img, ocr) {
     const layer = ensureLayer(img);
     if (!layer) return;
@@ -187,6 +297,7 @@
       const batch = await sendMessage({ type: "TRANSLATE_BATCH", texts, videoTitle: document.title, videoContext: "Manga/comic page context" });
       translations = batch?.results || batch?.translations || [];
     }
+    const records = [];
     (ocr.regions || []).forEach((r, i) => {
       if (!r.text) return;
       const el = document.createElement("div");
@@ -202,11 +313,13 @@
       layer.appendChild(el);
       const record = { img, el, orig: r.text, vi: ta.value, x: r.x || 0, y: r.y || 0, w: r.w || 8, h: r.h || 5 };
       state.regions.push(record);
+      records.push(record);
       ta.addEventListener("input", () => { record.vi = ta.value; });
       ta.addEventListener("dblclick", (e) => e.stopPropagation());
       el.addEventListener("dblclick", () => ta.focus());
       makeDraggable(el, img, record);
     });
+    await paintTranslatedPage(img, records);
   }
 
   async function revealLazyChapter() {
@@ -307,8 +420,10 @@
       for (const [img, ocr] of state.cachedOcr) await renderRegions(img, ocr);
       showTextTranslations();
       const toolbar = ensureToolbar();
+      const regionCount = [...state.cachedOcr.values()].reduce((sum, ocr) =>
+        sum + (ocr.regions || []).filter((r) => r.text && Array.isArray(ocr.translations)).length, 0);
       toolbar.querySelector('[data-action="scan"]').textContent =
-        state.cachedOcr.size ? `✅ ${state.cachedOcr.size} trang` : "✅ Đã dịch";
+        regionCount ? `✅ ${regionCount} vùng đã dịch` : "⚠️ Chưa dịch được vùng nào";
       return;
     }
     await revealLazyChapter();
@@ -356,9 +471,10 @@
     }
     showTextTranslations();
     state.preflightDone = true;
-    const scannedCount = state.cachedOcr.size;
+    const scannedCount = [...state.cachedOcr.values()].reduce((sum, ocr) =>
+      sum + (ocr.regions || []).filter((r) => r.text && Array.isArray(ocr.translations)).length, 0);
     toolbar.querySelector('[data-action="scan"]').textContent =
-      scannedCount ? `Xem bản dịch (${scannedCount})` : "Xem bản dịch";
+      scannedCount ? `Xem bản dịch (${scannedCount} vùng)` : "⚠️ Chưa dịch được vùng nào";
   }
 
   async function preflightAllContent() {
@@ -396,8 +512,10 @@
 
     await preflightTextTranslations();
     state.preflightDone = true;
-    if (state.cachedOcr.size) {
-      toolbar.querySelector('[data-action="scan"]').textContent = `Xem bản dịch (${state.cachedOcr.size})`;
+    const regionCount = [...state.cachedOcr.values()].reduce((sum, ocr) =>
+      sum + (ocr.regions || []).filter((r) => r.text && Array.isArray(ocr.translations)).length, 0);
+    if (regionCount) {
+      toolbar.querySelector('[data-action="scan"]').textContent = `Xem bản dịch (${regionCount} vùng)`;
     } else if (state.textTranslations.size) {
       toolbar.querySelector('[data-action="scan"]').textContent = `Xem bản dịch (${state.textTranslations.size})`;
     } else {
@@ -473,10 +591,15 @@
         const y = canvas.height * r.y / 100;
         const w = canvas.width * r.w / 100;
         const h = canvas.height * r.h / 100;
-        ctx.fillStyle = "#fff";
+        const samples = [[x - 1, y + h / 2], [x + w + 1, y + h / 2], [x + w / 2, y - 1], [x + w / 2, y + h + 1]]
+          .map(([sx, sy]) => Array.from(ctx.getImageData(Math.max(0, Math.min(canvas.width - 1, Math.round(sx))), Math.max(0, Math.min(canvas.height - 1, Math.round(sy))), 1, 1).data).slice(0, 3));
+        const median = [0, 1, 2].map((channel) =>
+          [...samples.map((p) => p[channel]).sort((a, b) => a - b)][2] || 255
+        );
+        ctx.fillStyle = `rgb(${median.join(",")})`;
         ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
         ctx.fillStyle = "#111";
-        ctx.font = `700 ${Math.max(10, h * 0.16)}px Segoe UI, sans-serif`;
+        ctx.font = `700 ${Math.max(10, h * 0.16)}px "Anime Ace 3", "Anime Ace 2", "Anime Ace", "CC Wild Words", "Comic Sans MS", sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         const lines = String(r.vi || "").split(/\n|(?<=。)/).slice(0, 8);

@@ -911,6 +911,14 @@
   pointer-events: none;
   z-index: 10;
 }
+.vie-manga-inpaint-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
 .vie-manga-region {
   position: absolute;
   box-sizing: border-box;
@@ -918,9 +926,9 @@
   min-height: 18px;
   pointer-events: auto;
   cursor: move;
-  border: 1.5px dashed rgba(250, 204, 21, 0.95);
+  border: 1.5px dashed rgba(250, 204, 21, 0);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.88);
+  background: transparent;
   color: #111827;
   font-family: "Segoe UI", sans-serif;
   font-weight: 700;
@@ -935,7 +943,16 @@
   user-select: none;
   touch-action: none;
 }
-.vie-manga-region:hover { border-style: solid; box-shadow: 0 3px 12px rgba(0,0,0,.25); }
+.vie-manga-region:hover {
+  border-color: rgba(250, 204, 21, 0.95);
+  border-style: solid;
+  box-shadow: 0 3px 12px rgba(0,0,0,.25);
+}
+.vie-manga-region:hover textarea {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 4px;
+}
 .vie-manga-text-card {
   box-sizing: border-box;
   margin: 8px 0 12px;
@@ -961,6 +978,7 @@
   border: 0;
   outline: 0;
   background: transparent;
+  opacity: 0;
   color: inherit;
   font: inherit;
   text-align: inherit;
