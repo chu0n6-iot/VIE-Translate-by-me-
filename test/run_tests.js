@@ -1374,6 +1374,11 @@ console.log("2️⃣4️⃣ Kiểm tra quét ngầm truyện & dịch văn bản
   assert.ok(mangaSource.includes("vie-manga-wrapper"), "MangaPlaza reader phải bám overlay đúng từng ảnh thay vì dùng parent trang!");
   assert.ok(mangaSource.includes("isSupportedMangaOrTextPage"), "Không được hiện thanh dịch truyện trên YouTube hoặc trang video thường!");
   assert.ok(mangaSource.includes("dismissToolbar"), "Nút X phải tắt và khôi phục trạng thái thanh dịch!");
+  const domSource = fs.readFileSync(path.join(ROOT_DIR, "content/dom.js"), "utf8");
+  const cssSource = fs.readFileSync(path.join(ROOT_DIR, "content/overlay.css"), "utf8");
+  assert.ok(domSource.includes("ytp-chrome-bottom"), "Overlay YouTube phải đo vùng control/timeline trước đặt bottom!");
+  assert.ok(domSource.includes("safeBottom"), "Overlay YouTube phải tính bottom an toàn khỏi control!");
+  assert.ok(cssSource.includes("pointer-events: none"), "Overlay phụ đề phải không bắt chuột vùng timeline/âm lượng!");
   console.log("   ✅ Đã kiểm tra preflight truyện và social text/AO3 chuẩn cho bản 0.8.3!\n");
 })();
 

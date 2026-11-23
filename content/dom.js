@@ -501,7 +501,24 @@
     overlay.style.setProperty("--vie-font-family", fontStack);
     overlay.style.setProperty("--vie-scale", String(scale));
     overlay.style.setProperty("--vie-w", `${widthPct}%`);
-    overlay.style.setProperty("--vie-bottom", `${bottomPos}%`);
+    const isYouTube = location.hostname.includes("youtube.com");
+    let safeBottom = bottomPos;
+    if (isYouTube) {
+      const player = overlay.closest(".html5-video-player, .ytd-player, #movie_player");
+      const controls = player?.querySelector(".ytp-chrome-bottom, .ytp-control-bar, .ytp-progress-bar-container");
+      if (controls) {
+        const playerRect = player.getBoundingClientRect();
+        const controlsRect = controls.getBoundingClientRect();
+        if (playerRect.height > 0 && controlsRect.height > 0) {
+          const controlsFromBottom = Math.max(0, playerRect.bottom - controlsRect.top);
+          const controlsPercent = (controlsFromBottom / playerRect.height) * 100;
+          safeBottom = Math.max(bottomPos, Math.min(60, controlsPercent + 9));
+        }
+      } else {
+        safeBottom = Math.max(bottomPos, 18);
+      }
+    }
+    overlay.style.setProperty("--vie-bottom", `${safeBottom}%`);
     overlay.style.setProperty("--vie-primary-color", settings.subColor || "#fef08a");
     overlay.style.setProperty("--vie-second-color", settings.subSecondColor || "#e2e8f0");
     overlay.setAttribute("data-bg-style", settings.subBgStyle || "toad");

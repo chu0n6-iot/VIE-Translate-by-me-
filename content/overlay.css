@@ -27,7 +27,7 @@
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   z-index: 2147483647;
-  pointer-events: auto;
+  pointer-events: none;
   box-sizing: border-box;
   transition: opacity 0.12s ease;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.48);
@@ -739,6 +739,7 @@
   overflow: hidden;
   margin-top: 0;
   transition: max-height 0.18s ease, opacity 0.18s ease, margin-top 0.18s ease;
+  pointer-events: none;
 }
 
 .vie-overlay:hover .vie-learn-bar,
@@ -747,6 +748,7 @@
   max-height: 32px;
   opacity: 1;
   margin-top: 5px;
+  pointer-events: auto;
 }
 
 .vie-learn-btn {
