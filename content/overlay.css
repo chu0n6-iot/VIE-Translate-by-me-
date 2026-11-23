@@ -902,6 +902,22 @@
 }
 .vie-manga-toolbar button:hover { background: #344158; }
 .vie-manga-toolbar button.primary { background: #eab308; color: #16130a; }
+.vie-manga-wrapper {
+  position: relative;
+  box-sizing: border-box;
+  overflow: visible;
+  flex: none;
+  margin: 0;
+  padding: 0;
+}
+.vie-manga-wrapper > img {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: fill;
+}
 .vie-manga-layer {
   position: absolute;
   left: 0;

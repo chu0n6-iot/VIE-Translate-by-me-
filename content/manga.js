@@ -39,12 +39,18 @@
     ];
     return candidates.filter((element) => {
       const r = element.getBoundingClientRect();
-      if (r.width < 240 || r.height < 300) return false;
       if (element.tagName === "CANVAS") {
         return element.width >= 240 && element.height >= 300;
       }
       const hasSource = element.currentSrc || element.src || element.dataset?.src ||
         element.dataset?.original || element.getAttribute("data-src") || element.srcset;
+      const isMangaPlazaPage =
+        location.hostname === "reader.mangaplaza.com" &&
+        String(element.src || "").startsWith("blob:") &&
+        element.naturalWidth >= 500 &&
+        element.naturalHeight >= 300;
+      if (isMangaPlazaPage) return true;
+      if (r.width < 240 || r.height < 300) return false;
       return Boolean(hasSource) || Boolean(element.naturalWidth || element.width);
     });
   }
@@ -93,6 +99,24 @@
       img.getAttribute("data-src") || "";
     if (!src && img.srcset) src = img.srcset.split(",")[0]?.trim().split(/\s+/)[0] || "";
     if (!src) throw new Error("Trang không có ảnh đọc được.");
+    if (src.startsWith("blob:")) {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth || img.width;
+        canvas.height = img.naturalHeight || img.height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+        img._vieMangaDataUrl = dataUrl;
+        return {
+          ok: true,
+          imageBase64: dataUrl.replace(/^data:[^;]+;base64,/, ""),
+          mimeType: "image/jpeg"
+        };
+      } catch (err) {
+        throw new Error("Blob trang MangaPlaza không thể decode: " + err.message);
+      }
+    }
     if (src.startsWith("data:image/")) {
       return { ok: true, imageBase64: src.replace(/^data:[^;]+;base64,/, ""), mimeType: src.match(/^data:([^;]+)/)?.[1] || "image/jpeg" };
     }
@@ -139,15 +163,30 @@
   }
 
   function ensureLayer(img) {
-    const parent = img.parentElement;
-    if (!parent) return null;
-    const position = getComputedStyle(parent).position;
-    if (position === "static") parent.style.position = "relative";
-    let layer = parent.querySelector(":scope > .vie-manga-layer");
+    let wrapper = img.parentElement?.classList?.contains("vie-manga-wrapper")
+      ? img.parentElement
+      : null;
+    if (!wrapper) {
+      wrapper = document.createElement("div");
+      wrapper.className = "vie-manga-wrapper";
+      const rect = img.getBoundingClientRect();
+      wrapper.style.width = `${rect.width || img.width || img.naturalWidth}px`;
+      wrapper.style.height = `${rect.height || img.height || img.naturalHeight}px`;
+      wrapper.style.display = "block";
+      img.parentElement?.insertBefore(wrapper, img);
+      wrapper.appendChild(img);
+    } else {
+      const rect = img.getBoundingClientRect();
+      wrapper.style.width = `${rect.width || wrapper.offsetWidth || img.width}px`;
+      wrapper.style.height = `${rect.height || wrapper.offsetHeight || img.height}px`;
+    }
+    const position = getComputedStyle(wrapper).position;
+    if (position === "static") wrapper.style.position = "relative";
+    let layer = wrapper.querySelector(":scope > .vie-manga-layer");
     if (layer) return layer;
     layer = document.createElement("div");
     layer.className = "vie-manga-layer";
-    parent.appendChild(layer);
+    wrapper.appendChild(layer);
     return layer;
   }
 
