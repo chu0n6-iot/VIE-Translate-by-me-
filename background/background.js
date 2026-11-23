@@ -882,6 +882,53 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg.type === "FETCH_MANGA_IMAGE") {
+    (async () => {
+      const url = String(msg.url || "");
+      if (!/^https?:\/\//i.test(url)) throw new Error("URL ảnh truyện không hợp lệ.");
+      const res = await fetch(url, { credentials: "omit" });
+      if (!res.ok) throw new Error(`Không tải được ảnh (HTTP ${res.status}).`);
+      const blob = await res.blob();
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("Không đọc được dữ liệu ảnh."));
+        reader.readAsDataURL(blob);
+      });
+      return {
+        ok: true,
+        imageBase64: String(dataUrl).replace(/^data:[^;]+;base64,/, ""),
+        mimeType: blob.type || "image/jpeg"
+      };
+    })()
+      .then(sendResponse)
+      .catch((err) => sendResponse({ ok: false, error: err.message || "Lỗi tải ảnh truyện" }));
+    return true;
+  }
+
+  if (msg.type === "SCAN_MANGA_PAGE") {
+    (async () => {
+      const s = await self.VieStorage.getSettings();
+      const apiKey = s.apiKey || s.geminiApiKey || "";
+      if (!apiKey) {
+        return {
+          ok: false,
+          error: "NO_KEY",
+          message: "OCR truyện hiện cần Gemini. Dùng Ollama/Gemini cục bộ hoặc thêm key Gemini; chương dịch vẫn có thể dùng GTX/Ollama."
+        };
+      }
+      return await self.VieGemini.scanMangaPage({
+        imageBase64: msg.imageBase64,
+        mimeType: msg.mimeType || "image/jpeg",
+        apiKey,
+        targetLang: s.targetLang || "vi"
+      });
+    })()
+      .then(sendResponse)
+      .catch((err) => sendResponse({ ok: false, error: err.message || "Lỗi OCR trang truyện" }));
+    return true;
+  }
+
   if (msg.type === "SCAN_SCREEN_TEXT") {
     (async () => {
       const s = await self.VieStorage.getSettings();

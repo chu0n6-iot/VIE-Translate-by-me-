@@ -484,6 +484,37 @@ Trả về duy nhất JSON hợp lệ (không markdown, không codeblock):
     throw new Error("Không thể phân tích ngữ cảnh lúc này.");
   }
 
+  async function scanMangaPage({ imageBase64, mimeType = "image/jpeg", apiKey, targetLang = "vi" }) {
+    if (!imageBase64) throw new Error("Không có dữ liệu ảnh truyện.");
+    const prompt = `Analyze this manga/comic page and detect every readable speech bubble or caption.
+Return ONLY valid JSON:
+{"language":"ja|ko|zh-CN|zh-TW|en|es|other","regions":[{"x":0,"y":0,"w":100,"h":100,"text":"original text","confidence":0.95,"kind":"bubble|caption|sfx"}]}
+Coordinates must be percentages of the whole image (0-100). Do not include prose outside JSON.
+Ignore decorative art. Preserve line breaks. Detect Japanese, Korean, Chinese, English, Spanish and other Latin scripts.
+The target language is ${targetLang}. Do not translate in this OCR step.`;
+    const body = {
+      contents: [{ role: "user", parts: [
+        { inlineData: { mimeType: mimeType || "image/jpeg", data: imageBase64 } },
+        { text: prompt }
+      ] }],
+      generationConfig: { temperature: 0.05, maxOutputTokens: 3000, responseMimeType: "application/json" }
+    };
+    const candidates = await discoverGeminiModels(apiKey);
+    for (const m of candidates) {
+      if (isModelInCooldown(apiKey, m)) continue;
+      try {
+        const raw = await callGeminiEndpoint({ model: m, apiKey, body, timeoutMs: 20000 });
+        const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
+        if (!Array.isArray(parsed.regions)) throw new Error("OCR JSON không hợp lệ.");
+        return { ok: true, ...parsed, modelUsed: m };
+      } catch (err) {
+        const isQuota = err.isQuotaExceeded || err.status === 429 || /quota|resource_exhausted|429/i.test(err.message || "");
+        markModelCooldown(apiKey, m, isQuota ? 3600000 : 120000);
+      }
+    }
+    throw new Error("Không thể OCR trang truyện lúc này.");
+  }
+
   async function scanAndTranslateVisualText({ imageBase64, mimeType = "image/jpeg", apiKey, videoTitle = "", targetLang = "vi" }) {
     if (!imageBase64) throw new Error("Không có dữ liệu ảnh để quét chữ.");
     const prompt = `Bạn là trợ lý dịch thuật điện ảnh & bối cảnh thị giác chuyên nghiệp.
@@ -547,6 +578,7 @@ Trả về JSON duy nhất (không bọc code block markdown):
     callGeminiEndpoint,
     translateWithGeminiAuto,
     transcribeAndTranslateWithGeminiAudio,
+    scanMangaPage,
     scanAndTranslateVisualText,
     lookupWordWithGemini,
     explainSceneWithGemini,

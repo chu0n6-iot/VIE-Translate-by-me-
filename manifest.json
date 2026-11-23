@@ -15,6 +15,7 @@
     "activeTab"
   ],
   "host_permissions": [
+    "<all_urls>",
     "https://generativelanguage.googleapis.com/*",
     "https://aiplatform.googleapis.com/*",
     "https://api.groq.com/*",
@@ -58,6 +59,7 @@
         "content/dom.js",
         "content/selection.js",
         "content/captions.js",
+        "content/manga.js",
         "content/content.js"
       ],
       "css": ["content/overlay.css"]
