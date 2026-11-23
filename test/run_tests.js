@@ -1372,6 +1372,8 @@ console.log("2️⃣4️⃣ Kiểm tra quét ngầm truyện & dịch văn bản
   assert.ok(mangaSource.includes("directTranslations"), "Phải có dịch 1-1 trực tiếp từ OCR/multimodal để ảnh không giữ chữ gốc!");
   assert.ok(mangaSource.includes("blob:"), "MangaPlaza reader phải nhận blob URL thay vì bỏ qua vì không có HTTP URL!");
   assert.ok(mangaSource.includes("vie-manga-wrapper"), "MangaPlaza reader phải bám overlay đúng từng ảnh thay vì dùng parent trang!");
+  assert.ok(mangaSource.includes("isSupportedMangaOrTextPage"), "Không được hiện thanh dịch truyện trên YouTube hoặc trang video thường!");
+  assert.ok(mangaSource.includes("dismissToolbar"), "Nút X phải tắt và khôi phục trạng thái thanh dịch!");
   console.log("   ✅ Đã kiểm tra preflight truyện và social text/AO3 chuẩn cho bản 0.8.3!\n");
 })();
 

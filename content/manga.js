@@ -9,7 +9,8 @@
     preflightDone: false,
     textTranslations: new Map(),
     textShowing: false,
-    previousLines: []
+    previousLines: [],
+    dismissed: false
   };
 
   function sendMessage(payload) {
@@ -56,6 +57,8 @@
   }
 
   function ensureToolbar() {
+    if (state.dismissed) return null;
+    if (!isSupportedMangaOrTextPage()) return null;
     let toolbar = document.getElementById("vie-manga-toolbar");
     if (toolbar) return toolbar;
     toolbar = document.createElement("div");
@@ -76,7 +79,7 @@
       if (action === "png") exportPNG();
       if (action === "pdf") exportPDF();
       if (action === "xls") exportExcel();
-      if (action === "clear") clearRegions();
+      if (action === "clear") dismissToolbar();
     });
     return toolbar;
   }
@@ -438,6 +441,14 @@
     return /facebook\.com|tiktok\.com|instagram\.com|twitter\.com|x\.com|archiveofourown\.org|tumblr\.com|reddit\.com/.test(host);
   }
 
+  function isSupportedMangaOrTextPage() {
+    if (isSocialOrArticlePlatform()) return true;
+    const host = location.hostname;
+    if (/mangaplus\.com|mangadex\.org|mangaplaza\.com|manga\.|comic\.|\\.reader\\.|reader/.test(host)) return true;
+    const path = `${location.hostname}${location.pathname}`.toLowerCase();
+    return /(?:^|[/_-])(?:manga|mangareader|comic|comics|webtoon|speedreader)(?:[/_-]|$)/.test(path);
+  }
+
   function findTextBlocks() {
     const selectors = [
       "article",
@@ -619,6 +630,16 @@
     state.preflightDone = false;
   }
 
+  function dismissToolbar() {
+    state.dismissed = true;
+    clearRegions();
+    document.querySelectorAll("#vie-manga-toolbar, .vie-manga-region, .vie-manga-inpaint-canvas").forEach((el) => el.remove());
+    document.querySelectorAll("img[data-vie-translated='1']").forEach((img) => {
+      img.style.visibility = "";
+      delete img.dataset.vieTranslated;
+    });
+  }
+
   function snapshotTextCanvas(img, record) {
     const canvas = document.createElement("canvas");
     canvas.width = img.naturalWidth || img.width;
@@ -717,8 +738,13 @@
   }
 
   function init() {
+    if (!isSupportedMangaOrTextPage()) {
+      root.VieManga = { init, clearRegions, dismissToolbar };
+      return;
+    }
     ensureToolbar();
     setTimeout(() => {
+      if (state.dismissed) return;
       preflightAllContent().catch((err) => console.warn("[VIE Manga] Preflight:", err));
     }, 1800);
 
@@ -740,6 +766,7 @@
       scanVisiblePages,
       preflightAllContent,
       clearRegions,
+      dismissToolbar,
       exportPNG,
       exportPDF,
       exportExcel
