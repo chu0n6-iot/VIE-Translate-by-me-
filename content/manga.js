@@ -182,6 +182,8 @@
 
   async function translateMangaOcr(ocr) {
     if (!ocr?.regions?.length) return [];
+    const directTranslations = ocr.regions.map((r) => String(r.translation || "").trim());
+    const hasDirectTranslations = directTranslations.some(Boolean);
     const batch = await sendMessage({
       type: "TRANSLATE_MANGA_BATCH",
       imageBase64: ocr.imageBase64,
@@ -190,7 +192,10 @@
       previousLines: state.previousLines.slice(-5)
     });
     const translated = batch?.regions || [];
-    const translations = ocr.regions.map((_, i) => translated.find((r) => Number(r.index) === i)?.text || "");
+    const translations = ocr.regions.map((r, i) => {
+      const item = translated.find((x) => Number(x.index) === i);
+      return String(item?.text || directTranslations[i] || r.translation || "").trim();
+    });
     translated.forEach((item) => {
       const index = Number(item.index);
       if (ocr.regions[index]) {
@@ -324,6 +329,8 @@
 
     layer.querySelectorAll(".vie-manga-inpaint-canvas").forEach((el) => el.remove());
     layer.appendChild(canvas);
+    img.style.visibility = "hidden";
+    img.dataset.vieTranslated = "1";
   }
 
   async function renderRegions(img, ocr) {
@@ -341,6 +348,8 @@
     const records = [];
     (ocr.regions || []).forEach((r, i) => {
       if (!r.text) return;
+      const translatedText = String(translations[i]?.vi || translations[i] || r.translation || "").trim();
+      if (!translatedText || translatedText === String(r.text).trim()) return;
       const el = document.createElement("div");
       el.className = "vie-manga-region";
       el.style.left = `${Math.max(0, r.x || 0)}%`;
@@ -349,7 +358,7 @@
       el.style.height = `${Math.max(3, r.h || 5)}%`;
       el.title = `${r.type || r.kind || "bubble"} · OCR ${Math.round((r.confidence || 0) * 100)}% · bấm đúp để sửa`;
       const ta = document.createElement("textarea");
-      ta.value = translations[i]?.vi || translations[i] || r.text;
+      ta.value = translations[i]?.vi || translations[i] || r.translation || r.text;
       el.appendChild(ta);
       layer.appendChild(el);
       const record = { img, el, orig: r.text, vi: ta.value, type: r.type || r.kind || "dialogue", font: r.font || "normal", x: r.x || 0, y: r.y || 0, w: r.w || 8, h: r.h || 5 };

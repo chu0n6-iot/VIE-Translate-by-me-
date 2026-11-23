@@ -546,10 +546,10 @@ Trả về DUY NHẤT JSON hợp lệ:
     if (!imageBase64) throw new Error("Không có dữ liệu ảnh truyện.");
     const prompt = `Analyze this manga/comic page and detect every readable speech bubble or caption.
 Return ONLY valid JSON:
-{"language":"ja|ko|zh-CN|zh-TW|en|es|other","regions":[{"x":0,"y":0,"w":100,"h":100,"text":"recovered original text","confidence":0.95,"type":"dialogue|thought|sfx|narration","kind":"bubble|caption|sfx"}]}
+{"language":"ja|ko|zh-CN|zh-TW|en|es|other","regions":[{"x":0,"y":0,"w":100,"h":100,"text":"recovered original text","translation":"concise natural Vietnamese translation","confidence":0.95,"type":"dialogue|thought|sfx|narration","font":"normal|italic|brush","kind":"bubble|caption|sfx"}]}
 Coordinates must be percentages of the whole image (0-100). Do not include prose outside JSON.
 Ignore decorative art. Preserve line breaks. Detect Japanese, Korean, Chinese, English, Spanish and other Latin scripts.
-The target language is ${targetLang}. Do not translate in this OCR step.`;
+The target language is ${targetLang}. Return the best direct 1-to-1 Vietnamese translation in each region as "translation"; it may be refined later with chapter context.`;
     const body = {
       contents: [{ role: "user", parts: [
         { inlineData: { mimeType: mimeType || "image/jpeg", data: imageBase64 } },
