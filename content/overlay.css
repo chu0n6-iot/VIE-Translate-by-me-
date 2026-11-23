@@ -936,6 +936,24 @@
   touch-action: none;
 }
 .vie-manga-region:hover { border-style: solid; box-shadow: 0 3px 12px rgba(0,0,0,.25); }
+.vie-manga-text-card {
+  box-sizing: border-box;
+  margin: 8px 0 12px;
+  padding: 9px 12px;
+  border-left: 3px solid #eab308;
+  border-radius: 8px;
+  background: rgba(255, 248, 220, 0.96);
+  color: #1f2937;
+  font-family: "Segoe UI", "Noto Sans", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+  white-space: pre-wrap;
+  user-select: text;
+  position: relative;
+  z-index: 2147483646;
+}
 .vie-manga-region textarea {
   width: 100%;
   height: 100%;

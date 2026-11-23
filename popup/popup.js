@@ -472,7 +472,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     hideModelList();
   }
 
-  const localManifestVersion = (chrome.runtime.getManifest && chrome.runtime.getManifest()?.version) || "0.8.2";
+  const localManifestVersion = (chrome.runtime.getManifest && chrome.runtime.getManifest()?.version) || "0.8.3";
   if (checkUpdateMiniBtn) {
     checkUpdateMiniBtn.textContent = `v${localManifestVersion} ↻`;
   }

@@ -1,7 +1,15 @@
 (function (root) {
   "use strict";
 
-  const state = { active: false, regions: [], scannedImages: new Set() };
+  const state = {
+    active: false,
+    regions: [],
+    scannedImages: new Set(),
+    cachedOcr: new Map(),
+    preflightDone: false,
+    textTranslations: new Map(),
+    textShowing: false
+  };
 
   function sendMessage(payload) {
     return new Promise((resolve) => chrome.runtime.sendMessage(payload, (res) => resolve(res)));
@@ -47,7 +55,7 @@
     toolbar.id = "vie-manga-toolbar";
     toolbar.className = "vie-manga-toolbar";
     toolbar.innerHTML = `
-      <button type="button" data-action="scan" class="primary">🧩 Quét trang</button>
+      <button type="button" data-action="scan" class="primary">⏳ Đang quét ngầm</button>
       <button type="button" data-action="rescan">🔎 Dò sót</button>
       <button type="button" data-action="png">PNG</button>
       <button type="button" data-action="pdf">PDF</button>
@@ -173,7 +181,9 @@
     layer.querySelectorAll(".vie-manga-region").forEach((el) => el.remove());
     const texts = (ocr.regions || []).map((r) => r.text).filter(Boolean);
     let translations = [];
-    if (texts.length) {
+    if (Array.isArray(ocr.translations)) {
+      translations = ocr.translations;
+    } else if (texts.length) {
       const batch = await sendMessage({ type: "TRANSLATE_BATCH", texts, videoTitle: document.title, videoContext: "Manga/comic page context" });
       translations = batch?.results || batch?.translations || [];
     }
@@ -199,9 +209,7 @@
     });
   }
 
-  async function scanVisiblePages() {
-    ensureToolbar();
-    state.active = true;
+  async function revealLazyChapter() {
     const originalScroll = { x: scrollX, y: scrollY };
     const scrollers = collectAcrossShadowRoots("*").filter((element) => {
       const style = getComputedStyle(element);
@@ -211,17 +219,99 @@
     scrollers.push(document.documentElement);
     scrollers.push(document.body);
 
-    const uniqueScrollers = [...new Set(scrollers)].slice(0, 30);
-    for (const scroller of uniqueScrollers) {
+    for (const scroller of [...new Set(scrollers)].slice(0, 30)) {
       const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
       if (!max) continue;
       for (let y = 0; y <= max; y += Math.max(500, scroller.clientHeight || 500)) {
         scroller.scrollTop = y;
-        await new Promise((resolve) => setTimeout(resolve, 260));
+        await new Promise((resolve) => setTimeout(resolve, 220));
       }
       scroller.scrollTop = 0;
     }
     window.scrollTo(originalScroll.x, originalScroll.y);
+  }
+
+  function isSocialOrArticlePlatform() {
+    const host = location.hostname;
+    return /facebook\.com|tiktok\.com|instagram\.com|twitter\.com|x\.com|archiveofourown\.org|tumblr\.com|reddit\.com/.test(host);
+  }
+
+  function findTextBlocks() {
+    const selectors = [
+      "article",
+      "main p",
+      "#main p",
+      ".userstuff",
+      ".chapter",
+      "[role='article']",
+      "[data-testid*='tweetText']",
+      "[data-ad-preview]",
+      "[data-testid*='post']",
+      "[class*='post-text']",
+      "[class*='caption']"
+    ];
+    const candidates = collectAcrossShadowRoots(selectors.join(","));
+    const unique = [];
+    for (const el of candidates) {
+      if (el.closest("#vie-manga-toolbar, .vie-manga-layer, .vie-manga-text-card")) continue;
+      const text = (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim();
+      if (text.length < 12 || text.length > 4000) continue;
+      if (unique.some((other) => other !== el && (other.contains(el) || el.contains(other)))) continue;
+      unique.push(el);
+    }
+    return unique.slice(0, 80);
+  }
+
+  async function preflightTextTranslations() {
+    if (!isSocialOrArticlePlatform()) return;
+    const blocks = findTextBlocks();
+    if (!blocks.length) return;
+    const texts = blocks.map((el) => (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim());
+    const batch = await sendMessage({
+      type: "TRANSLATE_BATCH",
+      texts,
+      videoTitle: document.title,
+      videoContext: "Social post or fanfic/manga raw text context"
+    });
+    const translations = batch?.results || batch?.translations || [];
+    blocks.forEach((el, i) => {
+      state.textTranslations.set(el, {
+        orig: texts[i],
+        vi: translations[i]?.vi || translations[i] || ""
+      });
+    });
+  }
+
+  function showTextTranslations() {
+    for (const [el, record] of state.textTranslations) {
+      if (!el.isConnected || !record.vi) continue;
+      if (el.nextElementSibling?.classList?.contains("vie-manga-text-card")) continue;
+      const card = document.createElement("div");
+      card.className = "vie-manga-text-card";
+      card.textContent = record.vi;
+      card.dataset.orig = record.orig;
+      el.insertAdjacentElement("afterend", card);
+    }
+    state.textShowing = true;
+  }
+
+  function hideTextTranslations() {
+    document.querySelectorAll(".vie-manga-text-card").forEach((el) => el.remove());
+    state.textShowing = false;
+  }
+
+  async function scanVisiblePages() {
+    ensureToolbar();
+    state.active = true;
+    if (state.preflightDone) {
+      for (const [img, ocr] of state.cachedOcr) await renderRegions(img, ocr);
+      showTextTranslations();
+      const toolbar = ensureToolbar();
+      toolbar.querySelector('[data-action="scan"]').textContent =
+        state.cachedOcr.size ? `✅ ${state.cachedOcr.size} trang` : "✅ Đã dịch";
+      return;
+    }
+    await revealLazyChapter();
 
     let images = [];
     for (let attempt = 0; attempt < 6 && !images.length; attempt++) {
@@ -239,32 +329,99 @@
     }
     const toolbar = ensureToolbar();
     toolbar.querySelector('[data-action="scan"]').textContent = "⏳ Đang quét";
-    const pending = images.filter((img) => !state.scannedImages.has(img));
+    const pending = images.filter((img) => !state.cachedOcr.has(img));
     for (let offset = 0; offset < pending.length; offset += 3) {
       await Promise.all(pending.slice(offset, offset + 3).map(async (img) => {
         try {
           const ocr = await scanImage(img);
-          await renderRegions(img, ocr);
-          state.scannedImages.add(img);
+          const texts = (ocr.regions || []).map((r) => r.text).filter(Boolean);
+          if (texts.length) {
+            const batch = await sendMessage({
+              type: "TRANSLATE_BATCH",
+              texts,
+              videoTitle: document.title,
+              videoContext: "Manga/comic page context"
+            });
+            ocr.translations = batch?.results || batch?.translations || [];
+          }
+          state.cachedOcr.set(img, ocr);
         } catch (err) {
           console.warn("[VIE Manga]", err);
         }
       }));
     }
-    const scannedCount = state.scannedImages.size;
+    for (const [img, ocr] of state.cachedOcr) {
+      await renderRegions(img, ocr);
+      state.scannedImages.add(img);
+    }
+    showTextTranslations();
+    state.preflightDone = true;
+    const scannedCount = state.cachedOcr.size;
     toolbar.querySelector('[data-action="scan"]').textContent =
-      scannedCount ? `✅ ${scannedCount} trang` : "⚠️ Chưa thấy trang";
+      scannedCount ? `Xem bản dịch (${scannedCount})` : "Xem bản dịch";
+  }
+
+  async function preflightAllContent() {
+    ensureToolbar();
+    const toolbar = ensureToolbar();
+    toolbar.querySelector('[data-action="scan"]').textContent = "⏳ Đang quét ngầm";
+    await revealLazyChapter();
+
+    const images = findPageImages().filter((img) => {
+      const r = img.getBoundingClientRect();
+      return r.width >= 240 && r.height >= 300;
+    }).slice(0, 100);
+
+    const pending = images.filter((img) => !state.cachedOcr.has(img));
+    for (let offset = 0; offset < pending.length; offset += 3) {
+      await Promise.all(pending.slice(offset, offset + 3).map(async (img) => {
+        try {
+          const ocr = await scanImage(img);
+          const texts = (ocr.regions || []).map((r) => r.text).filter(Boolean);
+          if (texts.length) {
+            const batch = await sendMessage({
+              type: "TRANSLATE_BATCH",
+              texts,
+              videoTitle: document.title,
+              videoContext: "Manga/comic page context"
+            });
+            ocr.translations = batch?.results || batch?.translations || [];
+          }
+          state.cachedOcr.set(img, ocr);
+        } catch (err) {
+          console.warn("[VIE Manga preflight]", err);
+        }
+      }));
+    }
+
+    await preflightTextTranslations();
+    state.preflightDone = true;
+    if (state.cachedOcr.size) {
+      toolbar.querySelector('[data-action="scan"]').textContent = `Xem bản dịch (${state.cachedOcr.size})`;
+    } else if (state.textTranslations.size) {
+      toolbar.querySelector('[data-action="scan"]').textContent = `Xem bản dịch (${state.textTranslations.size})`;
+    } else {
+      toolbar.querySelector('[data-action="scan"]').textContent = "⟳ Quét lại";
+    }
   }
 
   async function rescanMissing() {
+    state.cachedOcr.clear();
+    state.textTranslations.clear();
+    state.preflightDone = false;
+    hideTextTranslations();
     state.scannedImages.clear();
-    await scanVisiblePages();
+    await preflightAllContent();
   }
 
   function clearRegions() {
     document.querySelectorAll(".vie-manga-region").forEach((el) => el.remove());
+    hideTextTranslations();
     state.regions = [];
     state.scannedImages.clear();
+    state.cachedOcr.clear();
+    state.textTranslations.clear();
+    state.preflightDone = false;
   }
 
   function snapshotTextCanvas(img, record) {
@@ -359,7 +516,32 @@
 
   function init() {
     ensureToolbar();
-    root.VieManga = { init, scanVisiblePages, clearRegions, exportPNG, exportPDF, exportExcel };
+    setTimeout(() => {
+      preflightAllContent().catch((err) => console.warn("[VIE Manga] Preflight:", err));
+    }, 1800);
+
+    let socialMutationTimer = null;
+    if (isSocialOrArticlePlatform()) {
+      const observer = new MutationObserver(() => {
+        if (socialMutationTimer) clearTimeout(socialMutationTimer);
+        socialMutationTimer = setTimeout(() => {
+          preflightTextTranslations().catch(() => {});
+        }, 1800);
+      });
+      if (document.documentElement) {
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+      }
+    }
+
+    root.VieManga = {
+      init,
+      scanVisiblePages,
+      preflightAllContent,
+      clearRegions,
+      exportPNG,
+      exportPDF,
+      exportExcel
+    };
   }
 
   init();

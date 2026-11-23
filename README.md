@@ -1,4 +1,4 @@
-# VIE-Translate - Translate Toad AI
+# VIE-Translate - Translate Toad AI v0.8.3
 
 <p align="center">
   <img src="assets/translate-toad.png" alt="Translate Toad" width="140">
@@ -13,6 +13,8 @@ Tiện ích mở rộng miễn phí, mã nguồn mở, giúp dịch phụ đề 
 - Dịch bằng Ollama hoàn toàn trên máy, hoặc Google Translate không cần API key.
 - Ngôn ngữ: tiếng Việt, Anh, Pháp, Nhật, Hàn, Trung, Đức, Tây Ban Nha, Nga và Thái.
 - Tự khớp ngữ cảnh, glossary, nhân xưng và nhiều người nói.
+- Tự quét ngầm, dịch và giữ bản dịch chờ đến khi người dùng nhấn **Xem bản dịch**.
+- Dịch bài đăng tranh/raw và văn bản dài trên Facebook, TikTok, Instagram, Twitter/X, Archive of Our Own và nhiều nền tảng khác.
 - OCR chữ trên màn hình.
 - OCR vùng thoại truyện/truyện tranh theo trang.
 - Kéo thả và sửa trực tiếp khung dịch trên ảnh.

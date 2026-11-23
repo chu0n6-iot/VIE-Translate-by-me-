@@ -1352,6 +1352,20 @@ await (async () => {
   console.log("   ✅ Đã kiểm tra VieUpdater: Semver, Git Blob SHA-1 CRLF/LF, Tree Diff, Badge 'MỚI' & Fallback 403 chuẩn 100%!\n");
 })();
 
-console.log("🎉 TOÀN BỘ 23 BÀI KIỂM TRA ĐỀU HOÀN TOÀN CHÍNH XÁC VÀ ĐẠT 100%!");
+// --- 24. Test Manga Preflight and Social Text Translation ---
+console.log("2️⃣4️⃣ Kiểm tra quét ngầm truyện & dịch văn bản social/AO3...");
+(() => {
+  const mangaSource = fs.readFileSync(path.join(ROOT_DIR, "content/manga.js"), "utf8");
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, "manifest.json"), "utf8"));
+  assert.strictEqual(manifest.version, "0.8.3", "Manifest phải cập nhật lên bản 0.8.3!");
+  assert.ok(mangaSource.includes("cachedOcr"), "Phải có cache OCR để quét trước và hiển thị sau!");
+  assert.ok(mangaSource.includes("preflightDone"), "Phải chuyển sang chế độ Xem bản dịch sau preflight!");
+  assert.ok(mangaSource.includes("archiveofourown"), "Phải hỗ trợ dịch văn bản Archive of Our Own!");
+  assert.ok(mangaSource.includes("facebook"), "Phải hỗ trợ dịch nội dung Facebook!");
+  assert.ok(mangaSource.includes("Xem bản dịch"), "Thanh công cụ phải yêu cầu người dùng bấm xem bản dịch!");
+  console.log("   ✅ Đã kiểm tra preflight truyện và social text/AO3 chuẩn cho bản 0.8.3!\n");
+})();
+
+console.log("🎉 TOÀN BỘ 24 BÀI KIỂM TRA ĐỀU HOÀN TOÀN CHÍNH XÁC VÀ ĐẠT 100%!");
 
 })();

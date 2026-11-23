@@ -17,6 +17,7 @@
 - [content/dom.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/content/dom.js): Tạo & render phụ đề (phân tách dòng riêng biệt cho từng giọng nói A/B), thẻ từ điển & coach.
 - [content/selection.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/content/selection.js): Bắt sự kiện bôi đen văn bản trên trang web và hiển thị bubble dịch nhanh.
 - [content/captions.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/content/captions.js): Nhận diện video, tách lượt thoại Multi-Speaker, ghép câu ASR dở dang, sync lyrics.
+- [content/manga.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/content/manga.js): Quét ngầm toàn chương truyện, OCR ảnh/canvas/Shadow DOM, dịch batch và hiển thị overlay chỉ khi người dùng bấm Xem bản dịch; hỗ trợ bài đăng social và văn bản dài.
 - [content/overlay.css](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/content/overlay.css): CSS giao diện phụ đề, phân màu trực quan từng lượt thoại người nói, popup tra từ.
 - [popup/popup.html](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/popup/popup.html): Giao diện cài đặt (Tab API, Ngôn ngữ & Tách giọng đối thoại, Style, Sổ từ & Glossary).
 - [popup/popup.css](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/popup/popup.css): Phong cách giao diện cài đặt (dark theme, glassmorphism, micro-animations).
@@ -32,7 +33,7 @@
 1. **Luôn đọc `AI_CONTEXT.md` đầu tiên** để định vị chính xác file cần sửa theo đúng nhiệm vụ.
 2. **TUYỆT ĐỐI KHÔNG đọc toàn bộ codebase** nếu chỉ cần sửa một module riêng biệt.
 3. Không tái tạo "God file"; duy trì tính độc lập và kích thước nhỏ gọn của từng module.
-4. Ghi chú kiến trúc v0.8.2 (Cập nhật GitHub tự động & tối ưu tốc độ dịch):
+4. Ghi chú kiến trúc v0.8.3 (Dịch truyện/social ngầm, cập nhật GitHub & tối ưu tốc độ dịch):
 - Tự động báo cập nhật GitHub qua `api/updater.js` (`VieUpdater.checkForUpdates`, so sánh semver + Git blob SHA-1), banner Popup & toast video.
 - Tối ưu dịch thuật: cache settings 0ms, watermark prefetch 10 cue (`prefetchUpcomingCues`), cross-dedup batch↔single `inFlight`, `[[N]]` GTX batch và `buildTranslationPrompts` đa ngôn ngữ.
 - Local AI qua Ollama (`api/ollama.js`) và Whisper local (`api/whisper.js`, `tools/whisper_server.py`).
