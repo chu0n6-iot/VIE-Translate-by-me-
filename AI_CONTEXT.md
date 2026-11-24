@@ -2,6 +2,10 @@
 
 > 💡 **Tự động kích hoạt cho AI**: Dự án đã tích hợp `.cursorrules` và `.agentrules` để AI tự động nạp ngữ cảnh từ file này trên **mọi prompt** mà không cần người dùng gõ tay `@AI_CONTEXT.md`.
 
+## 0. Quy trình Làm việc & Tích hợp Agent Skills
+- **Bắt buộc trước mỗi phiên phát triển/sửa code**: Luôn chạy `git fetch origin` & `git pull` để đồng bộ commit mới nhất từ remote repository trước khi thực hiện bất kỳ thay đổi nào. Quy tắc này đã được khóa cố định tại `.agentrules` và `.cursorrules`.
+- **Google Agent Skills Catalog**: Dự án đã tích hợp đầy đủ bộ kỹ năng chính thức từ [google/skills](https://github.com/google/skills) (được định cấu hình tại `.agents/skills/` và khóa phiên bản qua `skills-lock.json`), hỗ trợ agent trong việc tích hợp Gemini API, Cloud Run, Firebase, và các giải pháp tối ưu AI/Cloud.
+
 ## 1. Sơ đồ Module & Nhiệm vụ Từng File
 - [manifest.json](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/manifest.json): Cấu hình Chrome Extension Manifest V3, permissions & entry scripts.
 - [utils/storage.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/utils/storage.js): Quản lý `chrome.storage.local`, settings, Persona, Multi-Speaker formatting & cache key.
