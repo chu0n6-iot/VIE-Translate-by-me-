@@ -1,77 +1,142 @@
-# VIE-Translate - Translate Toad AI v0.8.3
+# VIE-Translate — Translate Toad AI v0.8.3
 
 <p align="center">
   <img src="assets/translate-toad.png" alt="Translate Toad" width="140">
 </p>
 
-Tiện ích mở rộng miễn phí, mã nguồn mở, giúp dịch phụ đề video và truyện tranh trực tiếp trên trình duyệt. Không quảng cáo.
+Tiện ích mở rộng (Browser Extension) miễn phí, mã nguồn mở, giúp dịch phụ đề video và truyện tranh trực tiếp trên trình duyệt bằng AI ngữ cảnh (Local AI, Gemini, Groq) hoặc Google Translate. Hoàn toàn không quảng cáo.
 
-## Tính năng
+---
 
-- Dịch phụ đề video theo thời gian thực trên YouTube và các trang web có `<video>`.
-- Dịch video không có phụ đề bằng Gemini, Groq hoặc Whisper local.
-- Dịch bằng Ollama hoàn toàn trên máy, hoặc Google Translate không cần API key.
-- Ngôn ngữ: tiếng Việt, Anh, Pháp, Nhật, Hàn, Trung, Đức, Tây Ban Nha, Nga và Thái.
-- Tự khớp ngữ cảnh, glossary, nhân xưng và nhiều người nói.
-- Dịch truyện bằng Gemini multimodal: gửi ảnh trang cùng OCR để phục hồi chữ mờ, suy luận xưng hô và phân loại thoại/SFX/narration.
-- Tự quét ngầm, dịch và giữ bản dịch chờ đến khi người dùng nhấn **Xem bản dịch**.
-- Dịch bài đăng tranh/raw và văn bản dài trên Facebook, TikTok, Instagram, Twitter/X, Archive of Our Own và nhiều nền tảng khác.
-- OCR chữ trên màn hình.
-- OCR vùng thoại truyện/truyện tranh theo trang.
-- Kéo thả và sửa trực tiếp khung dịch trên ảnh.
-- Xuất PNG, PDF và Excel.
-- Quét lại vùng chữ sót; hỗ trợ TextDetector của trình duyệt làm OCR dự phòng.
+## 🚀 Cài đặt & Hướng dẫn sử dụng nhanh
 
-Tính năng truyện tranh đang ở giai đoạn thử nghiệm. Nút công cụ tự xuất hiện trên trang có ảnh lớn. Nhấn **Quét trang** để nhận diện và dịch vùng thoại.
+### Bước 1: Nạp Extension vào trình duyệt (Chrome, Edge, Cốc Cốc, Brave)
+1. Tải hoặc clone thư mục dự án này về máy:
+   ```bash
+   git clone https://github.com/chu0n6-iot/VIE-Translate-by-me-.git
+   ```
+2. Mở trình duyệt và truy cập trang quản lý tiện ích:
+   - Trên **Google Chrome / Brave / Cốc Cốc**: gõ `chrome://extensions` vào thanh địa chỉ rồi Enter.
+   - Trên **Microsoft Edge**: gõ `edge://extensions` vào thanh địa chỉ rồi Enter.
+3. Bật công tắc **Developer mode** (Chế độ dành cho nhà phát triển) ở góc trên.
+4. Bấm nút **Load unpacked** (Tải tiện ích đã giải nén) ➔ Chọn thư mục `VIE-Translate-by-me-`.
+5. Bấm vào biểu tượng mảnh ghép (Extensions) ở góc trên bên phải trình duyệt ➔ **Ghim (Pin)** biểu tượng chú Cóc **Translate Toad** lên thanh công cụ.
 
-## Cài đặt
+---
 
-1. Cài Ollama hoặc dùng chế độ Google Translate nếu không muốn dùng API key.
-2. Mở Chrome/Edge: `chrome://extensions`
-3. Bật **Developer mode**.
-4. Chọn **Load unpacked** và trỏ tới thư mục dự án.
-5. Mở trang manga/comic, video hoặc MangaDex và dùng popup/toolbar của tiện ích.
+### Bước 2: Chọn phương thức dịch phù hợp
 
-Ollama:
+Bấm vào biểu tượng chú Cóc trên thanh công cụ để mở bảng điều khiển. Bạn có 3 lựa chọn linh hoạt:
+
+#### 🏠 Lựa chọn 1: Local AI (100% trên máy — Không cần Key, Không lo hết Quota, Vĩnh viễn)
+Chạy hoàn toàn trên phần cứng máy tính của bạn, không gửi dữ liệu ra ngoài, không phụ thuộc vào giới hạn API của Google.
+
+- **Cách 1: Dùng LM Studio (Dễ nhất cho Windows / Mac có giao diện đồ họa):**
+  1. Tải và cài đặt [LM Studio](https://lmstudio.ai).
+  2. Tìm kiếm và tải model **`Qwen 2.5 3B`** (hoặc `Qwen 2.5 7B`).
+  3. Chuyển sang tab **Developer / Local Server** (biểu tượng `<->`) ➔ Bấm **Start Server** (mặc định cổng `http://localhost:1234/v1`, đã bật sẵn CORS).
+  4. Trong Extension: Chọn **Local AI** ➔ Bấm nút **LM Studio (1234)** ➔ Bấm **Kiểm tra**.
+
+- **Cách 2: Dùng Ollama:**
+  1. Cài đặt [Ollama](https://ollama.com).
+  2. Mở Terminal / PowerShell và tải model khuyên dùng:
+     ```bash
+     ollama pull qwen2.5:3b
+     ```
+  3. Khởi chạy Ollama với biến môi trường cho phép Extension kết nối:
+     - Trên **Windows (PowerShell)**:
+       ```powershell
+       $env:OLLAMA_ORIGINS="*"
+       ollama serve
+       ```
+     - Trên **Windows (CMD)**:
+       ```cmd
+       set OLLAMA_ORIGINS=*
+       ollama serve
+       ```
+     - Trên **macOS / Linux**:
+       ```bash
+       OLLAMA_ORIGINS="*" ollama serve
+       ```
+  4. Trong Extension: Chọn **Local AI** ➔ Bấm **Ollama (11434)** ➔ Bấm **Kiểm tra**.
+
+> 💡 **Gợi ý Model Local tốt nhất:**
+> - ⭐ **`qwen2.5:3b`** (Khuyên dùng số 1): Siêu nhẹ (~2GB VRAM), dịch tiếng Việt cực chuẩn, tốc độ 40–70 token/s.
+> - ⭐ **`qwen2.5:7b`**: Dịch văn phong điện ảnh chuyên nghiệp (cần GPU 6GB+ VRAM).
+
+---
+
+#### ⚡ Lựa chọn 2: Google Translate Miễn Phí (Nhanh nhất — 0 cần cài đặt, 0 cần Key)
+- Trong Extension, chọn **Dịch bằng:** ➔ `Google Translate (không cần key)`.
+- Phụ đề sẽ được dịch trực tiếp qua máy chủ Google với tốc độ tức thì, không giới hạn lượt xem.
+
+---
+
+#### 🚀 Lựa chọn 3: Cloud AI chất lượng cao (Miễn phí qua API Key)
+- **Groq Cloud (Khuyên dùng nếu dùng Cloud)**:
+  - Cực kỳ nhanh (~0.15s/câu) và cấp miễn phí **14.400 câu/ngày**.
+  - Đăng ký lấy API Key miễn phí tại: [console.groq.com/keys](https://console.groq.com/keys).
+- **Google Gemini API**:
+  - Dịch tự nhiên, hiểu bối cảnh sâu sắc.
+  - Lấy API Key miễn phí tại: [aistudio.google.com](https://aistudio.google.com).
+  - *Mẹo:* Bạn có thể dán nhiều API Key vào mục **Key dự phòng**, tiện ích sẽ tự động xoay tua khi một key chạm ngưỡng giới hạn (429 Quota Exceeded).
+
+---
+
+### Bước 3: Thưởng thức Video & Truyện tranh
+
+1. **Xem Video (YouTube, Coursera, Facebook, Netflix, v.v.):**
+   - Mở bất kỳ video nào, bật phụ đề (CC). Tiện ích sẽ tự động dịch và hiển thị phụ đề tiếng Việt đè mượt mà lên video.
+   - **Tua video (Seek):** Phụ đề hiển thị tức thì 0ms, không bị mất dòng.
+   - **Video không có phụ đề CC:** Bấm nút **🎙️ AI Nghe & Dịch** cạnh video để tiện ích tự nhận dạng âm thanh và dịch.
+   - **Học ngoại ngữ:** Rê chuột vào phụ đề để tạm dừng video, bấm vào từ bất kỳ để tra từ điển và phân tích ngữ cảnh.
+
+2. **Đọc Truyện Tranh (Manga, Manhwa, Webtoon):**
+   - Khi vào trang truyện tranh, thanh công cụ chú Cóc sẽ xuất hiện ở góc màn hình.
+   - Bấm **Quét trang** để AI nhận diện các khung thoại và dịch trực tiếp sang tiếng Việt.
+
+---
+
+## ✨ Tính năng nổi bật
+
+- **Đa nền tảng video:** Hoạt động trên YouTube, Facebook Watch, TikTok, Netflix, Coursera, Udemy, Twitter/X, và mọi website dùng thẻ HTML5 `<video>`.
+- **Dịch có ngữ cảnh & xưng hô thông minh:** Tự nhận diện thể loại video (gaming, phim ảnh, bài giảng, ca nhạc) để chọn ngôi xưng phù hợp (anh/em, mình/bạn, tôi/bạn).
+- **Phân tách đối thoại nhiều người (Multi-Speaker):** Tự động tách lời thoại người A và người B thành 2 dòng riêng biệt có gạch đầu dòng `- `, không bị dính chùm.
+- **Dịch đón đầu siêu tốc (Lookahead Prefetching):** Gom trước 4–5 câu sắp tới gửi dịch ngầm, giúp phụ đề hiện ra tức thì 0ms khi nhân vật nói.
+- **Sổ từ vựng (Glossary) cá nhân:** Khóa cố định các thuật ngữ chuyên ngành hoặc tên riêng theo ý muốn.
+- **Whisper Local:** Hỗ trợ mô hình Whisper chạy GPU/CPU trên máy cho tính năng "AI Nghe & Dịch" không cần gửi âm thanh lên cloud.
+
+---
+
+## 🎧 Chạy Whisper Local cho AI Nghe & Dịch (Tùy chọn)
+
+Nếu muốn dùng tính năng **AI Nghe âm thanh video** mà hoàn toàn offline:
 
 ```bash
-ollama pull qwen2.5:7b
-```
+# Cài đặt thư viện:
+pip install openai-whisper torch
 
-Ollama trên máy cần chạy với quyền truy cập extension:
-
-```powershell
-$env:OLLAMA_ORIGINS="chrome-extension://*"
-ollama serve
-```
-
-Whisper local:
-
-```bash
+# Chạy server GPU (khuyên dùng):
 python tools/whisper_server.py --device cuda --port 8000 --model large-v3
+
+# Hoặc chạy server CPU:
 python tools/whisper_server.py --device cpu --port 8001 --model small
 ```
 
-## Cấu hình
+Trong bảng Cài đặt của Extension ➔ mở mục **🎧 AI Nghe local (Whisper)** và bật tính năng.
 
-- **Nhà cung cấp:** Gemini, Groq, Ollama hoặc Google Translate.
-- **API key:** tùy chọn; key dự phòng được xoay tự động khi hết quota.
-- **Dịch truyện:** OCR chính xác nhất dùng Gemini Vision; TextDetector có thể được dùng làm fallback.
-- **Mạng:** extension hỗ trợ `<img>` và ảnh tải qua worker, tùy quyền truy cập của từng website.
+---
 
-## Kiểm tra
+## 🧪 Kiểm tra hệ thống (Test Suite)
+
+Dự án tích hợp bộ kiểm tra tự động toàn diện gồm 24 bài test:
 
 ```bash
 node test/run_tests.js
 ```
 
-## Hạn chế hiện tại
+---
 
-- Dịch truyện chưa hỗ trợ xuất PSD.
-- Kết quả OCR phụ thuộc chất lượng tranh, phông chữ SFX và chính sách chặn ảnh của từng website.
-- PDF hiện mở cửa sổ in để người dùng lưu PDF.
-- Chrome TextDetector không có trên mọi phiên bản hoặc nền tảng.
+## 📄 Giấy phép
 
-## Giấy phép
-
-Phát hành theo [MIT License](LICENSE).
+Dự án được phát hành theo giấy phép mã nguồn mở [MIT License](LICENSE). Mọi đóng góp (Pull Request, Issue) đều được hoan nghênh!

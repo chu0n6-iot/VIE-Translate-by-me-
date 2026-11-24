@@ -1298,7 +1298,29 @@
     }
 
 
-/* Local AI (Ollama) */
+/* Local AI (Ollama & LM Studio) */
+.ollama-presets { display: flex; gap: 6px; margin: 4px 0 6px; flex-wrap: wrap; }
+.ollama-preset-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #cbd5e1;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.ollama-preset-btn:hover {
+  background: rgba(59, 130, 246, 0.25);
+  border-color: #3b82f6;
+  color: #93c5fd;
+}
+.ollama-preset-btn.active {
+  background: rgba(16, 185, 129, 0.22);
+  border-color: #10b981;
+  color: #6ee7b7;
+  font-weight: 600;
+}
 .ollama-hint { font-size: 12px; opacity: 0.8; margin-top: 6px; line-height: 1.5; }
 .ollama-hint code { background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 4px; }
 #ollamaSection input, #ollamaSection select { width: 100%; margin: 4px 0 8px; box-sizing: border-box; }

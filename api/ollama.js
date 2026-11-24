@@ -1,36 +1,53 @@
 /**
  * VIE-Translate — Translate Toad AI
- * api/ollama.js — Optional Local AI via Ollama (free, private, no API key)
+ * api/ollama.js — Universal Local AI via Ollama, LM Studio, Jan & OpenAI-compatible local runtimes (free, private, unlimited, no API key)
  */
 
 (function (root) {
   "use strict";
 
   const DEFAULT_BASE_URL = "http://localhost:11434";
-  const PREFERRED = ["qwen2.5", "qwen3", "gemma3", "llama3.1", "llama3.2", "gemma2", "mistral", "phi3"];
+  const PREFERRED = [
+    "qwen2.5:3b",
+    "qwen2.5:7b",
+    "qwen2.5",
+    "qwen2.5:1.5b",
+    "llama3.2:3b",
+    "llama3.2",
+    "qwen3",
+    "gemma3",
+    "gemma2",
+    "mistral",
+    "phi3"
+  ];
   const OLLAMA_DISCOVERY_TTL_MS = 60000;
   const cachedOllamaModels = new Map();
+  const serverProtocolMap = new Map(); // maps clean baseUrl -> "ollama" | "openai"
 
   function cleanBase(url) {
     return (url || DEFAULT_BASE_URL).trim().replace(/\/+$/, "");
   }
 
-  async function ollamaFetch(url, opts, timeoutMs) {
+  async function localAiFetch(url, opts, timeoutMs = 15000) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
       const res = await fetch(url, { ...opts, signal: ctrl.signal });
       if (res.status === 403) {
-        throw new Error('Ollama từ chối (403). Chạy Ollama với OLLAMA_ORIGINS="chrome-extension://*" rồi khởi động lại.');
+        throw new Error(
+          'Local AI từ chối kết nối (403 CORS). Nếu dùng Ollama, chạy lệnh: set OLLAMA_ORIGINS=* rồi mở lại Ollama. Hoặc dùng LM Studio (http://localhost:1234/v1 - bật sẵn CORS).'
+        );
       }
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
-        throw new Error(e?.error || `Ollama HTTP ${res.status}`);
+        throw new Error(e?.error?.message || e?.error || `Local AI HTTP ${res.status}`);
       }
       return await res.json();
     } catch (err) {
-      if (err.name === "AbortError") throw new Error("Ollama phản hồi quá chậm hoặc chưa chạy.");
-      if (err instanceof TypeError) throw new Error("Không kết nối được Ollama (chưa cài/chưa chạy?).");
+      if (err.name === "AbortError") throw new Error("Local AI phản hồi quá chậm (timeout) hoặc model đang quá tải.");
+      if (err instanceof TypeError) {
+        throw new Error(`Không thể kết nối tới Local AI tại ${url}. Hãy kiểm tra Ollama hoặc LM Studio đã được bật chưa.`);
+      }
       throw err;
     } finally {
       clearTimeout(timer);
@@ -43,10 +60,57 @@
     if (!forceRefresh && cached && cached.expiresAt > Date.now()) {
       return cached.models;
     }
-    const data = await ollamaFetch(`${base}/api/tags`, {}, 3000);
-    const names = (data?.models || []).map((m) => m.name).filter(Boolean);
+
+    let names = [];
+    let detectedProto = "ollama";
+
+    // 1. Nếu URL chỉ định rõ /v1 hoặc cổng LM Studio (1234) / Jan (1337), ưu tiên thử endpoint OpenAI trước
+    const isOpenAiHint = base.endsWith("/v1") || base.includes(":1234") || base.includes(":1337") || base.includes(":8080");
+
+    if (isOpenAiHint) {
+      try {
+        const openAiUrl = `${base.replace(/\/v1$/, "")}/v1/models`;
+        const data = await localAiFetch(openAiUrl, {}, 3500);
+        names = (data?.data || []).map((m) => m.id).filter(Boolean);
+        detectedProto = "openai";
+      } catch (err) {
+        // Fallback sang Ollama native nếu không phải
+        try {
+          const data = await localAiFetch(`${base}/api/tags`, {}, 3000);
+          names = (data?.models || []).map((m) => m.name).filter(Boolean);
+          detectedProto = "ollama";
+        } catch {
+          throw err;
+        }
+      }
+    } else {
+      // Mặc định: Thử Ollama native (/api/tags) trước
+      try {
+        const data = await localAiFetch(`${base}/api/tags`, {}, 3000);
+        names = (data?.models || []).map((m) => m.name).filter(Boolean);
+        detectedProto = "ollama";
+      } catch (err) {
+        // Nếu /api/tags thất bại nhưng không phải lỗi 403, thử sang OpenAI endpoint (/v1/models) của LM Studio
+        if (!err.message?.includes("403")) {
+          try {
+            const openAiUrl = `${base.replace(/\/v1$/, "")}/v1/models`;
+            const data = await localAiFetch(openAiUrl, {}, 3500);
+            names = (data?.data || []).map((m) => m.id).filter(Boolean);
+            detectedProto = "openai";
+          } catch {
+            throw err;
+          }
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    serverProtocolMap.set(base, detectedProto);
+
     const score = (n) => {
-      const i = PREFERRED.findIndex((p) => n.toLowerCase().includes(p));
+      const lower = n.toLowerCase();
+      const i = PREFERRED.findIndex((p) => lower.includes(p));
       return i < 0 ? 99 : i;
     };
     const sorted = names.sort((a, b) => score(a) - score(b));
@@ -77,7 +141,9 @@
     let model = preferredModel && preferredModel !== "auto" ? preferredModel : "";
     if (!model) {
       const list = await discoverOllamaModels(base);
-      if (!list.length) throw new Error("Ollama chưa có model. Chạy: ollama pull qwen2.5:7b");
+      if (!list.length) {
+        throw new Error("Local AI chưa có model nào. Hãy chạy: ollama pull qwen2.5:3b (hoặc tải model trong LM Studio).");
+      }
       model = list[0];
     }
 
@@ -95,7 +161,8 @@
           pronounStyle,
           lockedPronounPair,
           softenProfanity,
-          multiSpeakerSplit
+          multiSpeakerSplit,
+          isLocal: true
         })
       : {
           systemPrompt: `You are a professional subtitle translator. Translate into ${targetLang}.`,
@@ -107,24 +174,44 @@
 
     const messages = [
       { role: "system", content: sysMsg },
-      ...history.slice(-4).flatMap((h) => [{ role: "user", content: h.src }, { role: "assistant", content: h.vi }]),
+      ...history.slice(-3).flatMap((h) => [{ role: "user", content: h.src }, { role: "assistant", content: h.vi }]),
       { role: "user", content: userPrompt }
     ];
 
-    const data = await ollamaFetch(`${base}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        messages,
-        stream: false,
-        keep_alive: "30m",
-        options: { temperature: 0.2, num_predict: isBatch ? 1200 : 280 }
-      })
-    }, 30000);
+    const detectedProto = serverProtocolMap.get(base) || (base.endsWith("/v1") || base.includes(":1234") || base.includes(":1337") ? "openai" : "ollama");
 
-    const out = (data?.message?.content || "").trim();
-    if (!out) throw new Error("Ollama trả về rỗng.");
+    let out = "";
+    if (detectedProto === "openai") {
+      // Chuẩn OpenAI Chat Completions (LM Studio, Jan, LocalAI, vLLM, Ollama /v1)
+      const epUrl = `${base.replace(/\/v1$/, "")}/v1/chat/completions`;
+      const data = await localAiFetch(epUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0.1,
+          max_tokens: isBatch ? 1200 : 280
+        })
+      }, 35000);
+      out = (data?.choices?.[0]?.message?.content || "").trim();
+    } else {
+      // Chuẩn Ollama Native (/api/chat)
+      const data = await localAiFetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          messages,
+          stream: false,
+          keep_alive: "60m",
+          options: { temperature: 0.1, num_predict: isBatch ? 1200 : 280 }
+        })
+      }, 35000);
+      out = (data?.message?.content || "").trim();
+    }
+
+    if (!out) throw new Error("Local AI trả về nội dung rỗng.");
     const cleanFn = S.cleanTranslatedOutput || ((s) => (s || "").replace(/^["“]|["”]$/g, "").trim());
     const parseBatchFn =
       S.parseBatchTranslations ||
@@ -136,5 +223,12 @@
     return { vi: cleanFn(out), modelUsed: model };
   }
 
-  root.VieOllama = { DEFAULT_BASE_URL, discoverOllamaModels, translateWithOllama };
+  root.VieOllama = {
+    DEFAULT_BASE_URL,
+    discoverOllamaModels,
+    translateWithOllama,
+    discoverLocalModels: discoverOllamaModels,
+    translateWithLocalAi: translateWithOllama
+  };
+  root.VieLocalAI = root.VieOllama;
 })(typeof self !== "undefined" ? self : this);

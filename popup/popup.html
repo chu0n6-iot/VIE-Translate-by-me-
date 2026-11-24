@@ -65,23 +65,27 @@
       <select id="provider">
         <option value="gemini">Gemini (miễn phí, dịch sát ngữ cảnh)</option>
         <option value="groq">Groq (miễn phí, rất nhanh)</option>
-        <option value="ollama">🏠 Local AI – Ollama (chạy trên máy bạn)</option>
+        <option value="ollama">🏠 Local AI – Ollama / LM Studio (100% trên máy, không cần key)</option>
         <option value="gtx">Google Translate (không cần key)</option>
       </select>
     </div>
 
     <div id="ollamaSection" style="display:none">
-      <label for="ollamaUrl">Địa chỉ Ollama:</label>
-      <input type="text" id="ollamaUrl" value="http://localhost:11434" spellcheck="false" />
-      <label for="ollamaModel">Model:</label>
+      <label for="ollamaUrl">Địa chỉ Local AI Server:</label>
+      <div class="ollama-presets">
+        <button type="button" class="ollama-preset-btn active" data-url="http://localhost:11434">Ollama (11434)</button>
+        <button type="button" class="ollama-preset-btn" data-url="http://localhost:1234/v1">LM Studio (1234)</button>
+        <button type="button" class="ollama-preset-btn" data-url="http://localhost:1337/v1">Jan (1337)</button>
+      </div>
+      <input type="text" id="ollamaUrl" value="http://localhost:11434" spellcheck="false" placeholder="http://localhost:11434 hoặc http://localhost:1234/v1" />
+      <label for="ollamaModel">Model AI:</label>
       <select id="ollamaModel"><option value="">(tự chọn model tốt nhất)</option></select>
       <button type="button" id="ollamaTestBtn" class="btn-change-key">🔄 Kiểm tra &amp; tải danh sách model</button>
       <div id="ollamaStatus" class="ollama-hint"></div>
       <div class="ollama-hint">
-        Ollama chỉ dịch chữ — muốn dùng AI Nghe &amp; Dịch hãy cài thêm Whisper (mục 🎧 bên dưới).<br />
-        Không bắt buộc! Không cài Ollama thì tự dùng Google Translate miễn phí.<br />
-        1) Cài <a href="https://ollama.com/download" target="_blank">ollama.com</a> · 2) <code>ollama pull qwen2.5:7b</code><br />
-        3) Đặt biến môi trường <code>OLLAMA_ORIGINS=chrome-extension://*</code> rồi khởi động lại Ollama.
+        💡 <b>Khuyên dùng:</b> <code>qwen2.5:3b</code> (siêu nhẹ ~2GB VRAM, dịch tiếng Việt cực chuẩn, tốc độ 50+ token/s) hoặc <code>qwen2.5:7b</code> (điện ảnh).<br />
+        • <b>Ollama:</b> Cài <a href="https://ollama.com" target="_blank" rel="noopener">ollama.com</a> ➔ chạy <code>ollama pull qwen2.5:3b</code>. Nếu bị chặn CORS: chạy <code>set OLLAMA_ORIGINS=*</code>.<br />
+        • <b>LM Studio (Dễ nhất cho Windows):</b> Cài <a href="https://lmstudio.ai" target="_blank" rel="noopener">lmstudio.ai</a> ➔ Tải Qwen 2.5 3B ➔ Bấm "Start Server" (bật sẵn CORS, không cần gõ lệnh).
       </div>
     </div>
 

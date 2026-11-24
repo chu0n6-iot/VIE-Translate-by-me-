@@ -306,7 +306,8 @@
     pronounStyle = "auto",
     lockedPronounPair = "",
     softenProfanity = true,
-    multiSpeakerSplit = true
+    multiSpeakerSplit = true,
+    isLocal = false
   } = {}) {
     const isBatch = Array.isArray(texts) && texts.length > 0;
     const langCode = targetLang || "vi";
@@ -315,6 +316,34 @@
 
     const corpus = isBatch ? texts.join("\n") : [text, nextText].filter(Boolean).join("\n");
     const relevantGlossary = filterRelevantGlossary(glossary, corpus, 15);
+
+    // Optimized lean prompt for Local AI (Ollama / LM Studio) to minimize prefill latency
+    if (isLocal) {
+      const localSys = [
+        `You are a fast, natural subtitle localizer. Target language: ${langName} (${langCode}).`,
+        videoTitle ? `VIDEO: "${videoTitle}".` : "",
+        "Translate by contextual meaning accurately, naturally and concisely. Avoid literal word-for-word translation.",
+        multiSpeakerSplit !== false
+          ? "MULTI-SPEAKER: If cue has 2+ speakers ('- ', '>>'), place EACH on a separate line starting with '- '."
+          : "",
+        isVi && pronounStyle === "minh_ban" ? "Ngôi xưng: thứ nhất là 'mình', thứ hai là 'bạn/các bạn'." : "",
+        isVi && pronounStyle === "toi_ban" ? "Ngôi xưng: thứ nhất là 'tôi', thứ hai là 'bạn/các bạn'." : "",
+        relevantGlossary.length > 0
+          ? `GLOSSARY: ${relevantGlossary.map((g) => `"${g.src}"="${g.target}"`).join(", ")}.`
+          : "",
+        isBatch
+          ? "Return lines tagged with exact markers [[1]], [[2]], ... up to [[" + texts.length + "]]. Output ONLY translated subtitles, no notes."
+          : "Translate ONLY <translate_now> (use <context_next> only as lookahead context). Output ONLY the translated subtitle text without XML tags, notes, or explanations."
+      ].filter(Boolean).join(" ");
+
+      return {
+        systemPrompt: localSys,
+        userPrompt: isBatch
+          ? texts.map((t, i) => `[[${i + 1}]] ${t}`).join("\n")
+          : nextText ? `<context_next>${nextText.trim()}</context_next>\n<translate_now>${text}</translate_now>` : text,
+        isBatch
+      };
+    }
 
     const sysParts = [
       `You are an elite bilingual subtitle localizer. Target language: ${langName} (${langCode}).`,
