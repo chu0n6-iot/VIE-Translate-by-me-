@@ -1364,6 +1364,7 @@
     findCueIndexAtTime,
     prefetchUpcomingCues,
     mergeEventsIntoSentences,
+    startVideoAudioCapture,
     ytCueState
   };
 })(typeof self !== "undefined" ? self : this);

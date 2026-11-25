@@ -1,4 +1,4 @@
-const CLIPBOARD_KEY_REGEX = /\b(AIza[0-9A-Za-z_-]{35}|AQ\.[0-9A-Za-z._-]{24,}|gsk_[0-9A-Za-z]{20,})\b/;
+const CLIPBOARD_KEY_REGEX = /\b(AIza[0-9A-Za-z_-]{35}|AQ\.[0-9A-Za-z._-]{24,}|gsk_[0-9A-Za-z]{20,}|sk-or-v1-[0-9A-Za-z]{20,})\b/;
 
 const FONT_FAMILY_MAP = {
   default: '"Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
@@ -48,7 +48,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   const autoAudioNoCCInput = document.getElementById("autoAudioNoCC");
   const softenProfanityInput = document.getElementById("softenProfanity");
   const hoverPauseDictInput = document.getElementById("hoverPauseDict");
+  const selectionTranslateInput = document.getElementById("selectionTranslate");
+  const hotkeysEnabledInput = document.getElementById("hotkeysEnabled");
   const autoCheckUpdatesInput = document.getElementById("autoCheckUpdates");
+  const quickWebTranslateBtn = document.getElementById("quickWebTranslateBtn");
+  const quickExportSrtBtn = document.getElementById("quickExportSrtBtn");
+  const quickOcrBtn = document.getElementById("quickOcrBtn");
+  const engineHealthText = document.getElementById("engineHealthText");
+  const resetCooldownBtn = document.getElementById("resetCooldownBtn");
   const checkUpdateMiniBtn = document.getElementById("checkUpdateMiniBtn");
   const updateBanner = document.getElementById("updateBanner");
   const updateBannerTitle = document.getElementById("updateBannerTitle");
@@ -63,12 +70,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   const keyEditorBox = document.getElementById("keyEditorBox");
   const vocabListEl = document.getElementById("vocabList");
   const vocabCountBadge = document.getElementById("vocabCountBadge");
+  const vocabSearchInput = document.getElementById("vocabSearchInput");
   const exportVocabBtn = document.getElementById("exportVocabBtn");
+  const exportAnkiBtn = document.getElementById("exportAnkiBtn");
   const clearVocabBtn = document.getElementById("clearVocabBtn");
   const subnavVocabBtn = document.getElementById("subnavVocabBtn");
+  const subnavFlashcardBtn = document.getElementById("subnavFlashcardBtn");
   const subnavGlossaryBtn = document.getElementById("subnavGlossaryBtn");
   const paneVocabSub = document.getElementById("paneVocabSub");
+  const paneFlashcardSub = document.getElementById("paneFlashcardSub");
+  const flashcardStage = document.getElementById("flashcardStage");
   const paneGlossarySub = document.getElementById("paneGlossarySub");
+  const exportBackupBtn = document.getElementById("exportBackupBtn");
+  const importBackupBtn = document.getElementById("importBackupBtn");
+  const importBackupFile = document.getElementById("importBackupFile");
   const glossarySrcInput = document.getElementById("glossarySrcInput");
   const glossaryTargetInput = document.getElementById("glossaryTargetInput");
   const addGlossaryBtn = document.getElementById("addGlossaryBtn");
@@ -355,9 +370,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function updateProviderUI(provider, keepCurrentKeyInput = false) {
-    const isGtx = provider === "gtx" || provider === "ollama";
-    apiSection.style.display = isGtx ? "none" : "block";
-    testBtn.style.display = isGtx ? "none" : "inline-block";
+    const hasOwnSection = provider === "gtx" || provider === "ollama" || provider === "openai";
+    apiSection.style.display = hasOwnSection ? "none" : "block";
+    testBtn.style.display = hasOwnSection ? "none" : "inline-block";
 
     if (provider === "groq") {
       apiKeyLabel.textContent = "Groq API Key (gsk_...):";
@@ -375,6 +390,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   function detectProviderFromKey(key) {
     if (key.startsWith("gsk_")) return "groq";
     if (key.startsWith("AQ.") || key.startsWith("AIza")) return "gemini";
+    if (key.startsWith("sk-or-")) return "openai";
     return "";
   }
 
@@ -395,6 +411,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     autoAudioNoCC: true,
     softenProfanity: true,
     hoverPauseDict: true,
+    selectionTranslate: true,
+    hotkeysEnabled: true,
     autoCheckUpdates: true,
     savedVocab: [],
     customGlossary: [],
@@ -436,6 +454,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   autoAudioNoCCInput.checked = Boolean(stored.autoAudioNoCC);
   if (softenProfanityInput) softenProfanityInput.checked = stored.softenProfanity !== false;
   if (hoverPauseDictInput) hoverPauseDictInput.checked = stored.hoverPauseDict !== false;
+  if (selectionTranslateInput) selectionTranslateInput.checked = stored.selectionTranslate !== false;
+  if (hotkeysEnabledInput) hotkeysEnabledInput.checked = stored.hotkeysEnabled !== false;
   if (autoCheckUpdatesInput) autoCheckUpdatesInput.checked = stored.autoCheckUpdates !== false;
   if (autoPersonaInput) autoPersonaInput.checked = stored.autoPersona !== false;
   if (smartMergeCaptionsInput) smartMergeCaptionsInput.checked = stored.smartMergeCaptions !== false;
@@ -472,10 +492,85 @@ document.addEventListener("DOMContentLoaded", async () => {
     hideModelList();
   }
 
-  const localManifestVersion = (chrome.runtime.getManifest && chrome.runtime.getManifest()?.version) || "0.8.3";
+  const localManifestVersion = (chrome.runtime.getManifest && chrome.runtime.getManifest()?.version) || "1.0.0";
   if (checkUpdateMiniBtn) {
     checkUpdateMiniBtn.textContent = `v${localManifestVersion} ↻`;
   }
+
+  function refreshEngineHealth() {
+    if (!engineHealthText) return;
+    chrome.runtime.sendMessage({ type: "GET_ENGINE_STATS" }, (res) => {
+      if (chrome.runtime.lastError || !res?.ok) return;
+      const st = res.stats || {};
+      const lastInfo = st.lastModel ? `${st.lastProvider || ""} (${st.lastModel})` : (providerSelect?.value || "gemini");
+      engineHealthText.textContent = `⚡ ${lastInfo} • Đã dịch: ${st.totalTranslated || 0} • Cache: ${res.cacheSize || 0}`;
+      if (resetCooldownBtn) {
+        resetCooldownBtn.style.display = res.cooldownKeysCount > 0 ? "inline-flex" : "none";
+      }
+    });
+  }
+  refreshEngineHealth();
+
+  resetCooldownBtn?.addEventListener("click", () => {
+    chrome.runtime.sendMessage({ type: "RESET_COOLDOWNS" }, () => {
+      triggerMicroToast("↺ Đã làm mới hàng đợi API Key!");
+      refreshEngineHealth();
+    });
+  });
+
+  function sendToActiveTab(payload, onDone) {
+    if (!chrome.tabs?.query) return;
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs?.[0];
+      if (!tab?.id) {
+        showStatus("⚠ Không tìm thấy tab đang mở.", "err");
+        return;
+      }
+      chrome.tabs.sendMessage(tab.id, payload, (res) => {
+        if (chrome.runtime.lastError) {
+          showStatus("⚠ Hãy tải lại trang web (F5) rồi thử lại nhé!", "err");
+          return;
+        }
+        if (typeof onDone === "function") onDone(res);
+      });
+    });
+  }
+
+  quickWebTranslateBtn?.addEventListener("click", () => {
+    sendToActiveTab({ type: "TOGGLE_WEBPAGE_TRANSLATE" }, (res) => {
+      triggerToadHop();
+      if (res?.active) {
+        triggerMicroToast("🌐 Đang dịch song ngữ trang web!");
+        showStatus(`✓ Đã bật dịch song ngữ trang (${res.totalBlocks || 0} đoạn văn).`, "ok");
+      } else {
+        triggerMicroToast("🌐 Đã tắt dịch trang web");
+      }
+    });
+  });
+
+  quickExportSrtBtn?.addEventListener("click", () => {
+    sendToActiveTab({ type: "EXPORT_VIDEO_SRT" }, (res) => {
+      triggerToadHop();
+      if (res?.ok) {
+        triggerMicroToast(`📥 Đã xuất ${res.count} dòng .SRT!`);
+        showStatus(`✓ Đã tải xuống file phụ đề song ngữ (.SRT) gồm ${res.count} dòng!`, "ok");
+      } else {
+        showStatus(`⚠ ${res?.error || "Trang hiện tại chưa có phụ đề video để xuất."}`, "err");
+      }
+    });
+  });
+
+  quickOcrBtn?.addEventListener("click", () => {
+    sendToActiveTab({ type: "TRIGGER_SCREEN_OCR" }, (res) => {
+      triggerToadHop();
+      if (res?.ok) {
+        triggerMicroToast("🔍 Đang quét chữ trên khung hình!");
+        window.close?.();
+      } else {
+        showStatus(`⚠ ${res?.error || "Không tìm thấy video đang phát."}`, "err");
+      }
+    });
+  });
 
   let currentUpdateId = "";
   function renderUpdateBanner(st) {
@@ -639,7 +734,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     triggerToadHop();
     triggerMicroToast(`⚡ Chuyển bộ máy: ${p.toUpperCase()}`);
     const key = apiKeyInput.value.trim();
-    if (p !== "gtx" && p !== "ollama" && key && key === verifiedKey) {
+    if (p !== "gtx" && p !== "ollama" && p !== "openai" && key && key === verifiedKey) {
       chrome.storage.local
         .get({ availableModels: [], model: "auto", detectedModel: "" })
         .then((s) => {
@@ -683,6 +778,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       autoAudioNoCC: autoAudioNoCCInput.checked,
       softenProfanity: softenProfanityInput ? softenProfanityInput.checked : true,
       hoverPauseDict: hoverPauseDictInput ? hoverPauseDictInput.checked : true,
+      selectionTranslate: selectionTranslateInput ? selectionTranslateInput.checked : true,
+      hotkeysEnabled: hotkeysEnabledInput ? hotkeysEnabledInput.checked : true,
       autoCheckUpdates: autoCheckUpdatesInput ? autoCheckUpdatesInput.checked : true,
       autoPersona: autoPersonaInput ? autoPersonaInput.checked : true,
       smartMergeCaptions: smartMergeCaptionsInput ? smartMergeCaptionsInput.checked : true,
@@ -709,7 +806,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     [dualSubInput, "Song ngữ 2 dòng"],
     [fallbackInput, "Dự phòng Google Translate"],
     [autoAudioNoCCInput, "AI Nghe & Dịch"],
-    [softenProfanityInput, "Chế độ thân thiện"],
+    [softenProfanityInput, "Làm dịu từ tục"],
+    [hoverPauseDictInput, "Chế độ học từ điển"],
+    [selectionTranslateInput, "Dịch khi bôi đen"],
+    [hotkeysEnabledInput, "Phím tắt nhanh"],
     [autoCheckUpdatesInput, "Tự báo cập nhật"],
     [autoPersonaInput, "Nhận diện Persona"],
     [smartMergeCaptionsInput, "Ghép câu thông minh"],
@@ -1019,7 +1119,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   saveBtn.addEventListener("click", async () => {
     await saveCurrentSettings(false);
     const key = apiKeyInput.value.trim();
-    if (providerSelect.value !== "gtx" && providerSelect.value !== "ollama" && key && key !== verifiedKey) {
+    if (providerSelect.value !== "gtx" && providerSelect.value !== "ollama" && providerSelect.value !== "openai" && key && key !== verifiedKey) {
       verifyKey(key);
     }
   });
@@ -1142,7 +1242,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   let currentPosFilter = "all";
+  let currentSearchQuery = "";
   let cachedVocabList = [];
+  let flashcardIdx = 0;
+  let flashcardFlipped = false;
 
   function renderVocabNotebook(vocabArr) {
     const list = Array.isArray(vocabArr) ? vocabArr : [];
@@ -1192,12 +1295,20 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
-    const filteredList =
-      currentPosFilter === "all"
-        ? list.map((item, originalIdx) => ({ item, originalIdx }))
-        : list
-            .map((item, originalIdx) => ({ item, originalIdx }))
-            .filter(({ item }) => categorizeVocabPos(item.posCategory || item.pos) === currentPosFilter);
+    const q = currentSearchQuery.trim().toLowerCase();
+    const filteredList = list
+      .map((item, originalIdx) => ({ item, originalIdx }))
+      .filter(({ item }) => {
+        if (currentPosFilter !== "all" && categorizeVocabPos(item.posCategory || item.pos) !== currentPosFilter) {
+          return false;
+        }
+        if (!q) return true;
+        return (
+          (item.word || "").toLowerCase().includes(q) ||
+          (item.meaning || "").toLowerCase().includes(q) ||
+          (item.sentence || "").toLowerCase().includes(q)
+        );
+      });
 
     if (filteredList.length === 0) {
       vocabListEl.innerHTML = `
@@ -1307,11 +1418,101 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   });
 
+  if (vocabSearchInput) {
+    vocabSearchInput.addEventListener("input", () => {
+      currentSearchQuery = vocabSearchInput.value || "";
+      renderVocabNotebook(cachedVocabList);
+    });
+  }
+
+  function renderFlashcard() {
+    if (!flashcardStage) return;
+    const deck = cachedVocabList;
+    if (!deck.length) {
+      flashcardStage.innerHTML = `
+        <div class="vocab-empty">
+          🃏 <b>Chưa có thẻ Flashcard nào!</b><br>
+          Hãy bấm vào từ bất kỳ trên phụ đề video rồi chọn <b>⭐ Lưu từ</b> để luyện tập ghi nhớ nhé.
+        </div>`;
+      return;
+    }
+    if (flashcardIdx >= deck.length) flashcardIdx = 0;
+    if (flashcardIdx < 0) flashcardIdx = deck.length - 1;
+    const card = deck[flashcardIdx];
+    const masteredCount = deck.filter((x) => x.mastered).length;
+
+    flashcardStage.innerHTML = `
+      <div class="flashcard-meta">
+        <span>Thẻ <b>${flashcardIdx + 1}/${deck.length}</b></span>
+        <span>✓ Đã thuộc: <b>${masteredCount}</b></span>
+      </div>
+      <div class="flashcard-card ${flashcardFlipped ? "is-flipped" : ""}" id="flashcardCardBox" title="Bấm để lật thẻ">
+        ${
+          !flashcardFlipped
+            ? `<div class="flashcard-front">
+                <div class="flashcard-word">${escapeHtml(card.word || "")}</div>
+                ${card.pron ? `<div class="flashcard-pron">/${escapeHtml(card.pron.replace(/^\/|\/$/g, ""))}/</div>` : ""}
+                <div style="margin-top:8px;display:flex;gap:8px;justify-content:center;">
+                  <button type="button" id="fcSpeakBtn" class="btn-toggle-key" style="font-size:11px;padding:3px 9px;">🔊 Phát âm</button>
+                  <span style="font-size:11px;color:#94a3b8;align-self:center;">(Bấm thẻ để xem nghĩa)</span>
+                </div>
+              </div>`
+            : `<div class="flashcard-back">
+                <div class="flashcard-meaning">🎯 ${escapeHtml(card.meaning || "")}</div>
+                ${card.pos ? `<div style="margin-top:4px;font-size:11px;color:#7dd3fc;">[${escapeHtml(card.pos)}] ${card.cefr ? `• ${escapeHtml(card.cefr)}` : ""}</div>` : ""}
+                ${card.sentence ? `<div class="flashcard-ctx">"${escapeHtml(card.sentence)}"</div>` : ""}
+                ${card.note ? `<div style="margin-top:5px;font-size:11px;color:#cbd5e1;">💡 ${escapeHtml(card.note)}</div>` : ""}
+              </div>`
+        }
+      </div>
+      <div class="flashcard-controls">
+        <button type="button" id="fcPrevBtn" class="btn-toggle-key">← Trước</button>
+        <button type="button" id="fcShuffleBtn" class="btn-toggle-key">🔀 Trộn</button>
+        <button type="button" id="fcMasteredBtn" class="btn-toggle-key" style="color:${card.mastered ? "#34d399" : "#fde68a"};">${card.mastered ? "✓ Đã thuộc" : "☆ Đánh dấu thuộc"}</button>
+        <button type="button" id="fcNextBtn" class="btn-toggle-key">Tiếp →</button>
+      </div>
+    `;
+
+    document.getElementById("flashcardCardBox")?.addEventListener("click", (e) => {
+      if (e.target.closest("#fcSpeakBtn")) return;
+      flashcardFlipped = !flashcardFlipped;
+      renderFlashcard();
+    });
+    document.getElementById("fcSpeakBtn")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      speakWordWithNativeVoice(card.word, card.lang || "");
+    });
+    document.getElementById("fcPrevBtn")?.addEventListener("click", () => {
+      flashcardIdx = (flashcardIdx - 1 + deck.length) % deck.length;
+      flashcardFlipped = false;
+      renderFlashcard();
+    });
+    document.getElementById("fcNextBtn")?.addEventListener("click", () => {
+      flashcardIdx = (flashcardIdx + 1) % deck.length;
+      flashcardFlipped = false;
+      renderFlashcard();
+    });
+    document.getElementById("fcShuffleBtn")?.addEventListener("click", () => {
+      flashcardIdx = Math.floor(Math.random() * deck.length);
+      flashcardFlipped = false;
+      renderFlashcard();
+    });
+    document.getElementById("fcMasteredBtn")?.addEventListener("click", async () => {
+      const next = deck.map((item, i) => (i === flashcardIdx ? { ...item, mastered: !item.mastered } : item));
+      await chrome.storage.local.set({ savedVocab: next });
+      cachedVocabList = next;
+      renderFlashcard();
+    });
+  }
+
   renderVocabNotebook(stored.savedVocab || []);
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.savedVocab) {
       renderVocabNotebook(changes.savedVocab.newValue || []);
+      if (paneFlashcardSub && paneFlashcardSub.style.display !== "none") {
+        renderFlashcard();
+      }
     }
   });
 
@@ -1359,6 +1560,101 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
+  if (exportAnkiBtn) {
+    exportAnkiBtn.addEventListener("click", async () => {
+      const s = await chrome.storage.local.get({ savedVocab: [] });
+      const list = s.savedVocab || [];
+      if (!list.length) {
+        showStatus("⚠ Sổ từ vựng đang trống!", "err");
+        return;
+      }
+      const csvEsc = (v) => `"${String(v || "").replace(/"/g, '""')}"`;
+      const rows = list.map((v) => {
+        const front = `${v.word || ""}${v.pron ? ` /${v.pron.replace(/^\/|\/$/g, "")}/` : ""}`;
+        const back = [
+          v.meaning || "",
+          v.pos ? `[${v.pos}]` : "",
+          v.sentence ? `Ngữ cảnh: ${v.sentence}` : ""
+        ].filter(Boolean).join(" | ");
+        return `${csvEsc(front)},${csvEsc(back)},${csvEsc(v.cefr || "VIE-Translate")}`;
+      });
+      const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `VIE-Translate-Anki-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      triggerMicroToast(`📥 Đã xuất ${list.length} thẻ Anki CSV!`);
+      showStatus(`✓ Đã xuất ${list.length} từ vựng chuẩn Anki CSV!`, "ok");
+    });
+  }
+
+  if (exportBackupBtn && importBackupBtn && importBackupFile) {
+    exportBackupBtn.addEventListener("click", async () => {
+      const all = await chrome.storage.local.get(null);
+      const safeBackup = {
+        version: localManifestVersion,
+        exportedAt: new Date().toISOString(),
+        settings: {
+          enabled: all.enabled,
+          dualSub: all.dualSub,
+          provider: all.provider,
+          targetLang: all.targetLang,
+          secondaryLang: all.secondaryLang,
+          translationStyle: all.translationStyle,
+          pronounStyle: all.pronounStyle,
+          autoPersona: all.autoPersona,
+          smartMergeCaptions: all.smartMergeCaptions,
+          multiSpeakerSplit: all.multiSpeakerSplit,
+          subFont: all.subFont,
+          subSize: all.subSize,
+          subColor: all.subColor,
+          subSecondColor: all.subSecondColor,
+          subBgStyle: all.subBgStyle,
+          subBottomPos: all.subBottomPos,
+          overlayWidth: all.overlayWidth,
+          softenProfanity: all.softenProfanity,
+          hoverPauseDict: all.hoverPauseDict,
+          selectionTranslate: all.selectionTranslate,
+          hotkeysEnabled: all.hotkeysEnabled
+        },
+        customGlossary: Array.isArray(all.customGlossary) ? all.customGlossary : [],
+        savedVocab: Array.isArray(all.savedVocab) ? all.savedVocab : []
+      };
+      const blob = new Blob([JSON.stringify(safeBackup, null, 2)], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `VIE-Translate-Backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      triggerMicroToast("💾 Đã tải file sao lưu JSON!");
+    });
+
+    importBackupBtn.addEventListener("click", () => importBackupFile.click());
+    importBackupFile.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const raw = await file.text();
+        const data = JSON.parse(raw);
+        const updates = { ...(data.settings || {}) };
+        if (Array.isArray(data.customGlossary)) updates.customGlossary = data.customGlossary;
+        if (Array.isArray(data.savedVocab)) updates.savedVocab = data.savedVocab;
+        await chrome.storage.local.set(updates);
+        triggerMicroToast("📂 Đã khôi phục dữ liệu!");
+        showStatus("✓ Đã khôi phục Sổ từ, Glossary & Cài đặt thành công!", "ok");
+        if (updates.savedVocab) renderVocabNotebook(updates.savedVocab);
+        if (updates.customGlossary) renderGlossaryList(updates.customGlossary);
+      } catch {
+        showStatus("✗ File JSON sao lưu không hợp lệ.", "err");
+      } finally {
+        importBackupFile.value = "";
+      }
+    });
+  }
+
   if (clearVocabBtn) {
     clearVocabBtn.addEventListener("click", async () => {
       await chrome.storage.local.set({ savedVocab: [] });
@@ -1367,24 +1663,22 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  // SUBNAV CHUYỂN ĐỔI: SỔ TỪ VỰNG <-> KHÓA THUẬT NGỮ (GLOSSARY)
+  // SUBNAV CHUYỂN ĐỔI: SỔ TỪ VỰNG <-> FLASHCARD <-> KHÓA THUẬT NGỮ (GLOSSARY)
   if (subnavVocabBtn && subnavGlossaryBtn) {
-    subnavVocabBtn.addEventListener("click", () => {
-      subnavVocabBtn.classList.add("active");
-      subnavGlossaryBtn.classList.remove("active");
-      if (paneVocabSub) paneVocabSub.style.display = "block";
-      if (paneGlossarySub) paneGlossarySub.style.display = "none";
+    const switchSubnav = (mode) => {
+      subnavVocabBtn.classList.toggle("active", mode === "vocab");
+      subnavFlashcardBtn?.classList.toggle("active", mode === "flashcard");
+      subnavGlossaryBtn.classList.toggle("active", mode === "glossary");
+      if (paneVocabSub) paneVocabSub.style.display = mode === "vocab" ? "block" : "none";
+      if (paneFlashcardSub) paneFlashcardSub.style.display = mode === "flashcard" ? "block" : "none";
+      if (paneGlossarySub) paneGlossarySub.style.display = mode === "glossary" ? "block" : "none";
       triggerToadHop();
-    });
-
-    subnavGlossaryBtn.addEventListener("click", () => {
-      subnavGlossaryBtn.classList.add("active");
-      subnavVocabBtn.classList.remove("active");
-      if (paneVocabSub) paneVocabSub.style.display = "none";
-      if (paneGlossarySub) paneGlossarySub.style.display = "block";
-      triggerToadHop();
-      if (glossarySrcInput) glossarySrcInput.focus();
-    });
+      if (mode === "flashcard") renderFlashcard();
+      if (mode === "glossary" && glossarySrcInput) glossarySrcInput.focus();
+    };
+    subnavVocabBtn.addEventListener("click", () => switchSubnav("vocab"));
+    subnavFlashcardBtn?.addEventListener("click", () => switchSubnav("flashcard"));
+    subnavGlossaryBtn.addEventListener("click", () => switchSubnav("glossary"));
   }
 
   // QUẢN LÝ KHÓA THUẬT NGỮ (CUSTOM GLOSSARY)

@@ -56,12 +56,26 @@
 
   function scoreGeminiModel(modelId) {
     const m = (modelId || "").toLowerCase();
-    if (m.includes("gemini-1.5") || m.includes("gemini-1.0") || m.includes("vision") || m.includes("embedding")) {
+    if (
+      m.includes("gemini-1.5") ||
+      m.includes("gemini-1.0") ||
+      m.includes("vision") ||
+      m.includes("embedding") ||
+      m.includes("-tts") ||
+      m.includes("-image") ||
+      m.includes("imagen") ||
+      m.includes("veo") ||
+      m.includes("learnlm") ||
+      m.includes("aqa") ||
+      m.includes("robotics") ||
+      m.includes("audio-dialog")
+    ) {
       return -9999;
     }
     let score = 100;
     // Ưu tiên cao nhất các model flash-lite có quota 1500 RPD (tránh các model bị Google giới hạn 20 RPD)
-    if (m.includes("2.5-flash-lite")) score += 2500;
+    if (m.includes("2.5-flash-lite")) score += 2600;
+    else if (m.includes("3-flash") || m.includes("3.0-flash")) score += 2550;
     else if (m.includes("2.0-flash-lite")) score += 2400;
     else if (m.includes("flash-lite-latest")) score += 2300;
     else if (m.includes("2.0-flash")) score += 2000;
@@ -156,7 +170,14 @@
         }
         workingEndpointByKey.set(cleanKey, ep.type);
         const data = await res.json();
-        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        const parts = data?.candidates?.[0]?.content?.parts || [];
+        const text =
+          parts
+            .filter((p) => !p?.thought && typeof p?.text === "string")
+            .map((p) => p.text)
+            .join("") ||
+          parts[0]?.text ||
+          "";
         return text.trim();
       } catch (err) {
         clearTimeout(timer);
@@ -245,6 +266,11 @@
       attempts++;
 
       const isGemma = m.toLowerCase().startsWith("gemma");
+      const modelGenConfig = { ...generationConfig };
+      if (!isGemma && /gemini-2\.5/i.test(m)) {
+        modelGenConfig.thinkingConfig = { thinkingBudget: 0 };
+      }
+
       let reqBody;
       if (isGemma) {
         const gemmaContents = baseContents.map((item, idx) => {
@@ -255,12 +281,12 @@
             parts: [{ text: `${systemPrompt}\n\n${origTxt}` }]
           };
         });
-        reqBody = { contents: gemmaContents, generationConfig };
+        reqBody = { contents: gemmaContents, generationConfig: modelGenConfig };
       } else {
         reqBody = {
           contents: baseContents,
           systemInstruction: { parts: [{ text: systemPrompt }] },
-          generationConfig
+          generationConfig: modelGenConfig
         };
       }
 
@@ -387,8 +413,10 @@
     return { orig: "", vi: "" };
   }
 
-  async function lookupWordWithGemini(word, sentence, apiKey) {
-    const prompt = `Phân tích từ vựng '${word}' trong ngữ cảnh câu: "${sentence}".
+  async function lookupWordWithGemini(word, sentence, apiKey, targetLang = "vi") {
+    const prompt = root.VieStorage?.buildLookupPrompt
+      ? root.VieStorage.buildLookupPrompt(word, sentence, targetLang)
+      : `Phân tích từ vựng '${word}' trong ngữ cảnh câu: "${sentence}".
 Trả về duy nhất JSON hợp lệ (không markdown, không codeblock):
 {
   "word": "${word}",
@@ -423,20 +451,13 @@ Trả về duy nhất JSON hợp lệ (không markdown, không codeblock):
       if (isModelInCooldown(apiKey, m)) continue;
       try {
         const raw = await callGeminiEndpoint({ model: m, apiKey, body, timeoutMs: 9000 });
-        const clean = String(raw).replace(/```json|```/g, "").trim();
-        let parsed;
-        try {
-          parsed = JSON.parse(clean);
-        } catch {
-          const a = clean.indexOf("{");
-          const b = clean.lastIndexOf("}");
-          if (a >= 0 && b > a) parsed = JSON.parse(clean.slice(a, b + 1));
-          else {
-            const mm = clean.match(/"meaning"\s*:\s*"([^"]+)"/);
-            if (!mm) throw new Error("bad json");
-            const pm = clean.match(/"pos"\s*:\s*"([^"]+)"/);
-            parsed = { word, meaning: mm[1], pos: pm ? pm[1] : "" };
-          }
+        let parsed = root.VieStorage?.parseJsonSafe ? root.VieStorage.parseJsonSafe(raw) : null;
+        if (!parsed) {
+          const clean = String(raw).replace(/```json|```/g, "").trim();
+          const mm = clean.match(/"meaning"\s*:\s*"([^"]+)"/);
+          if (!mm) throw new Error("bad json");
+          const pm = clean.match(/"pos"\s*:\s*"([^"]+)"/);
+          parsed = { word, meaning: mm[1], pos: pm ? pm[1] : "" };
         }
         return { ok: true, ...parsed };
       } catch (err) {
@@ -447,8 +468,10 @@ Trả về duy nhất JSON hợp lệ (không markdown, không codeblock):
     throw new Error("Không thể tra từ lúc này.");
   }
 
-  async function explainSceneWithGemini({ sentence, vi, focusWord, apiKey }) {
-    const prompt = `Phân tích phụ đề và hướng dẫn học ngoại ngữ:
+  async function explainSceneWithGemini({ sentence, vi, focusWord, apiKey, targetLang = "vi" }) {
+    const prompt = root.VieStorage?.buildExplainScenePrompt
+      ? root.VieStorage.buildExplainScenePrompt(sentence, vi, focusWord, targetLang)
+      : `Phân tích phụ đề và hướng dẫn học ngoại ngữ:
 Câu gốc: "${sentence}"
 Dịch: "${vi}"
 ${focusWord ? `Từ trọng tâm: "${focusWord}"` : ""}
@@ -475,7 +498,10 @@ Trả về duy nhất JSON hợp lệ (không markdown, không codeblock):
       if (isModelInCooldown(apiKey, m)) continue;
       try {
         const raw = await callGeminiEndpoint({ model: m, apiKey, body, timeoutMs: 7000 });
-        const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
+        const parsed = root.VieStorage?.parseJsonSafe
+          ? root.VieStorage.parseJsonSafe(raw)
+          : JSON.parse(raw.replace(/```json|```/g, "").trim());
+        if (!parsed) throw new Error("bad json");
         return { ok: true, ...parsed };
       } catch {
         markModelCooldown(apiKey, m, 120000);
@@ -532,8 +558,10 @@ Trả về DUY NHẤT JSON hợp lệ:
       if (isModelInCooldown(apiKey, m)) continue;
       try {
         const raw = await callGeminiEndpoint({ model: m, apiKey, body, timeoutMs: 25000 });
-        const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
-        if (!Array.isArray(parsed.regions)) throw new Error("Manga translation JSON invalid.");
+        const parsed = root.VieStorage?.parseJsonSafe
+          ? root.VieStorage.parseJsonSafe(raw)
+          : JSON.parse(raw.replace(/```json|```/g, "").trim());
+        if (!parsed || !Array.isArray(parsed.regions)) throw new Error("Manga translation JSON invalid.");
         return { ok: true, regions: parsed.regions, modelUsed: m };
       } catch (err) {
         markModelCooldown(apiKey, m, /quota|429/i.test(err.message || "") ? 3600000 : 120000);
@@ -562,8 +590,10 @@ The target language is ${targetLang}. Return the best direct 1-to-1 Vietnamese t
       if (isModelInCooldown(apiKey, m)) continue;
       try {
         const raw = await callGeminiEndpoint({ model: m, apiKey, body, timeoutMs: 20000 });
-        const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
-        if (!Array.isArray(parsed.regions)) throw new Error("OCR JSON không hợp lệ.");
+        const parsed = root.VieStorage?.parseJsonSafe
+          ? root.VieStorage.parseJsonSafe(raw)
+          : JSON.parse(raw.replace(/```json|```/g, "").trim());
+        if (!parsed || !Array.isArray(parsed.regions)) throw new Error("OCR JSON không hợp lệ.");
         return { ok: true, ...parsed, modelUsed: m };
       } catch (err) {
         const isQuota = err.isQuotaExceeded || err.status === 429 || /quota|resource_exhausted|429/i.test(err.message || "");
@@ -620,7 +650,10 @@ Trả về JSON duy nhất (không bọc code block markdown):
       if (isModelInCooldown(apiKey, m)) continue;
       try {
         const raw = await callGeminiEndpoint({ model: m, apiKey, body, timeoutMs: 9000 });
-        const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
+        const parsed = root.VieStorage?.parseJsonSafe
+          ? root.VieStorage.parseJsonSafe(raw)
+          : JSON.parse(raw.replace(/```json|```/g, "").trim());
+        if (!parsed) throw new Error("Visual OCR JSON invalid.");
         return { ok: true, ...parsed, modelUsed: m };
       } catch (err) {
         const isQuota = err.isQuotaExceeded || err.status === 429 || /quota|resource_exhausted|429/i.test(err.message || "");

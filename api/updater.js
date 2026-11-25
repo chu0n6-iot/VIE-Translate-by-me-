@@ -137,9 +137,9 @@
 
   function getLocalVersion() {
     if (typeof chrome !== "undefined" && typeof chrome.runtime?.getManifest === "function") {
-      return chrome.runtime.getManifest()?.version || "0.8.2";
+      return chrome.runtime.getManifest()?.version || "1.0.0";
     }
-    return "0.8.2";
+    return "1.0.0";
   }
 
   function getUpdateState() {

@@ -17,6 +17,81 @@
     }
   }
 
+  function formatSrtTimestamp(seconds) {
+    const msTotal = Math.max(0, Math.round((Number(seconds) || 0) * 1000));
+    const hrs = Math.floor(msTotal / 3600000);
+    const mins = Math.floor((msTotal % 3600000) / 60000);
+    const secs = Math.floor((msTotal % 60000) / 1000);
+    const ms = msTotal % 1000;
+    const pad2 = (n) => String(n).padStart(2, "0");
+    const pad3 = (n) => String(n).padStart(3, "0");
+    return `${pad2(hrs)}:${pad2(mins)}:${pad2(secs)},${pad3(ms)}`;
+  }
+
+  function buildBilingualSrt(cues, lookupFn = null, includeOrig = true) {
+    if (!Array.isArray(cues) || !cues.length) return "";
+    const blocks = [];
+    for (let i = 0; i < cues.length; i++) {
+      const c = cues[i];
+      if (!c) continue;
+      const orig = String(c.text || "").trim();
+      if (!orig) continue;
+      const start = formatSrtTimestamp(c.start || 0);
+      const end = formatSrtTimestamp(c.end > c.start ? c.end : (c.start || 0) + 2.5);
+      const cachedEntry = typeof lookupFn === "function" ? lookupFn(orig) : null;
+      const trans = cachedEntry ? (typeof cachedEntry === "string" ? cachedEntry : cachedEntry.vi || "") : (c.vi || "");
+      const lines = [];
+      if (includeOrig && orig) lines.push(orig);
+      if (trans) lines.push(trans);
+      if (!lines.length) continue;
+      blocks.push(`${blocks.length + 1}\n${start} --> ${end}\n${lines.join("\n")}`);
+    }
+    return blocks.join("\n\n");
+  }
+
+  function exportBilingualSrt(video) {
+    const activeVideo = video || (typeof document !== "undefined" ? document.querySelector("video.html5-main-video") || document.querySelector("video") : null);
+    let cues = root.VieCaptions?.ytCueState?.cues || [];
+    if ((!cues || !cues.length) && activeVideo?.textTracks) {
+      for (const track of activeVideo.textTracks) {
+        if ((track.kind === "subtitles" || track.kind === "captions") && track.cues?.length) {
+          cues = Array.from(track.cues).map((c) => ({
+            start: c.startTime,
+            end: c.endTime,
+            text: root.VieCaptions?.normalizeSubtitleText?.(c.text || "", settings.multiSpeakerSplit !== false) || String(c.text || "").trim()
+          }));
+          break;
+        }
+      }
+    }
+    if (!cues || !cues.length) {
+      if (activeVideo) root.VieCaptions?.showSyncToast?.(activeVideo, "⚠ Chưa có dữ liệu phụ đề để xuất SRT!");
+      return { ok: false, count: 0, error: "Chưa có dữ liệu phụ đề trên video này." };
+    }
+
+    const splitMulti = settings.multiSpeakerSplit !== false;
+    const lookup = (raw) => {
+      const clean = root.VieCaptions?.normalizeSubtitleText?.(raw, splitMulti) || raw.trim();
+      const ck = root.VieStorage?.getCacheKey?.(clean, settings);
+      return ck ? localCache.get(ck) : null;
+    };
+    const srtContent = buildBilingualSrt(cues, lookup, settings.dualSub !== false);
+    if (!srtContent) return { ok: false, count: 0, error: "Không tạo được nội dung SRT." };
+
+    const title = (root.VieCaptions?.getVideoTitle?.() || "subtitles")
+      .replace(/[\\/:*?"<>|]+/g, "_")
+      .slice(0, 60);
+    const blob = new Blob(["\uFEFF" + srtContent], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `VIE-Translate-${title}.srt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    if (activeVideo) root.VieCaptions?.showSyncToast?.(activeVideo, `📥 Đã tải ${cues.length} dòng phụ đề (.SRT)!`);
+    return { ok: true, count: cues.length };
+  }
+
   function ingestBatchTranslations(resultsMap, sub2Map = {}) {
     if (!resultsMap || typeof resultsMap !== "object") return;
     const splitMulti = settings.multiSpeakerSplit !== false;
@@ -507,15 +582,82 @@
     // Interval to ensure dynamic SPA video players (YouTube SPA nav, etc.) are always watched
     setInterval(watchVideosLight, 1200);
     startNoSubWatchdog();
+    initHotkeys();
     if (typeof chrome !== "undefined" && chrome.runtime?.id) {
       setTimeout(maybeShowGithubUpdateToast, 2800);
     }
   }
 
+  function initHotkeys() {
+    if (typeof window === "undefined" || typeof window.addEventListener !== "function") return;
+    window.addEventListener("keydown", (e) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey || settings.hotkeysEnabled === false) return;
+      const tag = (e.target?.tagName || "").toUpperCase();
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.target?.isContentEditable) return;
+
+      const k = (e.key || "").toLowerCase();
+      const activeVideo = document.querySelector("video.html5-main-video") || document.querySelector("video");
+
+      if (k === "v") {
+        e.preventDefault();
+        const btn = document.querySelector(".vie-quick-sub-toggle");
+        if (btn) btn.click();
+        else if (root.VieStorage?.setSettings) root.VieStorage.setSettings({ enabled: !settings.enabled });
+      } else if (k === "d") {
+        e.preventDefault();
+        const nextDual = !settings.dualSub;
+        root.VieStorage?.setSettings?.({ dualSub: nextDual });
+        if (activeVideo) {
+          root.VieCaptions?.showSyncToast?.(activeVideo, nextDual ? "🔤 Đã bật Song ngữ 2 dòng" : "🇻🇳 Đã chuyển chế độ 1 dòng");
+        }
+      } else if (k === "t") {
+        e.preventDefault();
+        root.VieWebpage?.toggle?.();
+      } else if (k === "s" && activeVideo) {
+        e.preventDefault();
+        root.VieDOM?.triggerVisualSceneOCR?.(activeVideo, activeVideo._vieOverlay);
+      } else if (k === "l" && activeVideo) {
+        e.preventDefault();
+        const audioBtn = document.querySelector(".vie-toad-audio-btn");
+        if (audioBtn) audioBtn.click();
+        else root.VieCaptions?.startVideoAudioCapture?.(activeVideo);
+      } else if (e.key === "," && activeVideo) {
+        e.preventDefault();
+        root.VieCaptions?.adjustSubSyncOffset?.(activeVideo, -0.5, e.shiftKey);
+      } else if (e.key === "." && activeVideo) {
+        e.preventDefault();
+        root.VieCaptions?.adjustSubSyncOffset?.(activeVideo, 0.5, e.shiftKey);
+      }
+    });
+  }
+
+  if (typeof chrome !== "undefined" && chrome.runtime?.onMessage?.addListener) {
+    chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+      if (!msg?.type) return;
+      if (msg.type === "EXPORT_VIDEO_SRT") {
+        sendResponse(exportBilingualSrt());
+        return false;
+      }
+      if (msg.type === "TRIGGER_SCREEN_OCR") {
+        const video = document.querySelector("video.html5-main-video") || document.querySelector("video");
+        if (!video) {
+          sendResponse({ ok: false, error: "Không tìm thấy video đang phát trên tab này." });
+          return false;
+        }
+        root.VieDOM?.triggerVisualSceneOCR?.(video, video._vieOverlay);
+        sendResponse({ ok: true });
+        return false;
+      }
+    });
+  }
+
   root.VieContent = {
     onCaptionReceived,
     renderSubtitles,
-    ingestBatchTranslations
+    ingestBatchTranslations,
+    formatSrtTimestamp,
+    buildBilingualSrt,
+    exportBilingualSrt
   };
 
   if (document.readyState === "loading") {

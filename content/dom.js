@@ -450,21 +450,30 @@
         const learnBar = document.createElement("div");
         learnBar.className = "vie-learn-bar";
         learnBar.innerHTML = `
+          <button type="button" class="vie-learn-btn vie-drag-handle" title="Giữ & kéo để đổi vị trí phụ đề (Double-click để đặt lại)">
+            ⠿ Vị trí
+          </button>
           <button type="button" class="vie-learn-btn vie-learn-scene-btn" title="Xem giải thích ngữ cảnh, phân tích câu & cách dùng thực tế">
-            🎓 Xem thêm: Ngữ cảnh
+            🎓 Ngữ cảnh
           </button>
           <button type="button" class="vie-learn-btn vie-learn-ocr-btn" title="Quét chữ trên màn hình (Visual OCR) & dịch bối cảnh phim (biển hiệu, tin nhắn, tài liệu...)">
-            🔍 Quét chữ màn hình (OCR)
+            🔍 OCR
           </button>
           <button type="button" class="vie-learn-btn vie-learn-speak-all-btn" title="Nghe phát âm cả câu">
-            🔊 Nghe câu
+            🔊 Nghe
+          </button>
+          <button type="button" class="vie-learn-btn vie-learn-copy-btn" title="Sao chép phụ đề hiện tại">
+            📋 Copy
+          </button>
+          <button type="button" class="vie-learn-btn vie-learn-srt-btn" title="Tải toàn bộ phụ đề song ngữ định dạng .SRT">
+            📥 SRT
           </button>
           <div class="vie-sync-group" title="Tự động đối chiếu âm thanh hoặc tự chỉnh độ lệch phụ đề / lyrics">
-            <span class="vie-sync-label">⏱️ Lệch:</span>
+            <span class="vie-sync-label">⏱️</span>
             <button type="button" class="vie-sync-btn vie-sync-minus" title="Chạy sớm hơn 0.5s (giảm độ trễ, Shift click để nhảy 1s)">⏪ -0.5s</button>
             <span class="vie-sync-val">0s</span>
             <button type="button" class="vie-sync-btn vie-sync-plus" title="Trễ lại 0.5s (nếu sub chạy trước tiếng nhạc, Shift click để nhảy 1s)">+0.5s ⏩</button>
-            <button type="button" class="vie-sync-btn vie-sync-auto" title="Tự động đối chiếu âm thanh thực tế và lời bài hát để căn chuẩn nhịp">🎯 Căn tự động</button>
+            <button type="button" class="vie-sync-btn vie-sync-auto" title="Tự động đối chiếu âm thanh thực tế và lời bài hát để căn chuẩn nhịp">🎯 Tự căn</button>
             <button type="button" class="vie-sync-btn vie-sync-reset" title="Đặt lại độ lệch về 0s" style="display:none;">↺</button>
           </div>
           <span class="vie-learn-tip" title="Vietsub mượt như hồi còn cày phim mới đêm khuya, nhặt trọn vào rổ phim của bạn 🍿">💡 Bấm từ bất kỳ để tra từ điển</span>
@@ -475,13 +484,14 @@
         overlay.appendChild(learnBar);
         container.appendChild(overlay);
 
+        overlay._vieSettings = settings;
         bindOverlayEvents(video, overlay, origLine, viLine, dictCard, learnBar, settings);
       }
       video._vieOverlay = overlay;
     }
 
-    // Đảm bảo TUYỆT ĐỐI không có overlay duplicate thứ 2 trên DOM
-    document.querySelectorAll(".vie-overlay").forEach((el) => {
+    // Chỉ dọn overlay duplicate trong cùng container (hỗ trợ trang nhiều video như Facebook Feed)
+    container.querySelectorAll(":scope > .vie-overlay").forEach((el) => {
       if (el !== overlay) {
         el.remove();
       }
@@ -493,9 +503,10 @@
 
   function applyOverlayVisualStyle(overlay, settings) {
     if (!overlay || !settings) return;
+    overlay._vieSettings = settings;
     const fontStack = root.VieStorage?.FONT_FAMILY_MAP[settings.subFont] || root.VieStorage?.FONT_FAMILY_MAP.default;
     const scale = Math.max(0.6, Math.min(2.0, (Number(settings.subSize) || 100) / 100));
-    const bottomPos = Math.max(2, Math.min(60, Number(settings.subBottomPos) || 12));
+    const bottomPos = Math.max(2, Math.min(82, Number(settings.subBottomPos) || 12));
     const widthPct = Math.max(30, Math.min(100, Number(settings.overlayWidth) || 72));
 
     overlay.style.setProperty("--vie-font-family", fontStack);
@@ -503,7 +514,7 @@
     overlay.style.setProperty("--vie-w", `${widthPct}%`);
     const isYouTube = location.hostname.includes("youtube.com");
     let safeBottom = bottomPos;
-    if (isYouTube) {
+    if (isYouTube && !overlay.dataset.customDragged) {
       const player = overlay.closest(".html5-video-player, .ytd-player, #movie_player");
       const controls = player?.querySelector(".ytp-chrome-bottom, .ytp-control-bar, .ytp-progress-bar-container");
       if (controls) {
@@ -534,7 +545,8 @@
 
   function bindOverlayEvents(video, overlay, origEl, viEl, dictCard, learnBar, settings) {
     overlay.addEventListener("mouseenter", () => {
-      if (settings?.hoverPauseDict !== false && !video.paused && !video.ended) {
+      const curSettings = overlay._vieSettings || settings;
+      if (curSettings?.hoverPauseDict !== false && !video.paused && !video.ended) {
         overlay._pausedByHover = true;
         video.pause();
       }
@@ -615,6 +627,86 @@
       playUiSound("tick");
       root.VieCaptions?.resetSubSyncOffset(video);
     });
+
+    const copyBtn = learnBar.querySelector(".vie-learn-copy-btn");
+    copyBtn?.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const orig = (origEl.dataset.rawText || origEl.textContent || "").trim();
+      const vi = (viEl.textContent || "").trim();
+      const payload = [orig, vi].filter(Boolean).join("\n");
+      if (!payload) return;
+      try {
+        await navigator.clipboard.writeText(payload);
+        playUiSound("pop");
+        const prev = copyBtn.textContent;
+        copyBtn.textContent = "✓ Đã copy";
+        setTimeout(() => { copyBtn.textContent = prev; }, 1200);
+      } catch {}
+    });
+
+    learnBar.querySelector(".vie-learn-srt-btn")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      playUiSound("chime");
+      root.VieContent?.exportBilingualSrt?.(video);
+    });
+
+    const dragHandle = learnBar.querySelector(".vie-drag-handle");
+    if (dragHandle) {
+      let dragging = false;
+      let startX = 0;
+      let startY = 0;
+      let origBottomPct = 12;
+      let origLeftPct = 50;
+      let lastBottomPct = 12;
+
+      dragHandle.addEventListener("pointerdown", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        dragging = true;
+        dragHandle.setPointerCapture?.(e.pointerId);
+        startX = e.clientX;
+        startY = e.clientY;
+        const container = getContainer(video);
+        const cRect = container.getBoundingClientRect();
+        const ovRect = overlay.getBoundingClientRect();
+        origBottomPct = cRect.height > 0 ? ((cRect.bottom - ovRect.bottom) / cRect.height) * 100 : 12;
+        origLeftPct = parseFloat(overlay.style.left) || 50;
+        lastBottomPct = origBottomPct;
+      });
+
+      dragHandle.addEventListener("pointermove", (e) => {
+        if (!dragging) return;
+        const container = getContainer(video);
+        const cRect = container.getBoundingClientRect();
+        if (!cRect.width || !cRect.height) return;
+        const dyPct = ((startY - e.clientY) / cRect.height) * 100;
+        const dxPct = ((e.clientX - startX) / cRect.width) * 100;
+        lastBottomPct = Math.max(4, Math.min(82, Math.round((origBottomPct + dyPct) * 10) / 10));
+        const nextLeftPct = Math.max(15, Math.min(85, Math.round((origLeftPct + dxPct) * 10) / 10));
+        overlay.dataset.customDragged = "1";
+        overlay.style.setProperty("--vie-bottom", `${lastBottomPct}%`);
+        overlay.style.left = `${nextLeftPct}%`;
+      });
+
+      const endDrag = (e) => {
+        if (!dragging) return;
+        dragging = false;
+        try { dragHandle.releasePointerCapture?.(e.pointerId); } catch {}
+        root.VieStorage?.setSettings?.({ subBottomPos: String(Math.round(lastBottomPct)) });
+      };
+      dragHandle.addEventListener("pointerup", endDrag);
+      dragHandle.addEventListener("pointercancel", endDrag);
+      dragHandle.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
+        delete overlay.dataset.customDragged;
+        overlay.style.left = "50%";
+        overlay.style.setProperty("--vie-bottom", "12%");
+        root.VieStorage?.setSettings?.({ subBottomPos: "12" });
+        root.VieCaptions?.showSyncToast?.(video, "↺ Đã đặt lại vị trí phụ đề mặc định");
+      });
+    }
   }
 
   async function triggerVisualSceneOCR(video, overlay) {
@@ -1054,22 +1146,104 @@
 
   function showQuickTranslatePopup(text, coords, result) {
     const el = ensureSelectionBubble();
+    const transText = result?.vi || result?.meaning || "Đang dịch...";
+    const provMap = {
+      gemini: "Gemini",
+      groq: "Groq",
+      ollama: "Local AI",
+      openai: "OpenAI",
+      gtx: "Google Free"
+    };
+    const provLabel = result?.provider ? (provMap[result.provider] || result.provider) : "";
+    const wordCount = String(text || "").trim().split(/\s+/).length;
+    const showDictBtn = Boolean(result?.isSingleWord || wordCount <= 3) && !transText.startsWith("⏳");
+
     el.innerHTML = `
       <div class="vie-quick-popup">
         <div class="vie-quick-header">
-          <span class="vie-quick-title">🐸 VIE-Translate</span>
-          <button type="button" class="vie-quick-close">✕</button>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="vie-quick-title">🐸 VIE-Translate</span>
+            ${provLabel ? `<span class="vie-quick-provider">${escapeHtml(provLabel)}</span>` : ""}
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <button type="button" class="vie-quick-mini-btn vie-quick-speak" title="Nghe phát âm">🔊</button>
+            <button type="button" class="vie-quick-mini-btn vie-quick-copy" title="Sao chép bản dịch">📋</button>
+            <button type="button" class="vie-quick-close" title="Đóng">✕</button>
+          </div>
         </div>
         <div class="vie-quick-src">${escapeHtml(text)}</div>
-        <div class="vie-quick-trans">${escapeHtml(result.vi || result.meaning || "Đang dịch...")}</div>
+        <div class="vie-quick-trans">${escapeHtml(transText)}</div>
+        ${showDictBtn ? `
+          <div class="vie-quick-actions">
+            <button type="button" class="vie-quick-dict-btn">📖 Tra từ điển chi tiết</button>
+          </div>
+          <div class="vie-quick-dict-box" style="display:none;"></div>
+        ` : ""}
       </div>
     `;
-    el.style.left = `${Math.max(10, Math.min(window.innerWidth - 300, coords.x))}px`;
-    el.style.top = `${Math.max(10, coords.y - 120)}px`;
+
+    const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
+    const scrollX = typeof window !== "undefined" ? window.scrollX : 0;
+    const scrollY = typeof window !== "undefined" ? window.scrollY : 0;
+    const safeLeft = Math.max(scrollX + 12, Math.min(scrollX + vw - 350, coords.x - 40));
+    const preferredTop = coords.y - 135;
+    const safeTop = preferredTop > scrollY + 12 ? preferredTop : coords.y + 24;
+    el.style.left = `${safeLeft}px`;
+    el.style.top = `${safeTop}px`;
     el.classList.remove("vie-bubble-hidden");
 
     el.querySelector(".vie-quick-close")?.addEventListener("click", () => {
       hideSelectionBubble();
+    });
+
+    el.querySelector(".vie-quick-speak")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      speakWord(text);
+    });
+
+    const copyBtn = el.querySelector(".vie-quick-copy");
+    copyBtn?.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(transText);
+        copyBtn.textContent = "✓";
+        setTimeout(() => { copyBtn.textContent = "📋"; }, 1100);
+      } catch {}
+    });
+
+    const dictBtn = el.querySelector(".vie-quick-dict-btn");
+    const dictBox = el.querySelector(".vie-quick-dict-box");
+    dictBtn?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!dictBox) return;
+      dictBtn.disabled = true;
+      dictBtn.textContent = "⏳ Đang tra...";
+      chrome.runtime.sendMessage({ type: "LOOKUP_WORD", word: text.trim(), sentence: text.trim() }, (res) => {
+        if (chrome.runtime.lastError || !res?.ok) {
+          dictBtn.textContent = "📖 Thử lại";
+          dictBtn.disabled = false;
+          return;
+        }
+        dictBtn.style.display = "none";
+        dictBox.style.display = "block";
+        const exList = Array.isArray(res.examples) ? res.examples.slice(0, 2) : [];
+        dictBox.innerHTML = `
+          <div class="vie-quick-dict-meta">
+            ${res.pron ? `<span>/${escapeHtml(res.pron.replace(/^\/|\/$/g, ""))}/</span>` : ""}
+            ${res.pos ? `<span class="vie-dict-pos ${getPosClass(res.pos)}">${escapeHtml(res.pos)}</span>` : ""}
+            ${res.cefr ? `<span class="vie-dict-cefr">${escapeHtml(res.cefr)}</span>` : ""}
+          </div>
+          <div style="margin-top:4px;font-weight:600;color:#fef08a;">🎯 ${escapeHtml(res.meaning || transText)}</div>
+          ${res.note ? `<div style="margin-top:4px;font-size:11.5px;color:#cbd5e1;">💡 ${escapeHtml(res.note)}</div>` : ""}
+          ${exList.length ? `<div style="margin-top:5px;font-size:11.5px;color:#93c5fd;">${exList.map((ex) => `• ${escapeHtml(typeof ex === "string" ? ex : ex.orig || "")}`).join("<br>")}</div>` : ""}
+          <button type="button" class="vie-dict-save" style="margin-top:6px;">⭐ Lưu từ</button>
+        `;
+        const saveBtn = dictBox.querySelector(".vie-dict-save");
+        saveBtn?.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          saveWordToVocab({ ...res, word: res.word || text.trim(), sentence: text.trim() }, saveBtn);
+        });
+      });
     });
   }
 

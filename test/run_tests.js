@@ -1177,7 +1177,7 @@ await (async () => {
 // --- 22. Test Syntax Check All JS Files & manifest.json ---
 console.log("2️⃣2️⃣ Kiểm tra cú pháp (Syntax Check) toàn bộ file .js và manifest.json...");
 (() => {
-  const skipDirs = new Set([".git", "node_modules", "__pycache__"]);
+  const skipDirs = new Set([".git", ".agents", "node_modules", "__pycache__"]);
   const jsFiles = [];
   function walk(dir) {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -1357,7 +1357,7 @@ console.log("2️⃣4️⃣ Kiểm tra quét ngầm truyện & dịch văn bản
 (() => {
   const mangaSource = fs.readFileSync(path.join(ROOT_DIR, "content/manga.js"), "utf8");
   const manifest = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, "manifest.json"), "utf8"));
-  assert.strictEqual(manifest.version, "0.8.3", "Manifest phải cập nhật lên bản 0.8.3!");
+  assert.strictEqual(manifest.version, "1.0.0", "Manifest phải cập nhật lên bản 1.0.0!");
   assert.ok(mangaSource.includes("cachedOcr"), "Phải có cache OCR để quét trước và hiển thị sau!");
   assert.ok(mangaSource.includes("preflightDone"), "Phải chuyển sang chế độ Xem bản dịch sau preflight!");
   assert.ok(mangaSource.includes("archiveofourown"), "Phải hỗ trợ dịch văn bản Archive of Our Own!");
@@ -1379,9 +1379,367 @@ console.log("2️⃣4️⃣ Kiểm tra quét ngầm truyện & dịch văn bản
   assert.ok(domSource.includes("ytp-chrome-bottom"), "Overlay YouTube phải đo vùng control/timeline trước đặt bottom!");
   assert.ok(domSource.includes("safeBottom"), "Overlay YouTube phải tính bottom an toàn khỏi control!");
   assert.ok(cssSource.includes("pointer-events: none"), "Overlay phụ đề phải không bắt chuột vùng timeline/âm lượng!");
-  console.log("   ✅ Đã kiểm tra preflight truyện và social text/AO3 chuẩn cho bản 0.8.3!\n");
+  console.log("   ✅ Đã kiểm tra preflight truyện và social text/AO3 chuẩn cho bản 1.0.0!\n");
 })();
 
-console.log("🎉 TOÀN BỘ 24 BÀI KIỂM TRA ĐỀU HOÀN TOÀN CHÍNH XÁC VÀ ĐẠT 100%!");
+// --- 25. Test VieGemini v1.0.0 Upgrades (Thinking-Parts Filter, thinkingBudget: 0, Non-Text Exclusion) ---
+console.log("2️⃣5️⃣ Kiểm tra VieGemini v1.0.0 (Thinking-Parts Filter, thinkingBudget: 0 & lọc model TTS/Imagen)...");
+await (async () => {
+  const calls = [];
+  const mockFetch = async (url, opts) => {
+    calls.push({ url, opts });
+    if (url.includes("/v1beta/models?")) {
+      return makeMockResponse({
+        ok: true,
+        status: 200,
+        jsonData: {
+          models: [
+            { name: "models/gemini-2.5-flash-tts" },
+            { name: "models/imagen-3.0-generate" },
+            { name: "models/gemini-2.5-flash" },
+            { name: "models/gemma-3-27b-it" }
+          ]
+        }
+      });
+    }
+    return makeMockResponse({
+      ok: true,
+      status: 200,
+      jsonData: {
+        candidates: [
+          {
+            content: {
+              parts: [
+                { text: "internal reasoning should be ignored", thought: true },
+                { text: "Xin chào thế giới thực!" }
+              ]
+            }
+          }
+        ]
+      }
+    });
+  };
+  const ctx = createSandbox({ fetch: mockFetch });
+  loadModule(ctx, "utils/storage.js");
+  loadModule(ctx, "api/gemini.js");
+
+  const models = await ctx.VieGemini.discoverGeminiModels("AIzaThinkTest");
+  assert.strictEqual(models.includes("gemini-2.5-flash-tts"), false, "Model -tts phải bị loại!");
+  assert.strictEqual(models.includes("imagen-3.0-generate"), false, "Model imagen phải bị loại!");
+
+  const res25 = await ctx.VieGemini.translateWithGeminiAuto({
+    text: "Hello real world",
+    apiKey: "AIzaThinkTest",
+    preferredModel: "gemini-2.5-flash",
+    targetLang: "vi"
+  });
+  assert.strictEqual(res25.vi, "Xin chào thế giới thực!", "Phải bỏ qua thought:true part và lấy đúng bản dịch!");
+  const req25 = JSON.parse(calls.find((c) => c.url.includes("gemini-2.5-flash:generateContent")).opts.body);
+  assert.strictEqual(req25.generationConfig?.thinkingConfig?.thinkingBudget, 0, "Gemini 2.5 phải gắn thinkingBudget: 0!");
+
+  await ctx.VieGemini.translateWithGeminiAuto({
+    text: "Hello gemma",
+    apiKey: "AIzaThinkTest",
+    preferredModel: "gemma-3-27b-it",
+    targetLang: "vi"
+  });
+  const reqGemma = JSON.parse(calls.find((c) => c.url.includes("gemma-3-27b-it:generateContent")).opts.body);
+  assert.strictEqual("thinkingConfig" in reqGemma.generationConfig, false, "Gemma không được gắn thinkingConfig!");
+  console.log("   ✅ Đã kiểm tra VieGemini v1.0.0: Thinking-Parts, thinkingBudget:0 & lọc model chuẩn 100%!\n");
+})();
+
+// --- 26. Test VieOpenAI Real Module (OpenRouter/DeepSeek Discovery, /no_think, Lookup & Explain) ---
+console.log("2️⃣6️⃣ Kiểm tra VieOpenAI thật (OpenRouter :free, Qwen3 /no_think, Lookup & ExplainScene)...");
+await (async () => {
+  const apiCalls = [];
+  const mockFetch = async (url, opts) => {
+    apiCalls.push({ url, opts });
+    if (url.endsWith("/models")) {
+      return makeMockResponse({
+        ok: true,
+        status: 200,
+        jsonData: {
+          data: [
+            { id: "openai/whisper-1" },
+            { id: "qwen/qwen3-32b:free" },
+            { id: "meta-llama/llama-3.3-70b-instruct:free" }
+          ]
+        }
+      });
+    }
+    const body = JSON.parse(opts.body);
+    const userTxt = body.messages[body.messages.length - 1].content;
+    if (userTxt.includes("[[1]]")) {
+      return makeMockResponse({
+        ok: true,
+        status: 200,
+        jsonData: { choices: [{ message: { content: "[[1]] Câu một\n[[2]] Câu hai" } }] }
+      });
+    }
+    if (userTxt.includes("Phân tích từ vựng")) {
+      return makeMockResponse({
+        ok: true,
+        status: 200,
+        jsonData: { choices: [{ message: { content: '<think>ok</think>{"word":"test","meaning":"kiểm tra","pos":"Noun"}' } }] }
+      });
+    }
+    return makeMockResponse({
+      ok: true,
+      status: 200,
+      jsonData: { choices: [{ message: { content: '{"literal":"dịch sát","nuance":"tự nhiên","realLife":"thực tế"}' } }] }
+    });
+  };
+  const ctx = createSandbox({ fetch: mockFetch });
+  loadModule(ctx, "utils/storage.js");
+  loadModule(ctx, "api/openai.js");
+
+  const models = await ctx.VieOpenAI.discoverModels("https://openrouter.ai/api/v1", "sk-or-test123");
+  assert.strictEqual(models.includes("openai/whisper-1"), false, "Whisper phải bị lọc khỏi danh sách chat!");
+  assert.strictEqual(models[0], "meta-llama/llama-3.3-70b-instruct:free");
+
+  const batchRes = await ctx.VieOpenAI.translateWithOpenAIAuto({
+    texts: ["One", "Two"],
+    baseUrl: "https://openrouter.ai/api/v1",
+    apiKey: "sk-or-test123",
+    preferredModel: "qwen/qwen3-32b:free",
+    targetLang: "vi"
+  });
+  assert.deepStrictEqual(Array.from(batchRes.translations), ["Câu một", "Câu hai"]);
+  const chatReq = apiCalls.find((c) => c.url.endsWith("/chat/completions"));
+  assert.strictEqual(chatReq.opts.headers["X-Title"], "VIE-Translate Toad AI");
+  assert.strictEqual(JSON.parse(chatReq.opts.body).messages[0].content.endsWith("/no_think"), true);
+
+  const dictRes = await ctx.VieOpenAI.lookupWordWithOpenAI("test", "This is a test", "https://openrouter.ai/api/v1", "sk-or-test123", "auto", "vi");
+  assert.strictEqual(dictRes.ok, true);
+  assert.strictEqual(dictRes.meaning, "kiểm tra");
+
+  const sceneRes = await ctx.VieOpenAI.explainSceneWithOpenAI({ sentence: "Hi", vi: "Chào", baseUrl: "https://openrouter.ai/api/v1", apiKey: "sk-or-test123" });
+  assert.strictEqual(sceneRes.nuance, "tự nhiên");
+  console.log("   ✅ Đã kiểm tra VieOpenAI: Discovery, Headers, /no_think, Lookup & Explain chuẩn 100%!\n");
+})();
+
+// --- 27. Test background.js v1.0.0 (Multi-Provider Lookup/Explain, Telemetry, Reset Cooldown & Page Batch) ---
+console.log("2️⃣7️⃣ Kiểm tra background.js v1.0.0 (Multi-provider Lookup/Explain, Telemetry, Cooldown & Page Batch)...");
+await (async () => {
+  let msgHandler = null;
+  let storedSettings = {
+    provider: "groq",
+    apiKey: "gsk_MockGroqOnly1234567890",
+    groqApiKey: "gsk_MockGroqOnly1234567890",
+    targetLang: "vi",
+    customGlossary: [{ src: "Toad", target: "Cóc", enabled: true }]
+  };
+  const mockFetch = async (url) => {
+    if (url.includes("api.groq.com/openai/v1/models")) {
+      return makeMockResponse({ ok: true, status: 200, jsonData: { data: [{ id: "llama-3.3-70b-versatile" }] } });
+    }
+    if (url.includes("api.groq.com/openai/v1/chat/completions")) {
+      return makeMockResponse({
+        ok: true,
+        status: 200,
+        jsonData: {
+          choices: [{ message: { content: '[[1]] Toad tuyệt vời' } }]
+        }
+      });
+    }
+    if (url.includes("api.groq.com") && url.includes("completions")) {
+      return makeMockResponse({ ok: true, status: 200, jsonData: { choices: [{ message: { content: '{"word":"toad","meaning":"con cóc"}' } }] } });
+    }
+    return makeMockResponse({ ok: false, status: 404, jsonData: {} });
+  };
+  const customFetch = async (url, opts) => {
+    if (url.includes("api.groq.com/openai/v1/chat/completions")) {
+      const body = JSON.parse(opts.body);
+      const u = body.messages[body.messages.length - 1].content;
+      if (u.includes("Phân tích từ vựng")) {
+        return makeMockResponse({ ok: true, status: 200, jsonData: { choices: [{ message: { content: '{"word":"toad","meaning":"chú cóc","pos":"Noun"}' } }] } });
+      }
+      if (u.includes("Phân tích phụ đề")) {
+        return makeMockResponse({ ok: true, status: 200, jsonData: { choices: [{ message: { content: '{"literal":"chào","nuance":"thân mật","realLife":"hay dùng"}' } }] } });
+      }
+      return makeMockResponse({ ok: true, status: 200, jsonData: { choices: [{ message: { content: "[[1]] Toad rất hay" } }] } });
+    }
+    return mockFetch(url);
+  };
+
+  const chromeMock = {
+    storage: {
+      local: {
+        get: (keys, cb) => cb(keys && "translationCache" in keys ? { translationCache: [] } : { ...keys, ...storedSettings }),
+        set: (u, cb) => { storedSettings = { ...storedSettings, ...u }; cb && cb(); },
+        remove: () => {}
+      },
+      onChanged: { addListener: () => {} }
+    },
+    runtime: {
+      onMessage: { addListener: (fn) => { msgHandler = fn; } },
+      onInstalled: { addListener: () => {} },
+      lastError: null
+    },
+    contextMenus: { create: () => {}, onClicked: { addListener: () => {} } }
+  };
+
+  const ctx = createSandbox({
+    chrome: chromeMock,
+    fetch: customFetch,
+    importScripts: (...paths) => paths.forEach((p) => loadModule(ctx, p.replace(/^\//, "")))
+  });
+  loadModule(ctx, "background/background.js");
+  const sendMsg = (m) => new Promise((r) => msgHandler(m, { tab: { id: 77 } }, r));
+
+  const dictGroq = await sendMsg({ type: "LOOKUP_WORD", word: "toad", sentence: "Hello toad" });
+  assert.strictEqual(dictGroq.ok, true);
+  assert.strictEqual(dictGroq.meaning, "chú cóc", "LOOKUP_WORD phải chạy được bằng Groq khi không có key Gemini!");
+
+  const sceneGroq = await sendMsg({ type: "EXPLAIN_SCENE", sentence: "Hello toad", vi: "Chào cóc" });
+  assert.strictEqual(sceneGroq.ok, true);
+  assert.strictEqual(sceneGroq.nuance, "thân mật", "EXPLAIN_SCENE phải chạy được bằng Groq!");
+
+  const pageBatch = await sendMsg({ type: "TRANSLATE_PAGE_BATCH", texts: ["Toad is great"] });
+  assert.strictEqual(pageBatch.results["Toad is great"], "Cóc rất hay", "TRANSLATE_PAGE_BATCH phải dịch và áp glossary!");
+
+  const statsRes = await sendMsg({ type: "GET_ENGINE_STATS" });
+  assert.strictEqual(statsRes.ok, true);
+  assert.ok(statsRes.stats.aiCalls >= 1, "Telemetry phải ghi nhận aiCalls!");
+  const resetRes = await sendMsg({ type: "RESET_COOLDOWNS" });
+  assert.strictEqual(resetRes.ok, true);
+  console.log("   ✅ Đã kiểm tra background.js v1.0.0: Multi-provider Lookup/Explain, Telemetry & Page Batch chuẩn 100%!\n");
+})();
+
+// --- 28. Test VieOllama Local Vision OCR & Concurrency Cap ---
+console.log("2️⃣8️⃣ Kiểm tra VieOllama Local Vision OCR (Ollama images[] + LM Studio image_url) & Concurrency Cap...");
+await (async () => {
+  const calls = [];
+  const mockFetch = async (url, opts) => {
+    calls.push({ url, opts });
+    if (url.endsWith("/api/tags")) {
+      return makeMockResponse({ ok: true, status: 200, jsonData: { models: [{ name: "qwen2.5:3b" }, { name: "qwen2.5vl:7b" }] } });
+    }
+    if (url.endsWith("/v1/models")) {
+      return makeMockResponse({ ok: true, status: 200, jsonData: { data: [{ id: "gemma-3-12b-it" }] } });
+    }
+    if (url.endsWith("/v1/chat/completions")) {
+      return makeMockResponse({ ok: true, status: 200, jsonData: { choices: [{ message: { content: '{"hasText":true,"orig":"Exit","vi":"Lối ra"}' } }] } });
+    }
+    return makeMockResponse({ ok: true, status: 200, jsonData: { message: { content: '{"language":"ja","regions":[{"x":10,"y":10,"w":20,"h":15,"text":"こんにちは","translation":"Xin chào"}]}' } } });
+  };
+  const ctx = createSandbox({ fetch: mockFetch });
+  loadModule(ctx, "utils/storage.js");
+  loadModule(ctx, "api/ollama.js");
+
+  assert.strictEqual(ctx.VieOllama.MAX_LOCAL_CONCURRENT, 2);
+  const resOllama = await ctx.VieOllama.scanImageWithOllama({
+    imageBase64: "AAA=",
+    prompt: "OCR",
+    baseUrl: "http://localhost:11434"
+  });
+  assert.strictEqual(resOllama.modelUsed, "qwen2.5vl:7b", "Phải tự ưu tiên vision model qwen2.5vl!");
+  const ollamaPayload = JSON.parse(calls.find((c) => c.url.endsWith("/api/chat")).opts.body);
+  assert.strictEqual(ollamaPayload.messages[0].images[0], "AAA=");
+
+  const resLm = await ctx.VieOllama.scanImageWithOllama({
+    imageBase64: "BBB=",
+    prompt: "OCR",
+    baseUrl: "http://localhost:1234/v1"
+  });
+  assert.strictEqual(resLm.vi, "Lối ra");
+  const lmPayload = JSON.parse(calls.find((c) => c.url.endsWith("/v1/chat/completions")).opts.body);
+  assert.strictEqual(lmPayload.messages[0].content[1].type, "image_url");
+  console.log("   ✅ Đã kiểm tra VieOllama Vision OCR cho Ollama & LM Studio chuẩn 100%!\n");
+})();
+
+// --- 29. Test content/webpage.js (Block Filtering, Injection & Clean Disable) ---
+console.log("2️⃣9️⃣ Kiểm tra content/webpage.js (lọc đoạn văn, chèn bản dịch & tắt sạch DOM)...");
+(() => {
+  const ctx = createSandbox({
+    document: {
+      documentElement: { classList: { toggle: () => {}, remove: () => {} } },
+      body: {}
+    }
+  });
+  loadModule(ctx, "content/webpage.js");
+  const W = ctx.VieWebpage;
+
+  assert.strictEqual(W.isLikelyVietnamese("Đây là một đoạn văn bản tiếng Việt hoàn chỉnh có dấu đầy đủ."), true);
+  assert.strictEqual(W.isLikelyVietnamese("This is an English paragraph for translation testing."), false);
+
+  const appended = [];
+  const fakeBlockEn = {
+    innerText: "Artificial intelligence is transforming software engineering worldwide.",
+    closest: () => null,
+    querySelector: () => null,
+    appendChild: (node) => appended.push(node)
+  };
+  const fakeBlockVi = {
+    innerText: "Trí tuệ nhân tạo đang thay đổi ngành công nghệ phần mềm trên toàn thế giới.",
+    closest: () => null,
+    querySelector: () => null
+  };
+  const fakeCode = {
+    innerText: "console.log('hello world');",
+    closest: () => ({ tagName: "PRE" }),
+    querySelector: () => null
+  };
+  const fakeDoc = {
+    body: {},
+    querySelectorAll: () => [fakeBlockEn, fakeBlockVi, fakeCode],
+    createElement: (tag) => ({
+      tagName: tag.toUpperCase(),
+      className: "",
+      attrs: {},
+      setAttribute(k, v) { this.attrs[k] = v; },
+      textContent: ""
+    })
+  };
+
+  const eligible = W.collectTranslatableBlocks(fakeDoc, "vi");
+  assert.strictEqual(eligible.length, 1, "Chỉ được giữ lại đoạn tiếng Anh hợp lệ, bỏ qua tiếng Việt và code!");
+  const injected = W.injectTranslation(fakeBlockEn, "Trí tuệ nhân tạo đang biến đổi ngành phần mềm.", fakeDoc);
+  assert.strictEqual(injected.className, "vie-web-trans");
+  assert.strictEqual(appended.length, 1);
+  console.log("   ✅ Đã kiểm tra content/webpage.js chuẩn 100%!\n");
+})();
+
+// --- 30. Test Bilingual SRT Export & Popup Studio v1.0.0 Integrity ---
+console.log("3️⃣0️⃣ Kiểm tra xuất SRT song ngữ & cấu trúc Popup Studio v1.0.0...");
+(() => {
+  const ctx = createSandbox({
+    document: { readyState: "loading", addEventListener: () => {} }
+  });
+  loadModule(ctx, "utils/storage.js");
+  loadModule(ctx, "content/content.js");
+  const C = ctx.VieContent;
+
+  assert.strictEqual(C.formatSrtTimestamp(65.432), "00:01:05,432");
+  const srt = C.buildBilingualSrt(
+    [
+      { start: 1.0, end: 3.5, text: "Hello world" },
+      { start: 4.0, end: 6.25, text: "How are you?" }
+    ],
+    (t) => (t === "Hello world" ? { vi: "Xin chào thế giới" } : { vi: "Bạn khỏe không?" }),
+    true
+  );
+  assert.ok(srt.includes("00:00:01,000 --> 00:00:03,500\nHello world\nXin chào thế giới"));
+  assert.ok(srt.includes("2\n00:00:04,000 --> 00:00:06,250\nHow are you?\nBạn khỏe không?"));
+
+  const popupHtml = fs.readFileSync(path.join(ROOT_DIR, "popup/popup.html"), "utf8");
+  const popupJs = fs.readFileSync(path.join(ROOT_DIR, "popup/popup.js"), "utf8");
+  const openaiJs = fs.readFileSync(path.join(ROOT_DIR, "popup/openai.js"), "utf8");
+  const domJs = fs.readFileSync(path.join(ROOT_DIR, "content/dom.js"), "utf8");
+  const bgJs = fs.readFileSync(path.join(ROOT_DIR, "background/background.js"), "utf8");
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, "manifest.json"), "utf8"));
+
+  assert.ok(manifest.content_scripts[0].js.includes("content/webpage.js"));
+  assert.ok(popupHtml.includes("quickWebTranslateBtn") && popupHtml.includes("quickExportSrtBtn"));
+  assert.ok(popupHtml.includes("subnavFlashcardBtn") && popupHtml.includes("exportAnkiBtn") && popupHtml.includes("exportBackupBtn"));
+  assert.ok(popupHtml.includes("openaiSection") && openaiJs.includes("openrouter.ai"));
+  assert.ok(popupJs.includes("renderFlashcard") && popupJs.includes("vocabSearchInput"));
+  assert.ok(domJs.includes("vie-drag-handle") && domJs.includes("vie-learn-srt-btn") && domJs.includes("vie-quick-dict-btn"));
+  assert.ok(bgJs.includes("vie_translate_webpage") && bgJs.includes("TRANSLATE_PAGE_BATCH"));
+
+  console.log("   ✅ Đã kiểm tra xuất SRT song ngữ & toàn bộ tính năng Popup Studio v1.0.0 chuẩn 100%!\n");
+})();
+
+console.log("🎉 TOÀN BỘ 30 BÀI KIỂM TRA ĐỀU HOÀN TOÀN CHÍNH XÁC VÀ ĐẠT 100%!");
 
 })();

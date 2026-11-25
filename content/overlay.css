@@ -1160,3 +1160,127 @@
   color: #94a3b8;
   padding: 2px 6px;
 }
+
+/* Drag handle for movable subtitles */
+.vie-drag-handle {
+  cursor: grab !important;
+  touch-action: none;
+}
+.vie-drag-handle:active {
+  cursor: grabbing !important;
+}
+
+/* Enhanced Selection Quick-Translate Popup */
+.vie-quick-popup {
+  width: 320px;
+  max-width: 92vw;
+}
+.vie-quick-provider {
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.22);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  color: #7dd3fc;
+}
+.vie-quick-mini-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #e2e8f0;
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.vie-quick-mini-btn:hover {
+  background: rgba(251, 191, 36, 0.25);
+  border-color: #fbbf24;
+}
+.vie-quick-actions {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.vie-quick-dict-btn {
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  color: #6ee7b7;
+  border-radius: 7px;
+  padding: 4px 9px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.vie-quick-dict-btn:hover {
+  background: rgba(16, 185, 129, 0.3);
+}
+.vie-quick-dict-box {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 12px;
+}
+.vie-quick-dict-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  color: #93c5fd;
+  font-size: 11.5px;
+}
+
+/* Immersive Full-Page Bilingual Web Translator */
+.vie-web-trans {
+  display: block;
+  margin-top: 4px;
+  margin-bottom: 4px;
+  padding: 3px 9px;
+  border-left: 3px solid #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+  border-radius: 0 6px 6px 0;
+  font-size: 0.94em;
+  line-height: 1.48;
+  color: inherit;
+  opacity: 0.95;
+  font-weight: 500;
+}
+html.vie-web-trans-hidden .vie-web-trans {
+  display: none !important;
+}
+.vie-web-pill {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1.5px solid rgba(251, 191, 36, 0.65);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.48);
+  backdrop-filter: blur(10px);
+  color: #fef08a;
+  font-family: "Segoe UI", Roboto, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+}
+.vie-web-pill-btn {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.vie-web-pill-btn:hover {
+  background: rgba(251, 191, 36, 0.28);
+  border-color: #fbbf24;
+}
+.vie-web-pill-close {
+  color: #fca5a5;
+}

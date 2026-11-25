@@ -21,8 +21,34 @@
     "phi3"
   ];
   const OLLAMA_DISCOVERY_TTL_MS = 60000;
+  const MAX_LOCAL_CONCURRENT = 2;
   const cachedOllamaModels = new Map();
   const serverProtocolMap = new Map(); // maps clean baseUrl -> "ollama" | "openai"
+  let activeLocalRequests = 0;
+  const localRequestQueue = [];
+
+  function acquireLocalSlot() {
+    if (activeLocalRequests < MAX_LOCAL_CONCURRENT) {
+      activeLocalRequests++;
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => localRequestQueue.push(resolve));
+  }
+
+  function releaseLocalSlot() {
+    const next = localRequestQueue.shift();
+    if (next) next();
+    else activeLocalRequests = Math.max(0, activeLocalRequests - 1);
+  }
+
+  async function withLocalSlot(fn) {
+    await acquireLocalSlot();
+    try {
+      return await fn();
+    } finally {
+      releaseLocalSlot();
+    }
+  }
 
   function cleanBase(url) {
     return (url || DEFAULT_BASE_URL).trim().replace(/\/+$/, "");
@@ -180,22 +206,22 @@
 
     const detectedProto = serverProtocolMap.get(base) || (base.endsWith("/v1") || base.includes(":1234") || base.includes(":1337") ? "openai" : "ollama");
 
-    let out = "";
-    if (detectedProto === "openai") {
-      // Chuẩn OpenAI Chat Completions (LM Studio, Jan, LocalAI, vLLM, Ollama /v1)
-      const epUrl = `${base.replace(/\/v1$/, "")}/v1/chat/completions`;
-      const data = await localAiFetch(epUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model,
-          messages,
-          temperature: 0.1,
-          max_tokens: isBatch ? 1200 : 280
-        })
-      }, 35000);
-      out = (data?.choices?.[0]?.message?.content || "").trim();
-    } else {
+    const out = await withLocalSlot(async () => {
+      if (detectedProto === "openai") {
+        // Chuẩn OpenAI Chat Completions (LM Studio, Jan, LocalAI, vLLM, Ollama /v1)
+        const epUrl = `${base.replace(/\/v1$/, "")}/v1/chat/completions`;
+        const data = await localAiFetch(epUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model,
+            messages,
+            temperature: 0.1,
+            max_tokens: isBatch ? 1200 : 280
+          })
+        }, 35000);
+        return (data?.choices?.[0]?.message?.content || "").trim();
+      }
       // Chuẩn Ollama Native (/api/chat)
       const data = await localAiFetch(`${base}/api/chat`, {
         method: "POST",
@@ -208,8 +234,8 @@
           options: { temperature: 0.1, num_predict: isBatch ? 1200 : 280 }
         })
       }, 35000);
-      out = (data?.message?.content || "").trim();
-    }
+      return (data?.message?.content || "").trim();
+    });
 
     if (!out) throw new Error("Local AI trả về nội dung rỗng.");
     const cleanFn = S.cleanTranslatedOutput || ((s) => (s || "").replace(/^["“]|["”]$/g, "").trim());
@@ -223,10 +249,134 @@
     return { vi: cleanFn(out), modelUsed: model };
   }
 
+  async function callOllamaJson({ prompt, baseUrl, preferredModel = "", maxTokens = 900 }) {
+    const base = cleanBase(baseUrl);
+    let model = preferredModel && preferredModel !== "auto" ? preferredModel : "";
+    if (!model) {
+      const list = await discoverOllamaModels(base);
+      if (!list.length) throw new Error("Local AI chưa có model nào.");
+      model = list[0];
+    }
+    const detectedProto = serverProtocolMap.get(base) || (base.endsWith("/v1") || base.includes(":1234") || base.includes(":1337") ? "openai" : "ollama");
+    const sysMsg = model.toLowerCase().includes("qwen3")
+      ? "Return ONLY valid JSON without markdown fences or notes. /no_think"
+      : "Return ONLY valid JSON without markdown fences or notes.";
+    const messages = [
+      { role: "system", content: sysMsg },
+      { role: "user", content: prompt }
+    ];
+
+    const out = await withLocalSlot(async () => {
+      if (detectedProto === "openai") {
+        const epUrl = `${base.replace(/\/v1$/, "")}/v1/chat/completions`;
+        const data = await localAiFetch(epUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model, messages, temperature: 0.15, max_tokens: maxTokens })
+        }, 35000);
+        return (data?.choices?.[0]?.message?.content || "").trim();
+      }
+      const data = await localAiFetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          messages,
+          stream: false,
+          keep_alive: "60m",
+          options: { temperature: 0.15, num_predict: maxTokens }
+        })
+      }, 35000);
+      return (data?.message?.content || "").trim();
+    });
+
+    const parsed = root.VieStorage?.parseJsonSafe
+      ? root.VieStorage.parseJsonSafe(out)
+      : JSON.parse(String(out).replace(/```json|```/g, "").trim());
+    if (!parsed || typeof parsed !== "object") throw new Error("Local AI trả về JSON không hợp lệ.");
+    return { ok: true, ...parsed, modelUsed: model };
+  }
+
+  async function lookupWordWithOllama(word, sentence, baseUrl, preferredModel = "", targetLang = "vi") {
+    const prompt = root.VieStorage?.buildLookupPrompt
+      ? root.VieStorage.buildLookupPrompt(word, sentence, targetLang)
+      : `Explain word "${word}" in "${sentence}" in ${targetLang}. Return JSON: {"word":"${word}","meaning":"","pos":"","pron":"","cefr":"","note":"","posVariants":[],"examples":[],"collocations":[],"funFact":""}`;
+    return await callOllamaJson({ prompt, baseUrl, preferredModel, maxTokens: 1100 });
+  }
+
+  async function explainSceneWithOllama({ sentence, vi, focusWord, baseUrl, preferredModel = "", targetLang = "vi" }) {
+    const prompt = root.VieStorage?.buildExplainScenePrompt
+      ? root.VieStorage.buildExplainScenePrompt(sentence, vi, focusWord, targetLang)
+      : `Analyze subtitle "${sentence}" (${vi}) in ${targetLang}. Return JSON: {"literal":"","nuance":"","realLife":"","keyPoints":[]}`;
+    return await callOllamaJson({ prompt, baseUrl, preferredModel, maxTokens: 800 });
+  }
+
+  async function scanImageWithOllama({ imageBase64, mimeType = "image/jpeg", prompt, baseUrl, preferredModel = "" }) {
+    if (!imageBase64) throw new Error("Không có dữ liệu ảnh để quét.");
+    const base = cleanBase(baseUrl);
+    let model = preferredModel && preferredModel !== "auto" ? preferredModel : "";
+    if (!model) {
+      const list = await discoverOllamaModels(base);
+      if (!list.length) throw new Error("Local AI chưa có model nào.");
+      const visionRegex = /qwen2\.5[-_.]?vl|qwen2[-_.]?vl|gemma3|llama3\.2[-_.]?vision|llava|minicpm[-_.]?v|pixtral|vision/i;
+      model = list.find((m) => visionRegex.test(m)) || list[0];
+    }
+
+    const detectedProto = serverProtocolMap.get(base) || (base.endsWith("/v1") || base.includes(":1234") || base.includes(":1337") ? "openai" : "ollama");
+    const finalPrompt = model.toLowerCase().includes("qwen3") ? `${prompt}\n/no_think` : prompt;
+
+    const out = await withLocalSlot(async () => {
+      if (detectedProto === "openai") {
+        const epUrl = `${base.replace(/\/v1$/, "")}/v1/chat/completions`;
+        const data = await localAiFetch(epUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model,
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: finalPrompt },
+                  { type: "image_url", image_url: { url: `data:${mimeType};base64,${imageBase64}` } }
+                ]
+              }
+            ],
+            temperature: 0.1,
+            max_tokens: 1800
+          })
+        }, 45000);
+        return (data?.choices?.[0]?.message?.content || "").trim();
+      }
+      const data = await localAiFetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: "user", content: finalPrompt, images: [imageBase64] }],
+          stream: false,
+          keep_alive: "60m",
+          options: { temperature: 0.1, num_predict: 1800 }
+        })
+      }, 45000);
+      return (data?.message?.content || "").trim();
+    });
+
+    const parsed = root.VieStorage?.parseJsonSafe
+      ? root.VieStorage.parseJsonSafe(out)
+      : JSON.parse(String(out).replace(/```json|```/g, "").trim());
+    if (!parsed || typeof parsed !== "object") throw new Error("Local Vision AI trả về JSON không hợp lệ.");
+    return { ok: true, ...parsed, modelUsed: model };
+  }
+
   root.VieOllama = {
     DEFAULT_BASE_URL,
+    MAX_LOCAL_CONCURRENT,
     discoverOllamaModels,
     translateWithOllama,
+    lookupWordWithOllama,
+    explainSceneWithOllama,
+    scanImageWithOllama,
     discoverLocalModels: discoverOllamaModels,
     translateWithLocalAi: translateWithOllama
   };

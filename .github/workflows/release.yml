@@ -1,0 +1,44 @@
+name: Release Extension
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Package clean Chrome Extension ZIP
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          ZIP_NAME="VIE-Translate-${TAG}.zip"
+          zip -r "${ZIP_NAME}" \
+            manifest.json \
+            LICENSE \
+            README.md \
+            CHANGELOG.md \
+            aistudio-helper.js \
+            aistudio-page-hook.js \
+            api \
+            assets \
+            background \
+            content \
+            popup \
+            tools \
+            utils
+          echo "ZIP_NAME=${ZIP_NAME}" >> "$GITHUB_ENV"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" "${ZIP_NAME}" \
+            --title "VIE-Translate — Translate Toad AI ${GITHUB_REF_NAME} (All-in-One Studio)" \
+            --notes-file CHANGELOG.md

@@ -42,7 +42,7 @@
         const sel = window.getSelection();
         const text = sel ? sel.toString().trim() : "";
 
-        if (!text || text.length < 2 || text.length > 500) {
+        if (!text || text.length < 2 || text.length > 2500) {
           root.VieDOM?.hideSelectionBubble();
           return;
         }
@@ -95,14 +95,15 @@
   function handleSelectionAction(text, coords) {
     const reqId = ++selectionReqId;
     let gotFinal = false;
+    const isSingleWord = text.trim().split(/\s+/).length <= 3;
 
-    root.VieDOM?.showQuickTranslatePopup(text, coords, { vi: "⏳ Đang dịch..." });
+    root.VieDOM?.showQuickTranslatePopup(text, coords, { vi: "⏳ Đang dịch...", isSingleWord });
 
     chrome.runtime.sendMessage({ type: "TRANSLATE", text, fastPreviewOnly: true }, (previewRes) => {
       if (reqId !== selectionReqId) return;
       if (!chrome.runtime.lastError && previewRes?.vi && !gotFinal) {
         if (previewRes.isFinalAi) gotFinal = true;
-        root.VieDOM?.showQuickTranslatePopup(text, coords, previewRes);
+        root.VieDOM?.showQuickTranslatePopup(text, coords, { ...previewRes, isSingleWord });
       }
     });
 
@@ -110,12 +111,12 @@
       if (reqId !== selectionReqId) return;
       if (chrome.runtime.lastError || !res) {
         if (!gotFinal) {
-          root.VieDOM?.showQuickTranslatePopup(text, coords, { vi: "Lỗi kết nối dịch thuật." });
+          root.VieDOM?.showQuickTranslatePopup(text, coords, { vi: "Lỗi kết nối dịch thuật.", isSingleWord });
         }
         return;
       }
       gotFinal = true;
-      root.VieDOM?.showQuickTranslatePopup(text, coords, res);
+      root.VieDOM?.showQuickTranslatePopup(text, coords, { ...res, isSingleWord });
     });
   }
 

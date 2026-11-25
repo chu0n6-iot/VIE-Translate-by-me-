@@ -18,7 +18,7 @@
       <div class="toad-title-row">
         <span class="toad-brand">Translate Toad AI</span>
         <button type="button" id="sfxToggle" class="sfx-toggle" title="Bật/tắt âm thanh">🔊</button>
-        <button type="button" id="checkUpdateMiniBtn" class="toad-badge toad-badge-btn" title="Bấm để kiểm tra cập nhật mới trên GitHub">v0.8.3 ↻</button>
+        <button type="button" id="checkUpdateMiniBtn" class="toad-badge toad-badge-btn" title="Bấm để kiểm tra cập nhật mới trên GitHub">v1.0.0 ↻</button>
       </div>
       <div id="toadSpeech" class="toad-speech">
         Ộp! Mở video lên là Cóc tự dịch cho bạn.
@@ -50,6 +50,17 @@
     </div>
   </div>
 
+  <!-- STUDIO QUICK ACTION BAR & ENGINE HEALTH -->
+  <div class="quick-action-bar">
+    <button type="button" id="quickWebTranslateBtn" class="quick-act-btn" title="Dịch song ngữ toàn bộ bài báo/trang web đang mở (Alt+T)">🌐 Dịch trang</button>
+    <button type="button" id="quickExportSrtBtn" class="quick-act-btn" title="Tải phụ đề song ngữ .SRT của video đang xem">📥 Xuất SRT</button>
+    <button type="button" id="quickOcrBtn" class="quick-act-btn" title="Quét & dịch chữ xuất hiện trên video (Alt+S)">🔍 OCR màn hình</button>
+  </div>
+  <div id="engineHealthBar" class="engine-health-bar">
+    <span id="engineHealthText">⚡ Sẵn sàng • Cache: 0</span>
+    <button type="button" id="resetCooldownBtn" class="reset-cooldown-btn" style="display:none;" title="Xóa thời gian chờ cho các key bị giới hạn 429">↺ Reset Cooldown</button>
+  </div>
+
   <!-- 3-TAB BAR -->
   <div class="nav-tabs">
     <button type="button" class="tab-btn active" data-tab="tab-api">Kết nối</button>
@@ -65,9 +76,33 @@
       <select id="provider">
         <option value="gemini">Gemini (miễn phí, dịch sát ngữ cảnh)</option>
         <option value="groq">Groq (miễn phí, rất nhanh)</option>
+        <option value="openai">🌐 OpenRouter / DeepSeek / OpenAI-Compatible (Miễn phí &amp; Tùy biến)</option>
         <option value="ollama">🏠 Local AI – Ollama / LM Studio (100% trên máy, không cần key)</option>
         <option value="gtx">Google Translate (không cần key)</option>
       </select>
+    </div>
+
+    <div id="openaiSection" style="display:none">
+      <label for="openaiBaseUrl">Endpoint OpenAI-Compatible:</label>
+      <div class="openai-presets">
+        <button type="button" class="openai-preset-btn active" data-url="https://openrouter.ai/api/v1">OpenRouter (Free)</button>
+        <button type="button" class="openai-preset-btn" data-url="https://api.deepseek.com/v1">DeepSeek</button>
+        <button type="button" class="openai-preset-btn" data-url="https://api.cerebras.ai/v1">Cerebras</button>
+        <button type="button" class="openai-preset-btn" data-url="https://api.mistral.ai/v1">Mistral</button>
+      </div>
+      <input type="text" id="openaiBaseUrl" value="https://openrouter.ai/api/v1" spellcheck="false" placeholder="https://openrouter.ai/api/v1" />
+      <label for="openaiApiKey">API Key (sk-or-... / API Key tương ứng):</label>
+      <div class="key-input-group">
+        <input type="password" id="openaiApiKey" placeholder="Dán OpenRouter / DeepSeek / Custom API Key" autocomplete="off" />
+        <button type="button" id="toggleOpenaiKeyBtn" class="btn-toggle-key">Hiện</button>
+      </div>
+      <label for="openaiModel">Model:</label>
+      <select id="openaiModel"><option value="">(tự chọn model tốt nhất / :free)</option></select>
+      <button type="button" id="openaiTestBtn" class="btn-change-key" style="margin-top:6px;">🔄 Kiểm tra kết nối &amp; nạp model</button>
+      <div id="openaiStatus" class="ollama-hint"></div>
+      <div class="ollama-hint">
+        💡 <b>Mẹo:</b> Lấy key miễn phí không giới hạn model <code>:free</code> tại <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a> (Llama 3.3 70B, Gemma 3 27B, Qwen 3, DeepSeek Free).
+      </div>
     </div>
 
     <div id="ollamaSection" style="display:none">
@@ -182,6 +217,14 @@
         <input type="checkbox" id="hoverPauseDict" checked>
         <span><b>Chế độ học</b>: rê chuột để dừng video, bấm từ để tra</span>
       </label>
+      <label class="checkbox-row" title="Bôi đen đoạn văn bản bất kỳ trên mọi website để hiện nút dịch nhanh">
+        <input type="checkbox" id="selectionTranslate" checked>
+        <span><b>Dịch khi bôi đen</b> văn bản trên mọi trang web</span>
+      </label>
+      <label class="checkbox-row" title="Bật bộ phím tắt nhanh: Alt+V (ẩn/hiện sub), Alt+D (2 dòng), Alt+T (dịch web), Alt+S (OCR), Alt+,/. (chỉnh lệch)">
+        <input type="checkbox" id="hotkeysEnabled" checked>
+        <span><b>Phím tắt nhanh</b> (Alt+V / D / T / S / L)</span>
+      </label>
       <label class="checkbox-row" title="Tự động kiểm tra thay đổi mới trên kho GitHub và thông báo khi có bản cập nhật">
         <input type="checkbox" id="autoCheckUpdates" checked>
         <span><b>Tự báo cập nhật</b> khi GitHub có bản mới</span>
@@ -271,6 +314,18 @@
       </label>
       <div style="font-size: 11px; color: #94a3b8; line-height: 1.35;">Nhận diện khi có 2 giọng nói khác nhau, tách riêng dòng trên/dưới với màu phân biệt, không bị dịch đè.</div>
     </div>
+
+    <details class="hotkey-guide">
+      <summary>⌨️ Bảng phím tắt nhanh (Power-User Hotkeys)</summary>
+      <div class="hotkey-grid">
+        <span><code>Alt + V</code> Bật/Tắt phụ đề</span>
+        <span><code>Alt + D</code> Đổi 1/2 dòng</span>
+        <span><code>Alt + T</code> Dịch cả trang web</span>
+        <span><code>Alt + S</code> Quét chữ màn hình (OCR)</span>
+        <span><code>Alt + L</code> AI Nghe &amp; Dịch</span>
+        <span><code>Alt + , / .</code> Chỉnh lệch -0.5s / +0.5s</span>
+      </div>
+    </details>
   </div>
 
   <!-- TAB 3: TÙY CHỈNH GIAO DIỆN PHỤ ĐỀ -->
@@ -345,18 +400,21 @@
   <div id="tab-vocab" class="tab-pane">
     <div class="vocab-subnav">
       <button type="button" class="vocab-subnav-btn active" id="subnavVocabBtn">Sổ từ vựng</button>
+      <button type="button" class="vocab-subnav-btn" id="subnavFlashcardBtn">🃏 Flashcard</button>
       <button type="button" class="vocab-subnav-btn" id="subnavGlossaryBtn">Khóa thuật ngữ <span id="glossaryCountBadge"></span></button>
     </div>
 
     <!-- SUB-PANE 1: SỔ TỪ VỰNG -->
     <div id="paneVocabSub" class="vocab-subpane active">
       <div class="vocab-header">
-        <span style="font-size: 11.5px; color: #cbd5e1;">Bấm một từ trên phụ đề để tra và lưu vào đây</span>
-        <div style="display: flex; gap: 5px;">
-          <button type="button" id="exportVocabBtn" class="btn-toggle-key" style="padding: 4px 8px; font-size: 11px;">Xuất file</button>
-          <button type="button" id="clearVocabBtn" class="btn-toggle-key" style="padding: 4px 8px; font-size: 11px; color: #fca5a5;">Xóa hết</button>
+        <span style="font-size: 11.5px; color: #cbd5e1;">Bấm từ trên phụ đề để lưu</span>
+        <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+          <button type="button" id="exportVocabBtn" class="btn-toggle-key" style="padding: 4px 7px; font-size: 11px;">Xuất .txt</button>
+          <button type="button" id="exportAnkiBtn" class="btn-toggle-key" style="padding: 4px 7px; font-size: 11px; color: #93c5fd;" title="Xuất file CSV nhập trực tiếp vào Anki / Quizlet">Anki CSV</button>
+          <button type="button" id="clearVocabBtn" class="btn-toggle-key" style="padding: 4px 7px; font-size: 11px; color: #fca5a5;">Xóa hết</button>
         </div>
       </div>
+      <input type="text" id="vocabSearchInput" class="vocab-search-input" placeholder="🔎 Tìm từ vựng hoặc nghĩa..." autocomplete="off">
       <div class="vocab-filter-bar" id="vocabFilterBar">
         <button type="button" class="vocab-filter-chip active" data-pos="all">Tất cả <span id="countAll"></span></button>
         <button type="button" class="vocab-filter-chip" data-pos="verb">Verb <span id="countVerb"></span></button>
@@ -368,7 +426,12 @@
       <div id="vocabList" class="vocab-list"></div>
     </div>
 
-    <!-- SUB-PANE 2: KHÓA THUẬT NGỮ CỐ ĐỊNH -->
+    <!-- SUB-PANE 2: FLASHCARD TRAINER -->
+    <div id="paneFlashcardSub" class="vocab-subpane" style="display: none;">
+      <div id="flashcardStage" class="flashcard-stage"></div>
+    </div>
+
+    <!-- SUB-PANE 3: KHÓA THUẬT NGỮ CỐ ĐỊNH -->
     <div id="paneGlossarySub" class="vocab-subpane" style="display: none;">
       <div style="padding: 6px 0; font-size: 11.5px; color: #94a3b8; line-height: 1.35;">
         Ép AI luôn dịch một từ/tên riêng theo ý bạn (VD: <i>bro</i> → <i>ông bạn</i>).
@@ -379,6 +442,12 @@
         <button type="button" id="addGlossaryBtn" class="btn-add-glossary">+ Thêm</button>
       </div>
       <div id="glossaryList" class="glossary-list"></div>
+    </div>
+
+    <div class="backup-row">
+      <button type="button" id="exportBackupBtn" class="btn-toggle-key" style="flex:1;padding:5px 8px;font-size:11px;">💾 Sao lưu JSON</button>
+      <button type="button" id="importBackupBtn" class="btn-toggle-key" style="flex:1;padding:5px 8px;font-size:11px;">📂 Khôi phục JSON</button>
+      <input type="file" id="importBackupFile" accept=".json,application/json" style="display:none;">
     </div>
   </div>
 
@@ -394,6 +463,7 @@
   <script src="popup.js"></script>
   <script src="sfx.js"></script>
   <script src="ollama.js"></script>
+  <script src="openai.js"></script>
   <script src="whisper.js"></script>
 </body>
 </html>

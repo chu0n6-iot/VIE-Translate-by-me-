@@ -1347,3 +1347,196 @@
   padding: 6px 8px;
   font: 12px monospace;
 }
+
+/* Studio Quick Action Bar & Engine Health */
+.quick-action-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.quick-act-btn {
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: rgba(24, 37, 62, 0.9);
+  color: #fef08a;
+  border-radius: 8px;
+  padding: 6px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+  white-space: nowrap;
+}
+.quick-act-btn:hover {
+  background: rgba(251, 191, 36, 0.2);
+  border-color: #fbbf24;
+  transform: translateY(-1px);
+}
+.engine-health-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 7px;
+  padding: 4px 8px;
+  margin-bottom: 8px;
+  font-size: 10.8px;
+  color: #94a3b8;
+}
+.reset-cooldown-btn {
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  background: rgba(239, 68, 68, 0.16);
+  color: #fca5a5;
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.reset-cooldown-btn:hover {
+  background: #ef4444;
+  color: #fff;
+}
+
+/* OpenAI-Compatible Panel */
+.openai-presets {
+  display: flex;
+  gap: 5px;
+  margin: 4px 0 6px;
+  flex-wrap: wrap;
+}
+.openai-preset-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #cbd5e1;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.openai-preset-btn.active {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: #38bdf8;
+  color: #7dd3fc;
+  font-weight: 600;
+}
+#openaiSection input, #openaiSection select {
+  width: 100%;
+  margin: 4px 0 8px;
+  box-sizing: border-box;
+}
+
+/* Hotkeys Guide */
+.hotkey-guide {
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  font-size: 11px;
+  color: #cbd5e1;
+}
+.hotkey-guide summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #fef08a;
+}
+.hotkey-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px 8px;
+  margin-top: 7px;
+}
+.hotkey-grid code {
+  background: rgba(251, 191, 36, 0.18);
+  color: #fef08a;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 10.5px;
+}
+
+/* Vocab Search, Flashcards & Backup */
+.vocab-search-input {
+  width: 100%;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  padding: 6px 9px;
+  font-size: 11.5px;
+  color: #f8fafc;
+  margin-bottom: 6px;
+  outline: none;
+}
+.vocab-search-input:focus {
+  border-color: #fbbf24;
+}
+.flashcard-stage {
+  padding: 4px 0;
+}
+.flashcard-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 6px;
+}
+.flashcard-card {
+  min-height: 145px;
+  padding: 16px 14px;
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(24, 37, 62, 0.96), rgba(15, 23, 42, 0.98));
+  border: 1.5px solid rgba(251, 191, 36, 0.5);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+.flashcard-card:hover {
+  border-color: #fbbf24;
+}
+.flashcard-card.is-flipped {
+  background: linear-gradient(145deg, rgba(16, 42, 48, 0.96), rgba(15, 23, 42, 0.98));
+  border-color: rgba(52, 211, 153, 0.6);
+}
+.flashcard-word {
+  font-size: 20px;
+  font-weight: 800;
+  color: #fef08a;
+}
+.flashcard-pron {
+  font-size: 12px;
+  color: #93c5fd;
+  margin-top: 3px;
+}
+.flashcard-meaning {
+  font-size: 15px;
+  font-weight: 700;
+  color: #6ee7b7;
+}
+.flashcard-ctx {
+  margin-top: 7px;
+  font-size: 11.5px;
+  color: #e2e8f0;
+  font-style: italic;
+}
+.flashcard-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.3fr 1fr;
+  gap: 5px;
+  margin-top: 8px;
+}
+.backup-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}

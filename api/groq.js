@@ -250,11 +250,64 @@
     return (data?.text || "").trim();
   }
 
+  async function callGroqJson(prompt, apiKey, maxTokens = 1200, timeoutMs = 9000) {
+    const candidates = await discoverGroqModels(apiKey);
+    let lastErr = null;
+    for (const m of candidates.slice(0, 3)) {
+      if (isModelInCooldown(apiKey, m)) continue;
+      try {
+        const sys = m.toLowerCase().includes("qwen3")
+          ? "Return ONLY valid JSON without markdown or commentary. /no_think"
+          : "Return ONLY valid JSON without markdown or commentary.";
+        const raw = await callGroqChat({
+          model: m,
+          apiKey,
+          messages: [
+            { role: "system", content: sys },
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.2,
+          maxTokens,
+          timeoutMs
+        });
+        const parsed = root.VieStorage?.parseJsonSafe
+          ? root.VieStorage.parseJsonSafe(raw)
+          : JSON.parse(String(raw).replace(/```json|```/g, "").trim());
+        if (parsed && typeof parsed === "object") {
+          return { ok: true, ...parsed, modelUsed: m };
+        }
+        throw new Error("Invalid JSON from Groq");
+      } catch (err) {
+        lastErr = err;
+        if (err?.status === 401 || err?.status === 403) break;
+        const isQuota = err?.isQuotaExceeded || err?.status === 429 || /rate_limit|quota|429/i.test(err?.message || "");
+        markModelCooldown(apiKey, m, isQuota ? 600000 : 60000);
+      }
+    }
+    throw lastErr || new Error("Groq JSON request failed.");
+  }
+
+  async function lookupWordWithGroq(word, sentence, apiKey, targetLang = "vi") {
+    const prompt = root.VieStorage?.buildLookupPrompt
+      ? root.VieStorage.buildLookupPrompt(word, sentence, targetLang)
+      : `Explain word "${word}" in sentence "${sentence}" in ${targetLang}. Return JSON: {"word":"${word}","pron":"","pos":"","cefr":"","meaning":"","note":"","posVariants":[],"examples":[],"collocations":[],"funFact":""}`;
+    return await callGroqJson(prompt, apiKey, 1200, 9000);
+  }
+
+  async function explainSceneWithGroq({ sentence, vi, focusWord, apiKey, targetLang = "vi" }) {
+    const prompt = root.VieStorage?.buildExplainScenePrompt
+      ? root.VieStorage.buildExplainScenePrompt(sentence, vi, focusWord, targetLang)
+      : `Analyze subtitle "${sentence}" (${vi}) in ${targetLang}. Return JSON: {"literal":"","nuance":"","realLife":"","keyPoints":[]}`;
+    return await callGroqJson(prompt, apiKey, 800, 8000);
+  }
+
   root.VieGroq = {
     FALLBACK_GROQ_MODELS,
     discoverGroqModels,
     callGroqChat,
     translateWithGroqAuto,
-    transcribeWithGroqWhisper
+    transcribeWithGroqWhisper,
+    lookupWordWithGroq,
+    explainSceneWithGroq
   };
 })(typeof self !== "undefined" ? self : this);

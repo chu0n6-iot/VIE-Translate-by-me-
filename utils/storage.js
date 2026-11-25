@@ -75,6 +75,9 @@
     provider: "gemini",
     ollamaBaseUrl: "http://localhost:11434",
     ollamaModel: "",
+    openaiBaseUrl: "https://openrouter.ai/api/v1",
+    openaiApiKey: "",
+    openaiModel: "",
     whisperEnabled: false,
     whisperMode: "auto",
     whisperGpuUrl: "http://localhost:8000",
@@ -110,6 +113,8 @@
     softenProfanity: true,
     hoverPauseDict: true,
     selectionTranslate: true,
+    hotkeysEnabled: true,
+    webpageBilingualMode: true,
     autoCheckUpdates: true,
     savedVocab: []
   };
@@ -461,6 +466,62 @@
     getGlossaryHash,
     filterRelevantGlossary,
     buildTranslationPrompts,
+    parseJsonSafe(rawText) {
+      if (!rawText) return null;
+      const cleaned = stripAiThinkingAndFences(rawText).trim();
+      if (!cleaned) return null;
+      try {
+        return JSON.parse(cleaned);
+      } catch {
+        const firstBrace = cleaned.indexOf("{");
+        const lastBrace = cleaned.lastIndexOf("}");
+        if (firstBrace >= 0 && lastBrace > firstBrace) {
+          try {
+            return JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
+          } catch {}
+        }
+        return null;
+      }
+    },
+    buildLookupPrompt(word, sentence, targetLang = "vi") {
+      const langName = LANGUAGE_NAMES[targetLang] || targetLang || "Tiếng Việt";
+      return `Phân tích từ vựng '${word}' trong ngữ cảnh câu: "${sentence}".
+Dịch nghĩa & giải thích sang ngôn ngữ đích: ${langName}.
+Trả về duy nhất JSON hợp lệ (không markdown, không codeblock):
+{
+  "word": "${word}",
+  "pron": "/phiên âm IPA/",
+  "pos": "Động từ (Verb) / Danh từ (Noun)...",
+  "cefr": "A1/A2/B1/B2/C1/C2",
+  "meaning": "nghĩa ngắn gọn, đúng nhất trong ngữ cảnh này",
+  "note": "giải thích ngắn vì sao trong câu này từ đó có nghĩa như vậy",
+  "posVariants": [
+    {"pos": "Danh từ", "desc": "nghĩa và cách dùng khác khi là danh từ"},
+    {"pos": "Động từ", "desc": "nghĩa và cách dùng khác khi là động từ"}
+  ],
+  "examples": [
+    {"orig": "Example sentence 1", "trans": "Bản dịch ví dụ 1"},
+    {"orig": "Example sentence 2", "trans": "Bản dịch ví dụ 2"}
+  ],
+  "collocations": ["Cụm từ hay gặp 1", "Cụm từ 2"],
+  "funFact": "Một điểm thú vị hoặc sắc thái văn hóa khi dùng từ này (nếu có)"
+}`;
+    },
+    buildExplainScenePrompt(sentence, vi, focusWord = "", targetLang = "vi") {
+      const langName = LANGUAGE_NAMES[targetLang] || targetLang || "Tiếng Việt";
+      return `Phân tích phụ đề và hướng dẫn học ngoại ngữ (giải thích bằng ${langName}):
+Câu gốc: "${sentence}"
+Dịch: "${vi}"
+${focusWord ? `Từ trọng tâm: "${focusWord}"` : ""}
+
+Trả về duy nhất JSON hợp lệ (không markdown, không codeblock):
+{
+  "literal": "Dịch sát từng từ cấu trúc câu gốc",
+  "nuance": "Sắc thái cảm xúc, ngữ cảnh hội thoại, giọng điệu nhân vật",
+  "realLife": "Cách người bản xứ thường dùng cấu trúc/từ này trong đời thực",
+  "keyPoints": ["Điểm ngữ pháp/từ vựng nổi bật 1", "Điểm nổi bật 2"]
+}`;
+    },
 
     getSettings() {
       ensureCacheListener();
@@ -523,6 +584,7 @@
       const k = (key || "").trim();
       if (k.startsWith("gsk_")) return "groq";
       if (k.startsWith("AQ.") || k.startsWith("AIza")) return "gemini";
+      if (k.startsWith("sk-or-")) return "openai";
       return "";
     },
 
