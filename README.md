@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <b>Manifest V3</b> • <b>Version 1.0.0 (All-in-One Studio)</b> • <b>30/30 Tests Passing</b> • <b>MIT License</b> • <b>100% Free &amp; Open Source</b>
+  <b>Manifest V3</b> • <b>Version 1.0.0 (All-in-One Studio)</b> • <b>32/32 Tests Passing</b> • <b>MIT License</b> • <b>100% Free &amp; Open Source</b>
 </p>
 
 Tiện ích mở rộng (Browser Extension) miễn phí, mã nguồn mở, **All-in-One Studio** giúp dịch phụ đề video song ngữ, dịch song ngữ cả trang web, dịch truyện tranh (OCR), tra từ điển ngữ cảnh &amp; ôn tập Flashcard bằng AI (**Local AI**, **OpenRouter / DeepSeek**, **Groq**, **Google Gemini**) hoặc **Google Translate Miễn Phí**. Hoàn toàn không quảng cáo.
@@ -191,6 +191,7 @@ VIE-Translate-by-me-/
 │   ├── content.js           # Entry point phụ đề, SRT exporter & bộ phím tắt Hotkeys
 │   ├── dom.js               # Overlay phụ đề kéo thả, từ điển, scene coach & popup bôi đen
 │   ├── captions.js          # Bắt phụ đề đa nền tảng, YouTube timedtext, smart merge & audio capture
+│   ├── youtube-hook.js      # Hook MAIN-world bắt thụ động /api/timedtext YouTube (PO Token safe)
 │   ├── webpage.js           # Dịch song ngữ toàn trang web theo viewport (IntersectionObserver)
 │   ├── manga.js             # Quét ngầm & dịch truyện tranh (OCR, typesetting, PNG/PDF/Excel)
 │   ├── selection.js         # Bắt sự kiện bôi đen văn bản (tối đa 2500 ký tự)
@@ -201,7 +202,7 @@ VIE-Translate-by-me-/
 ├── tools/
 │   └── whisper_server.py    # Local OpenAI-compatible Whisper server
 └── test/
-    └── run_tests.js         # Bộ kiểm tra tự động toàn diện (30 test suites)
+    └── run_tests.js         # Bộ kiểm tra tự động toàn diện (32 test suites)
 ```
 
 ---
@@ -216,7 +217,7 @@ VIE-Translate-by-me-/
 
 ## 🧪 Kiểm tra hệ thống (Test Suite)
 
-Dự án tích hợp bộ kiểm tra tự động toàn diện gồm **30 bài test** (kiểm tra logic dịch thuật, cache, failover, Vision OCR, dịch trang web, xuất SRT, cấu trúc Popup Studio và cú pháp toàn bộ 24 file JS + `manifest.json`):
+Dự án tích hợp bộ kiểm tra tự động toàn diện gồm **32 bài test** (kiểm tra logic dịch thuật, cache, failover, bắt phụ đề video &amp; timedtext, Vision OCR, dịch trang web, xuất SRT, cấu trúc Popup Studio và cú pháp toàn bộ 25 file JS + `manifest.json`):
 
 ```bash
 node test/run_tests.js

@@ -22,6 +22,7 @@
 - [content/dom.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/content/dom.js): Tạo & render phụ đề (phân tách dòng riêng biệt cho từng giọng nói A/B), thẻ từ điển & coach.
 - [content/selection.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/content/selection.js): Bắt sự kiện bôi đen văn bản trên trang web và hiển thị bubble dịch nhanh.
 - [content/captions.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/content/captions.js): Nhận diện video, tách lượt thoại Multi-Speaker, ghép câu ASR dở dang, sync lyrics.
+- [content/youtube-hook.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/content/youtube-hook.js): Hook MAIN-world bắt thụ động `/api/timedtext` của YouTube (hỗ trợ PO Token) & metadata player.
 - [content/manga.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/content/manga.js): Quét ngầm toàn chương truyện, OCR ảnh/canvas/Shadow DOM, dịch batch và hiển thị overlay chỉ khi người dùng bấm Xem bản dịch; hỗ trợ bài đăng social và văn bản dài.
 - [content/webpage.js](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/content/webpage.js): Dịch song ngữ toàn trang web theo viewport (`IntersectionObserver`), chèn bản dịch gọn dưới đoạn văn bản gốc kèm pill điều khiển nổi.
 - [content/overlay.css](file:///home/antigravity/chu0n6-iot/VIE-Translate-by-me-/content/overlay.css): CSS giao diện phụ đề, kéo thả vị trí, phân màu trực quan từng lượt thoại người nói, popup tra từ mở rộng & trang web song ngữ.

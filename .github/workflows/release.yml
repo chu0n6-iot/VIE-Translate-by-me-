@@ -35,10 +35,14 @@ jobs:
             utils
           echo "ZIP_NAME=${ZIP_NAME}" >> "$GITHUB_ENV"
 
-      - name: Publish GitHub Release
+      - name: Publish or Update GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" "${ZIP_NAME}" \
-            --title "VIE-Translate — Translate Toad AI ${GITHUB_REF_NAME} (All-in-One Studio)" \
-            --notes-file CHANGELOG.md
+          TITLE="VIE-Translate — Translate Toad AI ${GITHUB_REF_NAME} (All-in-One Studio)"
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" "${ZIP_NAME}" --clobber
+            gh release edit "${GITHUB_REF_NAME}" --title "${TITLE}" --notes-file CHANGELOG.md
+          else
+            gh release create "${GITHUB_REF_NAME}" "${ZIP_NAME}" --title "${TITLE}" --notes-file CHANGELOG.md
+          fi

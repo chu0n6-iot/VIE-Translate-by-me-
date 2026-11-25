@@ -16,6 +16,10 @@
 - **Module mới `content/webpage.js`**: Tự động phát hiện đoạn văn bản cần dịch (bỏ qua code, thanh điều hướng và đoạn đã là tiếng Việt), dịch cuốn theo khung nhìn bằng `IntersectionObserver` và chèn bản dịch gọn đẹp dưới đoạn gốc kèm pill nổi Ẩn/Hiện/Tắt. Kích hoạt qua `Alt + T`, nút **🌐 Dịch trang** trong Popup hoặc menu chuột phải.
 
 ### 🎬 Video Overlay, Kéo Thả, Xuất `.SRT` & Phím Tắt Nhanh
+- **Bắt phụ đề YouTube & Đa nền tảng chuẩn xác (`content/youtube-hook.js`, `content/captions.js`, `content/content.js`)**:
+  - Thêm hook thụ động `MAIN`-world bắt `/api/timedtext` của YouTube (hỗ trợ đầy đủ PO Token, JSON3 & XML).
+  - Sửa lỗi `watchVideo` bỏ sót container phụ đề xuất hiện trễ sau khi bật CC, tách chuẩn `.caption-visual-line` / `.ytp-caption-segment`, thêm polling DOM dự phòng, hỗ trợ `/shorts/`, `/embed/`, `/live/`, và phát ngay `track.activeCues`.
+  - Chống rớt phụ đề streaming khi `reqSeq` tăng nhanh và bổ sung **Zero-Blank Fallback** giữ dòng gốc nếu API dịch lỗi/rỗng.
 - **Di chuyển phụ đề & Xuất SRT (`content/dom.js`, `content/content.js`)**: Thêm tay kéo `⠿ Vị trí` (double-click để đặt lại mặc định), nút `📋 Copy` câu đang phát và nút `📥 SRT` tải toàn bộ phụ đề song ngữ định dạng `.srt`.
 - **Sửa lỗi đa video & hover pause**: Cập nhật `overlay._vieSettings` động và giới hạn dọn overlay theo từng container video.
 - **Nâng cấp Popup Bôi đen (`content/selection.js`, `content/dom.js`)**: Nới rộng giới hạn chọn văn bản lên **2.500 ký tự**, tự neo vị trí an toàn trong viewport, thêm badge provider, nút phát âm/copy và nút **📖 Tra từ điển chi tiết & Lưu vào sổ từ** ngay trên popup.
@@ -26,4 +30,4 @@
 - Tab Từ vựng bổ sung **Tìm kiếm từ vựng**, chế độ ôn tập **🃏 Flashcard** tương tác (lật thẻ, phát âm, xáo trộn, đánh dấu đã thuộc), xuất **Anki CSV**, và **💾 Sao lưu / 📂 Khôi phục JSON**.
 
 ### 🧪 Kiểm tra Tự động
-- Nâng cấp bộ kiểm tra `test/run_tests.js` lên **30/30 bài test đạt 100% PASSED** (bao gồm kiểm tra cú pháp toàn bộ **24 file JS** và `manifest.json`).
+- Nâng cấp bộ kiểm tra `test/run_tests.js` lên **32/32 bài test đạt 100% PASSED** (bao gồm kiểm tra cú pháp toàn bộ **25 file JS** và `manifest.json`).

@@ -7,7 +7,7 @@
   "use strict";
 
   const PLATFORM_CAPTION_CONFIGS = [
-    { name: "youtube", playerSelector: ".html5-video-player", containerSelector: ".ytp-caption-window-container", segmentSelector: ".ytp-caption-segment", isStreaming: true },
+    { name: "youtube", playerSelector: ".html5-video-player", containerSelector: ".ytp-caption-window-container, .caption-window", segmentSelector: ".ytp-caption-segment", isStreaming: true },
     { name: "facebook", playerSelector: "div[data-video-id], div[data-pagelet*='Video'], div[role='dialog'], div[data-visualcompletion='video-renderer'], div.x1y1aw1k", containerSelector: "div[class*='captions'], div[class*='closed-captions'], [aria-label*='phụ đề' i], [aria-label*='captions' i]" },
     { name: "tiktok", playerSelector: "div[data-e2e='feed-video'], div[class*='DivVideoContainer'], div[class*='video-player-container']", containerSelector: "div[class*='DivSubtitleWrapper'], div[class*='caption-container'], [data-e2e='subtitle-container']" },
     { name: "twitter", playerSelector: "div[data-testid='videoPlayer'], div[data-testid='videoComponent']", containerSelector: "div[data-testid='captionText']" },
@@ -54,10 +54,13 @@
         lastText: "",
         reqSeq: 0,
         lastRenderedSeq: 0,
+        lastFinalRenderedSeq: 0,
         lastSendAt: 0,
         hideTimer: null,
         throttleTimer: null,
         aiRefineTimer: null,
+        aiRefinePendingSince: 0,
+        onCaptionCallback: null,
         prefetchedTrackCues: new WeakSet(),
         hasReceivedAnySubtitle: false,
         audioCaptureActive: false,
@@ -150,6 +153,8 @@
       st.lastText = "";
       st.reqSeq++;
       st.lastRenderedSeq = st.reqSeq;
+      st.lastFinalRenderedSeq = st.reqSeq;
+      st.aiRefinePendingSince = 0;
       st.hasReceivedAnySubtitle = false;
       st.subSyncOffset = 0;
       st.autoSynced = false;
@@ -168,14 +173,31 @@
     });
   }
 
+  function extractYouTubeVideoId(href = "") {
+    const raw = String(href || (typeof location !== "undefined" ? location.href : "") || "");
+    if (!raw) return "";
+    try {
+      const u = new URL(raw, "https://www.youtube.com");
+      const v = u.searchParams.get("v");
+      if (v) return v;
+      const m = u.pathname.match(/^\/(?:shorts|embed|live)\/([^/?&#]+)/i);
+      if (m && m[1]) return m[1];
+    } catch {
+      const m = raw.match(/[?&]v=([^&#]+)|\/(?:shorts|embed|live)\/([^/?&#]+)/i);
+      if (m) return m[1] || m[2] || "";
+    }
+    return "";
+  }
+
   function getActiveVideo(fallback) {
     if (fallback && fallback.isConnected) return fallback;
+    if (typeof document === "undefined") return fallback;
     return document.querySelector("video.html5-main-video") || document.querySelector("video") || fallback;
   }
 
   function getVideoTitle(expectedVid = "") {
-    if (!expectedVid && location.hostname.includes("youtube.com")) {
-      expectedVid = new URL(location.href).searchParams.get("v") || "";
+    if (!expectedVid && typeof location !== "undefined" && location.hostname.includes("youtube.com")) {
+      expectedVid = extractYouTubeVideoId(location.href);
     }
     try {
       const mp = document.getElementById("movie_player");
@@ -195,7 +217,7 @@
       document.querySelector(".ytp-title-link")?.textContent ||
       document.querySelector("h1")?.textContent;
     if (ytTitle && ytTitle.trim()) return ytTitle.trim().slice(0, 140);
-    return document.title.replace(/\s*-\s*YouTube$/i, "").trim().slice(0, 140);
+    return String(document.title || "").replace(/\s*-\s*YouTube$/i, "").trim().slice(0, 140);
   }
 
   function getChannelName() {
@@ -711,8 +733,8 @@
   }
 
   function getYouTubePlayerCaptionTracks(expectedVid = "") {
-    if (!expectedVid && location.hostname.includes("youtube.com")) {
-      expectedVid = new URL(location.href).searchParams.get("v") || "";
+    if (!expectedVid && typeof location !== "undefined" && location.hostname.includes("youtube.com")) {
+      expectedVid = extractYouTubeVideoId(location.href);
     }
     try {
       const mp = document.getElementById("movie_player");
@@ -736,9 +758,56 @@
     return null;
   }
 
+  function ingestYouTubeTimedtext(vid, rawEvents, isAsr = false) {
+    if (!Array.isArray(rawEvents) || !rawEvents.length) return false;
+    const curVid = typeof location !== "undefined" && location.hostname?.includes("youtube.com")
+      ? extractYouTubeVideoId(location.href)
+      : "";
+    if (vid && curVid && vid !== curVid) return false;
+
+    const cleanEvents = [];
+    for (const ev of rawEvents) {
+      if (!ev) continue;
+      const text = normalizeSubtitleText(ev.text || "");
+      if (!text) continue;
+      const start = Math.max(0, Number(ev.start) || 0);
+      const end = Number(ev.end) > start ? Number(ev.end) : start + 2.0;
+      cleanEvents.push({ start, end, text });
+    }
+    if (!cleanEvents.length) return false;
+
+    if (vid || curVid) {
+      ytCueState.vid = vid || curVid;
+    }
+    ytCueState.refEvents = cleanEvents;
+    if (ytCueState.isLyrics && ytCueState.cues.length >= 4) {
+      return true;
+    }
+
+    const cues = isAsr ? mergeEventsIntoSentences(cleanEvents) : cleanEvents;
+    if (!cues.length) return false;
+
+    ytCueState.cues = cues;
+    ytCueState.isLyrics = false;
+    const activeVid = getActiveVideo(null);
+    const curIdx = Math.max(0, findCueIndexAtTime(cues, activeVid?.currentTime || 0));
+    prefetchUpcomingCues(cues, curIdx, 10, true);
+    if (activeVid) renderYouTubeByTime(activeVid);
+    return true;
+  }
+
+  if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+    window.addEventListener("message", (e) => {
+      if (e.source !== window || !e.data) return;
+      if (e.data.type === "VIE_YT_TIMEDTEXT") {
+        ingestYouTubeTimedtext(e.data.vid || "", e.data.events || [], Boolean(e.data.isAsr));
+      }
+    });
+  }
+
   async function loadYouTubeCues(video) {
     if (!location.hostname.includes("youtube.com")) return;
-    const vid = new URL(location.href).searchParams.get("v");
+    const vid = extractYouTubeVideoId(location.href);
     if (!vid) {
       if (ytCueState.vid) {
         resetForNewVideo(video, "");
@@ -892,18 +961,38 @@
     }
     if (!ytCueState.renderTimer) {
       let lastHref = "";
+      let lastDomFallbackAt = 0;
       ytCueState.renderTimer = setInterval(() => {
         const cur = getActiveVideo(video);
         if (location.hostname.includes("youtube.com") && location.href !== lastHref) {
           lastHref = location.href;
-          const nv = new URL(lastHref).searchParams.get("v") || "";
+          const nv = extractYouTubeVideoId(lastHref);
           if (nv && nv !== ytCueState.vid) {
             resetForNewVideo(cur, nv);
             loadYouTubeCues(cur);
             return;
           }
         }
-        renderYouTubeByTime(cur);
+        const rendered = renderYouTubeByTime(cur);
+        // Live DOM polling safety net when timedtext cues haven't arrived yet (e.g. PO-token restricted or lazy CC container)
+        if (!rendered && cur && typeof document !== "undefined") {
+          const now = Date.now();
+          if (now - lastDomFallbackAt >= 200) {
+            lastDomFallbackAt = now;
+            const st = getVideoState(cur);
+            const cb = st.onCaptionCallback || root.VieContent?.onCaptionReceived;
+            if (cb) {
+              observePlatformCaptions(cur, cb);
+              if (location.hostname.includes("youtube.com")) {
+                const capWin = document.querySelector(".ytp-caption-window-container .caption-window, .ytp-caption-window-container");
+                if (capWin && !capWin.closest(".vie-overlay")) {
+                  const txt = extractCaptionContainerText(capWin, PLATFORM_CAPTION_CONFIGS[0]);
+                  if (txt) cb(cur, txt, false);
+                }
+              }
+            }
+          }
+        }
       }, 60);
     }
   }
@@ -1206,31 +1295,80 @@
     }
   }
 
+  function extractCaptionContainerText(captionContainer, cfg = null) {
+    if (!captionContainer) return "";
+    let raw = "";
+    try {
+      if (typeof captionContainer.querySelectorAll === "function") {
+        const visualLines = captionContainer.querySelectorAll(".caption-visual-line");
+        if (visualLines && visualLines.length > 0) {
+          const lineTexts = [];
+          visualLines.forEach((line) => {
+            const segs = line.querySelectorAll?.(".ytp-caption-segment");
+            if (segs && segs.length > 0) {
+              const joined = Array.from(segs)
+                .map((s) => (s.textContent || "").trim())
+                .filter(Boolean)
+                .join(" ");
+              if (joined) lineTexts.push(joined);
+            } else {
+              const lt = (line.textContent || "").trim();
+              if (lt) lineTexts.push(lt);
+            }
+          });
+          raw = lineTexts.join("\n");
+        } else if (cfg?.segmentSelector) {
+          const segs = captionContainer.querySelectorAll(cfg.segmentSelector);
+          if (segs && segs.length > 0) {
+            raw = Array.from(segs)
+              .map((s) => (s.textContent || "").trim())
+              .filter(Boolean)
+              .join(" ");
+          }
+        }
+      }
+    } catch {}
+    if (!raw) {
+      raw = captionContainer.textContent || "";
+    }
+    const cleaned = String(raw).replace(/[\u200B-\u200D\uFEFF]/g, "");
+    return normalizeSubtitleText(cleaned);
+  }
+
   function observePlatformCaptions(video, onCaption) {
+    if (!video || typeof onCaption !== "function") return;
     const scopeRoot =
       (root.VieDOM?.getContainer && root.VieDOM.getContainer(video)) ||
       (root.VieDOM?.findBestVideoContainer && root.VieDOM.findBestVideoContainer(video)) ||
       video.parentElement ||
       document;
     for (const cfg of PLATFORM_CAPTION_CONFIGS) {
-      const player = video.closest(cfg.playerSelector) || (cfg.name === "generic" ? scopeRoot : (scopeRoot || document));
-      if (!player) continue;
-      const captionContainer = player.querySelector(cfg.containerSelector);
-      if (!captionContainer || watchedCaptionContainers.has(captionContainer)) continue;
-      if (captionContainer.closest(".vie-overlay")) continue;
-      watchedCaptionContainers.add(captionContainer);
+      const player = video.closest?.(cfg.playerSelector) || (cfg.name === "generic" ? scopeRoot : (scopeRoot || document));
+      if (!player || typeof player.querySelectorAll !== "function") continue;
+      const containers = player.querySelectorAll(cfg.containerSelector);
+      containers.forEach((captionContainer) => {
+        if (!captionContainer || watchedCaptionContainers.has(captionContainer)) return;
+        if (captionContainer.closest?.(".vie-overlay")) return;
+        watchedCaptionContainers.add(captionContainer);
 
-      player.classList.add("vie-player-active", "vie-yt-active");
+        player.classList?.add("vie-player-active", "vie-yt-active");
 
-      const readCaption = () => {
-        if (cfg.name === "youtube" && ytCueState.cues.length) return;
-        const text = normalizeSubtitleText(captionContainer.textContent || "");
-        onCaption(video, text, !cfg.isStreaming);
-      };
+        const readCaption = () => {
+          if (cfg.name === "youtube" && ytCueState.cues.length) return;
+          const text = extractCaptionContainerText(captionContainer, cfg);
+          if (text) {
+            const st = getVideoState(video);
+            st.hasReceivedAnySubtitle = true;
+          }
+          onCaption(video, text, !cfg.isStreaming);
+        };
 
-      const observer = new MutationObserver(readCaption);
-      observer.observe(captionContainer, { childList: true, subtree: true, characterData: true });
-      readCaption();
+        if (typeof MutationObserver !== "undefined") {
+          const observer = new MutationObserver(readCaption);
+          observer.observe(captionContainer, { childList: true, subtree: true, characterData: true });
+        }
+        readCaption();
+      });
     }
   }
 
@@ -1239,11 +1377,14 @@
     if (track.kind !== "subtitles" && track.kind !== "captions") return;
     watchedTracks.add(track);
 
-    if (track.mode === "showing") track.mode = "hidden";
-    track.addEventListener("cuechange", () => {
+    const emitActiveCues = () => {
       if (track.mode === "showing") track.mode = "hidden";
       const cues = track.activeCues ? Array.from(track.activeCues) : [];
       const text = cues.map((c) => normalizeSubtitleText(c.text || "")).filter(Boolean).join(" ");
+      if (text) {
+        const st = getVideoState(video);
+        st.hasReceivedAnySubtitle = true;
+      }
 
       let nextText = "";
       if (cues.length > 0 && track.cues && track.cues.length > 1) {
@@ -1263,11 +1404,24 @@
       }
 
       onCaption(video, text, true, nextText);
-    });
+    };
+
+    if (track.mode === "showing") track.mode = "hidden";
+    track.addEventListener("cuechange", emitActiveCues);
+    if (track.activeCues && track.activeCues.length > 0) {
+      emitActiveCues();
+    }
   }
 
   function watchVideo(video, onCaption) {
-    if (watchedVideos.has(video)) return;
+    if (!video) return;
+    const st = getVideoState(video);
+    if (typeof onCaption === "function") st.onCaptionCallback = onCaption;
+
+    if (watchedVideos.has(video)) {
+      observePlatformCaptions(video, st.onCaptionCallback || onCaption);
+      return;
+    }
     watchedVideos.add(video);
 
     const player = (root.VieDOM?.getContainer ? root.VieDOM.getContainer(video) : video.closest(".html5-video-player")) || video.parentElement;
@@ -1292,6 +1446,8 @@
       state.lastCueText = "";
       state.lastText = "";
       state.lastRenderedSeq = 0;
+      state.lastFinalRenderedSeq = 0;
+      state.aiRefinePendingSince = 0;
       if (state.hideTimer) {
         clearTimeout(state.hideTimer);
         state.hideTimer = null;
@@ -1365,6 +1521,10 @@
     prefetchUpcomingCues,
     mergeEventsIntoSentences,
     startVideoAudioCapture,
+    extractYouTubeVideoId,
+    ingestYouTubeTimedtext,
+    observePlatformCaptions,
+    extractCaptionContainerText,
     ytCueState
   };
 })(typeof self !== "undefined" ? self : this);

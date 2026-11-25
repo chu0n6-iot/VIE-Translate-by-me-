@@ -70,10 +70,22 @@
       "css": ["content/overlay.css"]
     },
     {
+      "matches": ["*://*.youtube.com/*"],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "js": ["content/youtube-hook.js"]
+    },
+    {
       "matches": ["https://aistudio.google.com/*"],
       "run_at": "document_start",
       "world": "MAIN",
       "js": ["aistudio-page-hook.js"]
+    },
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "js": ["content/youtube-hook.js"]
     },
     {
       "matches": ["https://aistudio.google.com/*"],

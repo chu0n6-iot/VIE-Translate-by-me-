@@ -1740,6 +1740,192 @@ console.log("3️⃣0️⃣ Kiểm tra xuất SRT song ngữ & cấu trúc Popup
   console.log("   ✅ Đã kiểm tra xuất SRT song ngữ & toàn bộ tính năng Popup Studio v1.0.0 chuẩn 100%!\n");
 })();
 
-console.log("🎉 TOÀN BỘ 30 BÀI KIỂM TRA ĐỀU HOÀN TOÀN CHÍNH XÁC VÀ ĐẠT 100%!");
+// --- 31. Test Lazy Caption Container Re-Attach, Visual Line Extraction & MAIN-World Timedtext Ingestion ---
+console.log("3️⃣1️⃣ Kiểm tra sửa lỗi bắt phụ đề video (lazy caption container, visual-line & YouTube timedtext hook)...");
+await (async () => {
+  let hasLazyCapContainer = false;
+  const observerTargets = [];
+  const capContainer = {
+    closest: () => null,
+    querySelectorAll: (sel) => {
+      if (sel === ".caption-visual-line") {
+        return [
+          {
+            querySelectorAll: (s2) =>
+              s2 === ".ytp-caption-segment"
+                ? [{ textContent: "Hello" }, { textContent: "world" }]
+                : []
+          },
+          {
+            querySelectorAll: (s2) =>
+              s2 === ".ytp-caption-segment"
+                ? [{ textContent: "Second" }, { textContent: "line" }]
+                : []
+          }
+        ];
+      }
+      return [];
+    },
+    textContent: "HelloworldSecondline"
+  };
+  const fakePlayer = {
+    classList: { add: () => {} },
+    appendChild: () => {},
+    querySelector: () => null,
+    querySelectorAll: (sel) => {
+      if (sel.includes("ytp-caption-window-container") && hasLazyCapContainer) {
+        return [capContainer];
+      }
+      return [];
+    }
+  };
+  const fakeTracks = [];
+  fakeTracks.addEventListener = () => {};
+  const fakeVideo = {
+    currentTime: 0.5,
+    closest: (sel) => (sel.includes("html5-video-player") ? fakePlayer : null),
+    addEventListener: () => {},
+    textTracks: fakeTracks
+  };
+
+  const sentMsgs = [];
+  const ctx = createSandbox({
+    MutationObserver: class MockMO {
+      constructor(cb) { this.cb = cb; }
+      observe(target) { observerTargets.push(target); }
+    },
+    location: { hostname: "www.youtube.com", href: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+    document: {
+      title: "Test Video - YouTube",
+      querySelectorAll: (sel) => (sel === "video" || sel.includes("video") ? [fakeVideo] : []),
+      querySelector: () => null,
+      createElement: () => ({
+        style: {},
+        className: "",
+        innerHTML: "",
+        title: "",
+        type: "",
+        classList: { add: () => {}, remove: () => {} },
+        setAttribute: () => {},
+        querySelector: () => ({ textContent: "" }),
+        addEventListener: () => {}
+      })
+    },
+    chrome: {
+      runtime: {
+        lastError: null,
+        getURL: (p) => `chrome-extension://mock/${p}`,
+        sendMessage: (m, cb) => {
+          sentMsgs.push(m);
+          cb && cb({ results: {} });
+        }
+      }
+    }
+  });
+  ctx.VieDOM = {
+    getContainer: () => fakePlayer,
+    hideOverlay: () => {}
+  };
+  loadModule(ctx, "utils/storage.js");
+  loadModule(ctx, "content/captions.js");
+
+  const C = ctx.VieCaptions;
+  assert.strictEqual(C.extractYouTubeVideoId("https://www.youtube.com/watch?v=abc123XYZ"), "abc123XYZ");
+  assert.strictEqual(C.extractYouTubeVideoId("https://www.youtube.com/shorts/short999"), "short999");
+  assert.strictEqual(C.extractYouTubeVideoId("https://www.youtube.com/embed/emb777"), "emb777");
+
+  const extracted = C.extractCaptionContainerText(capContainer);
+  assert.strictEqual(extracted, "Hello world Second line", "Phải ghép đúng khoảng trắng từng span thay vì dính chữ HelloworldSecondline!");
+
+  // 1st watchVideo call BEFORE YouTube creates caption container lazily
+  const received = [];
+  C.watchVideo(fakeVideo, (_v, text) => received.push(text));
+  assert.strictEqual(observerTargets.length, 0);
+
+  // User turns CC on -> container appears lazily -> subsequent watchVideo call MUST attach observer!
+  hasLazyCapContainer = true;
+  C.watchVideo(fakeVideo, (_v, text) => received.push(text));
+  assert.strictEqual(observerTargets.length, 1, "watchVideo() lần 2 phải gắn MutationObserver cho caption container xuất hiện trễ!");
+  assert.ok(received.includes("Hello world Second line"));
+
+  // MAIN-world timedtext ingestion populates ytCueState.cues cleanly
+  const ingested = C.ingestYouTubeTimedtext(
+    "dQw4w9WgXcQ",
+    [
+      { start: 0, end: 1.5, text: "Never gonna" },
+      { start: 1.5, end: 3.0, text: "give you up." }
+    ],
+    true
+  );
+  assert.strictEqual(ingested, true);
+  assert.ok(C.ytCueState.cues.length >= 1, "ingestYouTubeTimedtext phải nạp được cues từ MAIN world!");
+  assert.strictEqual(C.ytCueState.cues[0].text, "Never gonna give you up.");
+
+  console.log("   ✅ Đã kiểm tra bắt phụ đề trễ, trích xuất visual-line & hook timedtext chuẩn 100%!\n");
+})();
+
+// --- 32. Test Streaming Response Acceptance & Zero-Blank Fallback in content/content.js ---
+console.log("3️⃣2️⃣ Kiểm tra chống rớt phụ đề streaming (reqSeq advancing) & dự phòng không để màn hình trống...");
+await (async () => {
+  const renderedLog = [];
+  const pendingCallbacks = [];
+  const mockViEl = { classes: new Set(["vie-vi"]), classList: { contains: (c) => mockViEl.classes.has(c), toggle: () => {} }, dataset: {} };
+  const mockOrigEl = { style: {}, dataset: {} };
+  const mockOverlay = {
+    classList: { add: () => {}, remove: () => {} },
+    querySelector: (s) => (s === ".vie-vi" ? mockViEl : s === ".vie-orig" ? mockOrigEl : null)
+  };
+  const mockVideo = { currentTime: 2, _vieOverlay: mockOverlay };
+
+  const ctx = createSandbox({
+    document: { readyState: "loading", title: "Mock Video", addEventListener: () => {}, querySelector: () => null, querySelectorAll: () => [] },
+    chrome: {
+      storage: {
+        local: { get: (d, cb) => cb({ ...d, provider: "gemini" }), set: (_u, cb) => cb && cb() },
+        onChanged: { addListener: () => {} }
+      },
+      runtime: {
+        lastError: null,
+        sendMessage: (msg, cb) => {
+          pendingCallbacks.push({ msg, cb });
+        }
+      }
+    }
+  });
+  ctx.VieDOM = {
+    getOrCreateOverlay: () => mockOverlay,
+    hideOverlay: () => {},
+    formatSubtitleDecorations: (o, v) => ({ formattedOrig: o, formattedVi: v }),
+    renderInteractiveWords: () => {},
+    renderStableViText: (_el, txt) => { renderedLog.push(txt); },
+    applySettingsToDOM: () => {}
+  };
+  loadModule(ctx, "utils/storage.js");
+  loadModule(ctx, "content/captions.js");
+  loadModule(ctx, "content/content.js");
+
+  const Content = ctx.VieContent;
+  // Cue 1 arrives (seq=1), then 70ms later streaming ASR updates to Cue 2 (seq=2) before Cue 1 AI responds!
+  Content.onCaptionReceived(mockVideo, "Hello everyone today.", true, "");
+  await new Promise((r) => setTimeout(r, 75));
+  Content.onCaptionReceived(mockVideo, "Hello everyone today is great.", true, "");
+
+  // Respond late to Cue 1 preview (seq=1 while reqSeq=2) -> must STILL render instead of dropping!
+  const cue1Preview = pendingCallbacks.find((x) => x.msg.text === "Hello everyone today." && x.msg.fastPreviewOnly === true);
+  cue1Preview.cb({ vi: "Xin chào mọi người hôm nay.", isFinalAi: false });
+  assert.ok(renderedLog.includes("Xin chào mọi người hôm nay."), "Phản hồi preview của câu #1 đến sau khi seq tăng vẫn PHẢI hiện lên!");
+
+  // Respond with failed/empty translation on latest cue #2 -> Zero-Blank fallback must render source text!
+  const cue2Final = pendingCallbacks.find((x) => x.msg.text === "Hello everyone today is great." && x.msg.fastPreviewOnly === false);
+  cue2Final.cb({ vi: "" });
+  assert.ok(
+    renderedLog.includes("Hello everyone today is great."),
+    "Nếu dịch thất bại/rỗng, phải hiện phụ đề gốc dự phòng thay vì để màn hình trống trơn!"
+  );
+
+  console.log("   ✅ Đã kiểm tra chống rớt phụ đề streaming & dự phòng chống trống màn hình chuẩn 100%!\n");
+})();
+
+console.log("🎉 TOÀN BỘ 32 BÀI KIỂM TRA ĐỀU HOÀN TOÀN CHÍNH XÁC VÀ ĐẠT 100%!");
 
 })();

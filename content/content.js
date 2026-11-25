@@ -349,26 +349,30 @@
           navToken: root.VieCaptions.ytCueState?.navToken || 0,
           fastPreviewOnly: true
         }, (previewRes) => {
-          if (!chrome.runtime.lastError && previewRes?.vi && currentSeq >= state.lastRenderedSeq && currentSeq === state.reqSeq) {
-            if (previewRes.isFinalAi) {
+          if (chrome.runtime.lastError || !previewRes?.vi) return;
+          if (previewRes.isFinalAi) {
+            if (currentSeq >= (state.lastFinalRenderedSeq || 0)) {
               gotFinalFromPreview = true;
               setLocalCache(ck, { vi: previewRes.vi, sub2: previewRes.sub2 || "" });
               if (state.aiRefineTimer) {
                 clearTimeout(state.aiRefineTimer);
                 state.aiRefineTimer = null;
               }
-              state.lastRenderedSeq = currentSeq;
+              state.aiRefinePendingSince = 0;
+              state.lastRenderedSeq = Math.max(state.lastRenderedSeq || 0, currentSeq);
+              state.lastFinalRenderedSeq = currentSeq;
               renderSubtitles(video, cleanText, previewRes.vi, previewRes.sub2 || "", false, false);
-            } else {
-              state.lastRenderedSeq = currentSeq;
-              renderSubtitles(video, cleanText, previewRes.vi, previewRes.sub2 || "", true, false);
             }
+          } else if (currentSeq > (state.lastRenderedSeq || 0) && currentSeq >= (state.lastFinalRenderedSeq || 0)) {
+            state.lastRenderedSeq = currentSeq;
+            renderSubtitles(video, cleanText, previewRes.vi, previewRes.sub2 || "", true, false);
           }
         });
       }
 
       const executeAiTranslate = () => {
-        if (gotFinalFromPreview || currentSeq !== state.reqSeq) return;
+        state.aiRefinePendingSince = 0;
+        if (gotFinalFromPreview || currentSeq < state.reqSeq) return;
         chrome.runtime.sendMessage({
           type: "TRANSLATE",
           text: cleanText,
@@ -379,11 +383,16 @@
           fastPreviewOnly: false
         }, (res) => {
           if (!chrome.runtime.lastError && res?.quotaExhausted) showQuotaToast(video);
-          if (!chrome.runtime.lastError && res?.vi && currentSeq >= state.lastRenderedSeq) {
+          if (!chrome.runtime.lastError && res?.vi) {
             setLocalCache(ck, { vi: res.vi, sub2: res.sub2 || "" });
-            if (currentSeq !== state.reqSeq) return;
-            state.lastRenderedSeq = currentSeq;
+            if (currentSeq < (state.lastFinalRenderedSeq || 0)) return;
+            state.lastRenderedSeq = Math.max(state.lastRenderedSeq || 0, currentSeq);
+            state.lastFinalRenderedSeq = currentSeq;
             renderSubtitles(video, cleanText, res.vi, res.sub2 || "", false, false);
+          } else if (currentSeq >= (state.lastRenderedSeq || 0) && currentSeq >= (state.lastFinalRenderedSeq || 0)) {
+            // Zero-Blank Guarantee: never leave the screen empty while native captions are hidden
+            state.lastRenderedSeq = currentSeq;
+            renderSubtitles(video, cleanText, cleanText, "", true, false);
           }
         });
       };
@@ -393,13 +402,17 @@
         state.aiRefineTimer = null;
       }
 
-      // Ghép câu thông minh (Cơ chế 4): Chỉ trễ nhẹ 180ms cho stream CC chưa ngắt câu (không trễ với cue rời rạc immediate === true)
+      // Ghép câu thông minh: Trì hoãn nhẹ 180ms cho stream CC nhưng tối đa 550ms để không bao giờ bị "đói" khi người nói liên tục
       const isIncomplete = settings.smartMergeCaptions !== false && root.VieCaptions?.isIncompleteClause?.(cleanText);
+      const nowMs = Date.now();
       if (!immediate && isIncomplete && !nextText && settings.provider !== "gtx") {
-        state.aiRefineTimer = setTimeout(executeAiTranslate, 180);
-      } else {
-        executeAiTranslate();
+        if (!state.aiRefinePendingSince) state.aiRefinePendingSince = nowMs;
+        if (nowMs - state.aiRefinePendingSince < 550) {
+          state.aiRefineTimer = setTimeout(executeAiTranslate, 180);
+          return;
+        }
       }
+      executeAiTranslate();
     };
 
     if (immediate || elapsed >= THROTTLE_MS) {
@@ -529,9 +542,10 @@
 
     // Lắng nghe sự kiện chuyển trang ngầm (SPA) của YouTube để kích hoạt ngay phụ đề và CC
     let lastHandledVid = "";
+    const getYtVid = (u) => root.VieCaptions?.extractYouTubeVideoId?.(u) || new URL(u).searchParams.get("v") || "";
     const onYouTubePageChange = () => {
       if (!location.hostname.includes("youtube.com")) return;
-      const curVid = new URL(location.href).searchParams.get("v") || "";
+      const curVid = getYtVid(location.href);
       if (curVid && curVid !== lastHandledVid) {
         lastHandledVid = curVid;
         reloadHintVid = "";
@@ -552,7 +566,7 @@
 
     const onYouTubeNavStart = () => {
       if (!location.hostname.includes("youtube.com")) return;
-      const curVid = new URL(location.href).searchParams.get("v") || "";
+      const curVid = getYtVid(location.href);
       lastHandledVid = curVid;
       reloadHintVid = "";
       noSubPlayedMs = 0;
@@ -573,7 +587,7 @@
       if (!location.hostname.includes("youtube.com")) return;
       if (location.href === lastCheckedUrl) return;
       lastCheckedUrl = location.href;
-      const curVid = new URL(lastCheckedUrl).searchParams.get("v") || "";
+      const curVid = getYtVid(lastCheckedUrl);
       if (curVid && curVid !== lastHandledVid) {
         onYouTubePageChange();
       }
