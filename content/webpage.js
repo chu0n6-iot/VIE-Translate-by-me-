@@ -40,6 +40,9 @@
     hidden: false,
     totalBlocks: 0,
     translatedCount: 0,
+    attemptedCount: 0,
+    failedCount: 0,
+    failedItems: [],
     observer: null,
     queue: [],
     flushTimer: null,
@@ -65,7 +68,7 @@
     for (const el of nodes) {
       if (!el || state.processedBlocks.has(el)) continue;
       if (el.closest && el.closest(SKIP_ANCESTOR_SELECTOR)) continue;
-      if (el.querySelector && el.querySelector("p, h1, h2, h3, h4, blockquote")) continue;
+      if (el.querySelector && el.querySelector("p, h1, h2, h3, h4, h5, h6, blockquote, li")) continue;
 
       const text = (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim();
       if (text.length < 6) continue;
@@ -96,8 +99,18 @@
     if (!state.pillEl || typeof document === "undefined") return;
     const statusSpan = state.pillEl.querySelector(".vie-web-pill-status");
     const toggleBtn = state.pillEl.querySelector("[data-action='toggle-hide']");
+    const retryBtn = state.pillEl.querySelector("[data-action='retry']");
+    if (retryBtn) {
+      retryBtn.style.display = !state.inFlight && state.queue.length === 0 && state.failedItems.length > 0 ? "inline-flex" : "none";
+    }
     if (statusSpan) {
-      if (state.translatedCount < state.totalBlocks) {
+      if (state.totalBlocks === 0) {
+        statusSpan.textContent = "🐸 Không tìm thấy đoạn văn cần dịch";
+      } else if (state.queue.length === 0 && !state.inFlight && state.failedCount > 0) {
+        statusSpan.textContent = state.translatedCount > 0
+          ? `⚠️ Đã dịch ${state.translatedCount}/${state.totalBlocks} (${state.failedCount} lỗi)`
+          : `⚠️ Lỗi dịch trang (${state.failedCount} đoạn)`;
+      } else if (state.translatedCount < state.totalBlocks && (state.inFlight || state.queue.length > 0 || state.attemptedCount < state.totalBlocks)) {
         statusSpan.textContent = `🐸 Đang dịch ${state.translatedCount}/${state.totalBlocks}...`;
       } else {
         statusSpan.textContent = `🐸 Đã dịch ${state.translatedCount} đoạn`;
@@ -117,12 +130,22 @@
     pill.className = "vie-web-pill";
     pill.innerHTML = `
       <span class="vie-web-pill-status">🐸 Đang chuẩn bị...</span>
+      <button type="button" class="vie-web-pill-btn" data-action="retry" style="display:none;">↻ Thử lại</button>
       <button type="button" class="vie-web-pill-btn" data-action="toggle-hide">🙈 Ẩn dịch</button>
       <button type="button" class="vie-web-pill-btn vie-web-pill-close" data-action="close" title="Tắt dịch trang">✕</button>
     `;
     pill.addEventListener("click", (e) => {
       const action = e.target.closest("button")?.dataset.action;
-      if (action === "toggle-hide") {
+      if (action === "retry") {
+        if (!state.inFlight && state.failedItems.length > 0) {
+          const retryList = state.failedItems.splice(0);
+          state.attemptedCount = Math.max(0, state.attemptedCount - retryList.length);
+          state.failedCount = 0;
+          state.queue.push(...retryList);
+          updatePill();
+          flushQueue();
+        }
+      } else if (action === "toggle-hide") {
         state.hidden = !state.hidden;
         document.documentElement.classList.toggle("vie-web-trans-hidden", state.hidden);
         updatePill();
@@ -141,11 +164,18 @@
     state.inFlight = true;
     const batch = state.queue.splice(0, 10);
     const texts = batch.map((b) => b.text);
+    updatePill();
 
     try {
       const res = await new Promise((resolve) => {
         if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
-          chrome.runtime.sendMessage({ type: "TRANSLATE_PAGE_BATCH", texts }, resolve);
+          chrome.runtime.sendMessage({ type: "TRANSLATE_PAGE_BATCH", texts }, (resp) => {
+            if (chrome.runtime.lastError) {
+              resolve({ ok: false, results: {}, error: chrome.runtime.lastError.message });
+              return;
+            }
+            resolve(resp || { ok: false, results: {} });
+          });
         } else {
           resolve({ results: {} });
         }
@@ -153,17 +183,23 @@
       if (!state.active) return;
       const results = res?.results || {};
       for (const item of batch) {
+        state.attemptedCount++;
         const trans = (results[item.text] || "").trim();
         if (trans) {
           injectTranslation(item.el, trans);
           state.translatedCount++;
+        } else {
+          state.failedCount++;
+          state.failedItems.push(item);
         }
       }
-      updatePill();
     } catch {
-      // ignore transient error
+      state.attemptedCount += batch.length;
+      state.failedCount += batch.length;
+      state.failedItems.push(...batch);
     } finally {
       state.inFlight = false;
+      updatePill();
       if (state.active && state.queue.length > 0) {
         state.flushTimer = setTimeout(flushQueue, 80);
       }
@@ -195,6 +231,9 @@
     state.hidden = false;
     state.totalBlocks = items.length;
     state.translatedCount = 0;
+    state.attemptedCount = 0;
+    state.failedCount = 0;
+    state.failedItems = [];
     state.queue = [];
     state.processedBlocks = new WeakSet();
     document.documentElement.classList.remove("vie-web-trans-hidden");
@@ -235,6 +274,9 @@
     state.hidden = false;
     state.totalBlocks = 0;
     state.translatedCount = 0;
+    state.attemptedCount = 0;
+    state.failedCount = 0;
+    state.failedItems = [];
     state.queue = [];
     state.processedBlocks = new WeakSet();
     if (state.flushTimer) {

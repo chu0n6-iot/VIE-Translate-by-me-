@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🐸 VIE-Translate — Interactive Test Bench v0.6.9</title>
+  <title>🐸 VIE-Translate — Interactive Test Bench v1.0.0</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='.9em' font-size='52'%3E%F0%9F%90%B8%3C/text%3E%3C/svg%3E">
   <style>
     :root {
       --bg: #0f172a;
@@ -12,24 +13,28 @@
       --accent: #fef08a;
       --primary: #38bdf8;
       --green: #4ade80;
+      --border: rgba(255, 255, 255, 0.1);
     }
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       padding: 24px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       background: var(--bg);
       color: var(--text);
+      line-height: 1.55;
     }
     h1 {
       margin-top: 0;
       color: var(--accent);
       display: flex;
       align-items: center;
+      flex-wrap: wrap;
       gap: 12px;
     }
     .badge {
       font-size: 13px;
-      padding: 3px 8px;
+      padding: 3px 10px;
       background: rgba(74, 222, 128, 0.2);
       color: var(--green);
       border-radius: 9999px;
@@ -41,12 +46,12 @@
       gap: 20px;
       margin-top: 20px;
     }
-    @media (max-width: 900px) {
+    @media (max-width: 960px) {
       .grid { grid-template-columns: 1fr; }
     }
     .card {
       background: var(--card-bg);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--border);
       border-radius: 12px;
       padding: 20px;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -65,10 +70,11 @@
       align-items: center;
       justify-content: center;
     }
-    canvas {
+    canvas, video {
       width: 100%;
       height: 100%;
       object-fit: contain;
+      display: block;
     }
     .mock-overlay {
       position: absolute;
@@ -132,19 +138,89 @@
       overflow-y: auto;
       white-space: pre-wrap;
     }
+    .sample-box {
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-top: 12px;
+    }
+    .sample-box code {
+      background: rgba(56, 189, 248, 0.18);
+      color: #7dd3fc;
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+    .sample-box pre {
+      background: #020617;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 6px;
+      padding: 10px 12px;
+      overflow-x: auto;
+      color: #a5f3fc;
+      font-size: 12.5px;
+    }
+    .scroll-bench {
+      margin-top: 24px;
+      min-height: 460px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .hotkey-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .hotkey-pill {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: #bae6fd;
+    }
   </style>
 </head>
 <body>
   <h1>
     <span>🐸 VIE-Translate Test Bench</span>
-    <span class="badge">v0.6.9 Verified</span>
+    <span class="badge">v1.0.0 Verified</span>
   </h1>
-  <p style="color: #94a3b8;">Trang thử nghiệm trực quan kiểm tra 100% tính năng: Tua video không mất sub, Căn tự động chuẩn xác, Lọc nốt nhạc thông minh, Quét chữ màn hình (OCR) &amp; Cứu hộ Quota 429.</p>
+  <p style="color: #94a3b8;">
+    Trang thử nghiệm tích hợp toàn diện cho <b>VIE-Translate v1.0.0</b>: kiểm tra video HTML5 thật kèm <code>&lt;track&gt;</code> phụ đề (đối thoại, Multi-Speaker, nhạc <code>♪</code>), dịch toàn trang (<code>Alt+T</code>), bôi đen dịch nhanh, từ điển chạm từ, OCR màn hình (<code>Alt+S</code>) và xuất file <code>.SRT</code>.
+  </p>
 
   <div class="grid">
-    <!-- KHUNG VIDEO & PHỤ ĐỀ MÔ PHỎNG -->
+    <!-- TRÌNH PHÁT VIDEO HTML5 THẬT CHO EXTENSION -->
     <div class="card">
-      <h3>🎬 Trình Phát Video &amp; Phụ Đề Trực Quan</h3>
+      <h3>🎥 Video HTML5 Thật + &lt;track&gt; Phụ Đề (Test Extension Trực Tiếp)</h3>
+      <div class="video-wrapper" id="realVideoWrapper">
+        <video id="realTestVideo" controls playsinline muted preload="auto">
+          <track id="realTestTrack" kind="subtitles" srclang="en" label="English (VIE Bench)" default>
+        </video>
+      </div>
+      <div class="controls">
+        <button id="btnRealPlay">▶️ Phát / Tạm dừng</button>
+        <button id="btnRealCue1">💬 Cue 1: Đối thoại (1.0s)</button>
+        <button id="btnRealCue2">👥 Cue 2: Multi-Speaker (5.5s)</button>
+        <button id="btnRealCue3">🎵 Cue 3: Nhạc ♪ (10.5s)</button>
+        <button id="btnRealCue4">🧩 Cue 4: Cụm động từ (15.5s)</button>
+      </div>
+      <div class="status-box" id="realVideoMeta">Đang khởi tạo video WebM &amp; track VTT tự chứa...</div>
+      <div class="hotkey-pills">
+        <span class="hotkey-pill"><code>Alt + V</code> Bật/Tắt sub</span>
+        <span class="hotkey-pill"><code>Alt + D</code> Đổi 1/2 dòng</span>
+        <span class="hotkey-pill"><code>Alt + T</code> Dịch trang</span>
+        <span class="hotkey-pill"><code>Alt + S</code> Quét OCR</span>
+        <span class="hotkey-pill"><code>Alt + , / .</code> Chỉnh lệch sub</span>
+      </div>
+    </div>
+
+    <!-- KHUNG VIDEO & PHỤ ĐỀ MÔ PHỎNG (GIỮ NGUYÊN TƯƠNG THÍCH) -->
+    <div class="card">
+      <h3>🎬 Trình Mô Phỏng Canvas &amp; Phụ Đề Trực Quan</h3>
       <div class="video-wrapper">
         <canvas id="videoCanvas" width="640" height="360"></canvas>
         <div class="mock-overlay" id="mockOverlay">
@@ -161,27 +237,269 @@
       </div>
       <div class="status-box" id="statusLog">Trạng thái: Sẵn sàng thử nghiệm.</div>
     </div>
+  </div>
 
+  <div class="grid">
     <!-- BẢNG BÁO CÁO KIỂM THỬ -->
     <div class="card">
-      <h3>📋 Kết Quả Kiểm Tra Tự Động (0 Lỗi / 100% Pass)</h3>
+      <h3>📋 Danh Mục Kiểm Chứng v1.0.0</h3>
       <div style="line-height: 1.8; font-size: 14px;">
         <div>✅ <b>Tua video lên xuống (Seeking)</b>: Phụ đề không bị mất, hiển thị ngay 0ms từ cache khi tua ngược/tua xuôi.</div>
         <div>✅ <b>Căn tự động (Auto-Align)</b>: Giới hạn sai số trong ±5s gần mốc hiện tại, không bao giờ nhảy hàng trăm giây làm đứng sub.</div>
         <div>✅ <b>Lọc nốt nhạc (Music Notes)</b>: Lời đối thoại/nói chuyện thông thường 100% KHÔNG có nốt nhạc <code>♪</code>; chỉ câu hát mới gắn <code>♪</code>.</div>
         <div>✅ <b>Quét chữ thị giác (OCR)</b>: Nhận diện biển báo, tin nhắn, tài liệu trên khung hình và phân tích bối cảnh phim đa hướng.</div>
-        <div>✅ <b>Cứu hộ Quota 429</b>: Lưu key an toàn khi dính quota giới hạn ngày của Google và tự kích hoạt Dự phòng Miễn phí Google Translate.</div>
-        <div>✅ <b>Tự động dịch</b>: Tự động phát hiện video, bật CC trên YouTube và kích hoạt nghe dịch sau 1.8s nếu video không có sub.</div>
+        <div>✅ <b>Cứu hộ Quota 429 &amp; <code>fallbackToFree</code></b>: Không sập Promise khi GTX gặp 429; tôn trọng tùy chọn tắt dự phòng miễn phí.</div>
+        <div>✅ <b>Xuất <code>.SRT</code> Song Ngữ</b>: Tự động dịch hàng loạt các câu chưa có trong cache trước khi tải file <code>.srt</code>.</div>
       </div>
 
-      <div style="margin-top: 20px;">
+      <div style="margin-top: 16px;">
         <button id="btnTestDialogue" style="margin-right: 8px;">🗣️ Thử Câu Đối Thoại (Không nốt nhạc)</button>
         <button id="btnTestSong">🎵 Thử Câu Hát (Có nốt nhạc ♪)</button>
       </div>
     </div>
+
+    <!-- VÙNG VĂN BẢN MẪU CHO DỊCH TRANG & BÔI ĐEN -->
+    <div class="card">
+      <h3>🌐 Văn Bản Mẫu (Test <code>Alt+T</code>, Bôi Đen &amp; Từ Điển)</h3>
+      <div class="sample-box">
+        <p id="benchEnPara1">
+          Artificial intelligence helps developers break down complex problems and ship reliable browser extensions faster.
+        </p>
+        <p id="benchEnPara2">
+          Run <code>node test/run_tests.js</code> in your terminal to verify all 37 automated checks exit cleanly with code zero.
+        </p>
+        <p id="benchJaPara">
+          今日は素晴らしい天気ですね。新しい字幕翻訳機能をテストしてみましょう。
+        </p>
+        <p id="benchViPara">
+          Đây là đoạn văn bản tiếng Việt mẫu để kiểm tra bộ lọc bỏ qua những đoạn vốn đã là tiếng Việt.
+        </p>
+        <ul>
+          <li>Outer list item containing a nested sub-item below:
+            <ul>
+              <li id="benchNestedLi">Nested inner list item should be translated cleanly without duplicating the outer container.</li>
+            </ul>
+          </li>
+        </ul>
+        <pre id="benchPreCode">const keepCodeUntouched = "Code blocks in &lt;pre&gt; must NOT be translated";</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- VÙNG CUỘN TRANG ĐỂ TEST SELECTION / CONTEXT MENU KHI SCROLL -->
+  <div class="card scroll-bench" id="benchScrollArea">
+    <div>
+      <h3>📜 Vùng Cuộn Trang (Scroll Viewport Selection Test)</h3>
+      <p id="benchScrollTop">
+        Scroll down to the bottom of this section, highlight the target English sentence below, or right-click it with the context menu to verify popup placement inside the scrolled viewport.
+      </p>
+    </div>
+    <div class="sample-box" style="margin-top: 220px;">
+      <p id="benchScrollTarget">
+        Even when the webpage is scrolled far down, the floating translation popup must stay visible right inside the active viewport.
+      </p>
+    </div>
   </div>
 
   <script>
+    // =========================================================================
+    // 1. REAL HTML5 <video> + WEBVTT <track> GENERATOR (Self-contained)
+    // =========================================================================
+    (function setupRealVideoBench() {
+      const video = document.getElementById("realTestVideo");
+      const trackEl = document.getElementById("realTestTrack");
+      const metaEl = document.getElementById("realVideoMeta");
+      if (!video || !trackEl) return;
+
+      const vttContent = [
+        "WEBVTT",
+        "",
+        "00:00:00.500 --> 00:00:04.500",
+        "Welcome to the city of dreams. Let's explore every corner!",
+        "",
+        "00:00:04.500 --> 00:00:09.500",
+        "- Hey, what are you doing here?",
+        "- I am testing bilingual subtitles live!",
+        "",
+        "00:00:09.500 --> 00:00:14.500",
+        "♪ Fly me to the moon and let me play among the stars ♪",
+        "",
+        "00:00:14.500 --> 00:00:19.500",
+        "We need to break down this complex problem step by step.",
+        ""
+      ].join("\n");
+
+      const vttBlob = new Blob([vttContent], { type: "text/vtt" });
+      trackEl.src = URL.createObjectURL(vttBlob);
+
+      function updateMeta() {
+        const t = Number.isFinite(video.currentTime) ? video.currentTime.toFixed(2) : "0.00";
+        const d = Number.isFinite(video.duration) ? video.duration.toFixed(2) : "?";
+        const trackMode = video.textTracks?.[0]?.mode || "none";
+        const activeCue = video.textTracks?.[0]?.activeCues?.[0]?.text?.replace(/\n/g, " / ") || "(none)";
+        metaEl.textContent = `time=${t}s / duration=${d}s | track.mode=${trackMode} | cue=${activeCue}`;
+      }
+
+      video.addEventListener("timeupdate", updateMeta);
+      video.addEventListener("loadedmetadata", updateMeta);
+      video.addEventListener("seeked", updateMeta);
+
+      // Build a multi-cluster seekable 20s WebM from 1 captured VP8 keyframe so seeking & duration work cleanly offline
+      function buildMultiClusterWebm(rawBytes) {
+        const u8 = new Uint8Array(rawBytes);
+        const readId = (bytes, pos) => {
+          if (pos >= bytes.length) return null;
+          const first = bytes[pos];
+          let mask = 0x80, len = 1;
+          while (len <= 4 && !(first & mask)) { mask >>= 1; len++; }
+          let id = 0;
+          for (let i = 0; i < len && pos + i < bytes.length; i++) id = id * 256 + bytes[pos + i];
+          return { id, len };
+        };
+        const readVint = (bytes, pos) => {
+          if (pos >= bytes.length) return null;
+          const first = bytes[pos];
+          let mask = 0x80, len = 1;
+          while (len <= 8 && !(first & mask)) { mask >>= 1; len++; }
+          let val = first & (mask - 1);
+          let allOnes = val === (mask - 1);
+          for (let i = 1; i < len && pos + i < bytes.length; i++) {
+            const b = bytes[pos + i];
+            if (b !== 0xff) allOnes = false;
+            val = val * 256 + b;
+          }
+          return { val, len, isUnknown: allOnes };
+        };
+        const vint4 = (n) => new Uint8Array([
+          0x10 | ((n >>> 24) & 0x0f),
+          (n >>> 16) & 0xff,
+          (n >>> 8) & 0xff,
+          n & 0xff
+        ]);
+        const uVint = (n) => {
+          if (n < 0x7f) return new Uint8Array([0x80 | n]);
+          if (n < 0x3fff) return new Uint8Array([0x40 | (n >> 8), n & 0xff]);
+          return vint4(n);
+        };
+        const concat = (arrays) => {
+          const total = arrays.reduce((s, a) => s + a.length, 0);
+          const out = new Uint8Array(total);
+          let off = 0;
+          for (const a of arrays) { out.set(a, off); off += a.length; }
+          return out;
+        };
+
+        // Walk top-level EBML header then Segment children
+        const ebmlId = readId(u8, 0);
+        if (!ebmlId || ebmlId.id !== 0x1a45dfa3) return null;
+        const ebmlSize = readVint(u8, ebmlId.len);
+        if (!ebmlSize || ebmlSize.isUnknown) return null;
+        const segStart = ebmlId.len + ebmlSize.len + ebmlSize.val;
+        if (segStart >= u8.length) return null;
+        const ebmlHeader = u8.slice(0, segStart);
+
+        const segId = readId(u8, segStart);
+        if (!segId || segId.id !== 0x18538067) return null;
+        const segSize = readVint(u8, segStart + segId.len);
+        if (!segSize) return null;
+        let pos = segStart + segId.len + segSize.len;
+        const segEnd = segSize.isUnknown ? u8.length : Math.min(u8.length, pos + segSize.val);
+
+        let tracksEl = null;
+        let simpleBlockEl = null;
+
+        while (pos < segEnd) {
+          const elId = readId(u8, pos);
+          if (!elId) break;
+          const elSize = readVint(u8, pos + elId.len);
+          if (!elSize) break;
+          const hdrLen = elId.len + elSize.len;
+          const nextPos = elSize.isUnknown ? segEnd : Math.min(segEnd, pos + hdrLen + elSize.val);
+
+          if (elId.id === 0x1654ae6b) {
+            tracksEl = u8.slice(pos, nextPos);
+          } else if (elId.id === 0x1f43b675 && !simpleBlockEl) {
+            let cPos = pos + hdrLen;
+            while (cPos < nextPos) {
+              const cId = readId(u8, cPos);
+              if (!cId) break;
+              const cSize = readVint(u8, cPos + cId.len);
+              if (!cSize) break;
+              const cNext = cSize.isUnknown ? nextPos : Math.min(nextPos, cPos + cId.len + cSize.len + cSize.val);
+              if (cId.id === 0xa3 || cId.id === 0xa0) {
+                simpleBlockEl = u8.slice(cPos, cNext);
+                break;
+              }
+              if (cNext <= cPos) break;
+              cPos = cNext;
+            }
+          }
+          if (nextPos <= pos) break;
+          pos = nextPos;
+        }
+        if (!tracksEl || !simpleBlockEl) return null;
+
+        // Info element: TimecodeScale=1000000 (1ms) + Duration=20000.0ms (float64)
+        const durBytes = new Uint8Array(8);
+        new DataView(durBytes.buffer).setFloat64(0, 20000.0, false);
+        const infoBody = concat([
+          new Uint8Array([0x2a, 0xd7, 0xb1, 0x83, 0x0f, 0x42, 0x40]),
+          new Uint8Array([0x44, 0x89, 0x88]),
+          durBytes
+        ]);
+        const infoEl = concat([new Uint8Array([0x15, 0x49, 0xa9, 0x66]), uVint(infoBody.length), infoBody]);
+
+        const clusters = [];
+        for (let tMs = 0; tMs <= 20000; tMs += 2000) {
+          const tcVal = new Uint8Array([(tMs >> 8) & 0xff, tMs & 0xff]);
+          const tcEl = concat([new Uint8Array([0xe7, 0x82]), tcVal]);
+          const cBody = concat([tcEl, simpleBlockEl]);
+          clusters.push(concat([new Uint8Array([0x1f, 0x43, 0xb6, 0x75]), uVint(cBody.length), cBody]));
+        }
+
+        const segBody = concat([infoEl, tracksEl, ...clusters]);
+        const segEl = concat([new Uint8Array([0x18, 0x53, 0x80, 0x67]), vint4(segBody.length), segBody]);
+        return new Blob([concat([ebmlHeader, segEl])], { type: "video/webm" });
+      }
+
+      // Deterministic 640x360 1-keyframe VP8 WebM template (works in both headed and --headless=new browsers)
+      const BENCH_VP8_WEBM_B64 =
+        "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";
+
+      function decodeBase64Bytes(b64) {
+        const bin = atob(b64);
+        const out = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+        return out;
+      }
+
+      try {
+        const templateBytes = decodeBase64Bytes(BENCH_VP8_WEBM_B64);
+        const seekable = buildMultiClusterWebm(templateBytes) || new Blob([templateBytes], { type: "video/webm" });
+        video.src = URL.createObjectURL(seekable);
+        video.load();
+        updateMeta();
+      } catch {
+        metaEl.textContent = "Không thể khởi tạo video WebM tự tạo.";
+      }
+
+      document.getElementById("btnRealPlay")?.addEventListener("click", () => {
+        if (video.paused) video.play().catch(() => {});
+        else video.pause();
+      });
+      const jumpTo = (sec) => {
+        video.currentTime = sec;
+        updateMeta();
+      };
+      document.getElementById("btnRealCue1")?.addEventListener("click", () => jumpTo(1.0));
+      document.getElementById("btnRealCue2")?.addEventListener("click", () => jumpTo(5.5));
+      document.getElementById("btnRealCue3")?.addEventListener("click", () => jumpTo(10.5));
+      document.getElementById("btnRealCue4")?.addEventListener("click", () => jumpTo(15.5));
+    })();
+
+    // =========================================================================
+    // 2. PRESERVED CANVAS SIMULATOR CONTROLS (v0.6.9 compatible)
+    // =========================================================================
     const canvas = document.getElementById("videoCanvas");
     const ctx = canvas.getContext("2d");
     const subOrig = document.getElementById("subOrig");

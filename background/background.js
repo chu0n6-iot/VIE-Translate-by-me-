@@ -246,12 +246,26 @@ function isQuotaError(err) {
     /quota|resource_exhausted|rate_limit|exceeded your current quota|429/i.test(err.message || "")));
 }
 
+function getKeyProvider(key, settings) {
+  const clean = (key || "").trim();
+  if (!clean) return "";
+  const detected = self.VieStorage.detectProviderFromKey(clean);
+  if (detected === "openai") return "";
+  if (detected === "gemini" || detected === "groq") return detected;
+  if (clean === (settings?.groqApiKey || "").trim()) return "groq";
+  if (clean === (settings?.geminiApiKey || "").trim()) return "gemini";
+  if (!clean.startsWith("sk-") && (settings?.provider === "groq" || settings?.provider === "gemini")) {
+    return settings.provider;
+  }
+  return "";
+}
+
 function buildKeyPool(settings, rawKey) {
   const list = [rawKey, ...String(settings.backupKeys || "").split(/[\s,;]+/), settings.geminiApiKey, settings.groqApiKey];
   const seen = new Set();
   return list
     .map((k) => (k || "").trim())
-    .filter((k) => k && self.VieStorage.detectProviderFromKey(k) && self.VieStorage.detectProviderFromKey(k) !== "openai" && !seen.has(k) && seen.add(k));
+    .filter((k) => k && getKeyProvider(k, settings) && !seen.has(k) && seen.add(k));
 }
 
 function resolveProviderConfig(settings) {
@@ -276,7 +290,7 @@ async function withKeyPool(settings, rawKey, fn) {
   let quotaHits = 0;
   for (const key of avail) {
     try {
-      return await fn(key, self.VieStorage.detectProviderFromKey(key));
+      return await fn(key, getKeyProvider(key, settings));
     } catch (err) {
       lastErr = err;
       if (isQuotaError(err)) {
@@ -400,18 +414,35 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
       const persona = settings.autoPersona !== false ? ctx.persona : "";
 
       if (targetProvider === "gtx" || !rawKey) {
-        const [rawVi, sub2] = await Promise.all([
-          translateGtxMultiline(cleanText, targetLang, glossaryList),
-          sub2Promise
-        ]);
-        const vi = postProcessTranslation(rawVi, cleanText, settings, ctx, persona, targetLang, glossaryList, splitMulti);
-        if (vi) setCached(cacheKey, vi);
-        return { vi, sub2, provider: "gtx" };
+        if (provider !== "gtx" && !rawKey && settings.fallbackToFree === false) {
+          const sub2 = await sub2Promise.catch(() => "");
+          return {
+            vi: "",
+            sub2,
+            provider,
+            error: "Chưa có API Key và chế độ Dự phòng Google Translate đang tắt."
+          };
+        }
+        try {
+          const [rawVi, sub2] = await Promise.all([
+            translateGtxMultiline(cleanText, targetLang, glossaryList),
+            sub2Promise
+          ]);
+          const vi = postProcessTranslation(rawVi, cleanText, settings, ctx, persona, targetLang, glossaryList, splitMulti);
+          if (vi) setCached(cacheKey, vi);
+          return { vi, sub2, provider: "gtx" };
+        } catch (err) {
+          const msg = err?.message || "Lỗi dịch Google Translate";
+          const sub2 = await sub2Promise.catch(() => "");
+          return { vi: "", sub2, error: msg, provider: "gtx", rateLimited: /429/.test(msg) };
+        }
       }
 
       try {
+        let usedProvider = targetProvider;
         const callAI = (key, prov) => {
-          if (prov === "ollama") {
+          usedProvider = prov || targetProvider;
+          if (usedProvider === "ollama") {
             return self.VieOllama.translateWithOllama({
               text: cleanText, nextText, videoTitle, videoPersona: persona, glossary: glossaryList,
               history: ctx.items, baseUrl: settings.ollamaBaseUrl, preferredModel: settings.ollamaModel,
@@ -420,7 +451,7 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
               multiSpeakerSplit: splitMulti
             });
           }
-          if (prov === "openai") {
+          if (usedProvider === "openai") {
             return self.VieOpenAI.translateWithOpenAIAuto({
               text: cleanText, nextText, videoTitle, videoPersona: persona, glossary: glossaryList,
               history: ctx.items, baseUrl: settings.openaiBaseUrl, apiKey: key,
@@ -438,7 +469,7 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
             lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false,
             multiSpeakerSplit: splitMulti
           };
-          return prov === "groq" ? self.VieGroq.translateWithGroqAuto(common) : self.VieGemini.translateWithGeminiAuto(common);
+          return usedProvider === "groq" ? self.VieGroq.translateWithGroqAuto(common) : self.VieGemini.translateWithGeminiAuto(common);
         };
         const aiTask = targetProvider === "ollama"
           ? callAI("local", "ollama")
@@ -452,25 +483,50 @@ async function handleTranslate(rawText, videoTitle, tabId, fastPreviewOnly = fal
         const finalVi = postProcessTranslation(rawVi, cleanText, settings, ctx, persona, targetLang, glossaryList, splitMulti);
         if (finalVi) {
           setCached(cacheKey, finalVi);
+          if (usedProvider !== targetProvider) setCached(`${usedProvider}:${baseCacheKey}`, finalVi);
           pushTabContext(tabId, videoTitle, cleanText, finalVi);
           engineStats.aiCalls++;
           engineStats.totalTranslated++;
-          engineStats.lastProvider = targetProvider;
+          engineStats.lastProvider = usedProvider;
           if (result.modelUsed) engineStats.lastModel = result.modelUsed;
         }
-        return { vi: finalVi, sub2, provider: targetProvider, modelUsed: result.modelUsed };
+        return { vi: finalVi, sub2, provider: usedProvider, modelUsed: result.modelUsed };
       } catch (err) {
+        if (settings.fallbackToFree === false) {
+          const sub2 = await sub2Promise.catch(() => "");
+          return {
+            vi: "",
+            sub2,
+            provider: targetProvider,
+            quotaExhausted: !!err?.allKeysExhausted,
+            rateLimited: isQuotaError(err),
+            error: err?.message || "Lỗi dịch AI (Dự phòng Google Translate đang tắt)"
+          };
+        }
         // Fallback to GTX on API error
         engineStats.gtxFallbacks++;
         engineStats.totalTranslated++;
         engineStats.lastProvider = "gtx";
-        const [rawVi, sub2] = await Promise.all([
-          translateGtxMultiline(cleanText, targetLang, glossaryList),
-          sub2Promise
-        ]);
-        const vi = postProcessTranslation(rawVi, cleanText, settings, ctx, persona, targetLang, glossaryList, splitMulti);
-        if (vi) setCached(`gtx:${baseCacheKey}`, vi);
-        return { vi, sub2, provider: "gtx", quotaExhausted: !!err.allKeysExhausted };
+        try {
+          const [rawVi, sub2] = await Promise.all([
+            translateGtxMultiline(cleanText, targetLang, glossaryList),
+            sub2Promise
+          ]);
+          const vi = postProcessTranslation(rawVi, cleanText, settings, ctx, persona, targetLang, glossaryList, splitMulti);
+          if (vi) setCached(`gtx:${baseCacheKey}`, vi);
+          return { vi, sub2, provider: "gtx", quotaExhausted: !!err.allKeysExhausted };
+        } catch (gtxErr) {
+          const msg = gtxErr?.message || err?.message || "Lỗi dịch thuật";
+          const sub2 = await sub2Promise.catch(() => "");
+          return {
+            vi: "",
+            sub2,
+            provider: "gtx",
+            quotaExhausted: !!err?.allKeysExhausted,
+            rateLimited: /429/.test(msg),
+            error: msg
+          };
+        }
       }
     } finally {
       inFlight.delete(cacheKey);
@@ -561,8 +617,21 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
   const persona = settings.autoPersona !== false ? ctx.persona : "";
 
   if (provider === "gtx" || !rawKey) {
+    if (provider !== "gtx" && !rawKey && settings.fallbackToFree === false) {
+      await sub2BatchPromise;
+      return {
+        results,
+        sub2Results,
+        provider,
+        error: "Chưa có API Key và chế độ Dự phòng Google Translate đang tắt."
+      };
+    }
+    let gtxError = "";
     const [rawBatch] = await Promise.all([
-      translateGtxBatch(uncached, targetLang, batchGlossary).catch(() => new Array(uncached.length).fill("")),
+      translateGtxBatch(uncached, targetLang, batchGlossary).catch((err) => {
+        gtxError = err?.message || "Lỗi dịch Google Translate";
+        return new Array(uncached.length).fill("");
+      }),
       sub2BatchPromise
     ]);
     for (let i = 0; i < uncached.length; i++) {
@@ -573,11 +642,18 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
         results[src] = vi;
       }
     }
-    return { results, sub2Results, provider: "gtx" };
+    const out = { results, sub2Results, provider: "gtx" };
+    if (gtxError) {
+      out.error = gtxError;
+      out.rateLimited = /429/.test(gtxError);
+    }
+    return out;
   }
 
+  let usedProvider = provider;
   const batchCall = (key, prov) => {
-    if (prov === "ollama") {
+    usedProvider = prov || provider;
+    if (usedProvider === "ollama") {
       return self.VieOllama.translateWithOllama({
         texts: uncached, videoTitle, videoPersona: persona, history: ctx.items,
         glossary: batchGlossary, baseUrl: settings.ollamaBaseUrl, preferredModel: settings.ollamaModel,
@@ -586,7 +662,7 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
         multiSpeakerSplit: splitMulti
       });
     }
-    if (prov === "openai") {
+    if (usedProvider === "openai") {
       return self.VieOpenAI.translateWithOpenAIAuto({
         texts: uncached, videoTitle, videoPersona: persona, history: ctx.items,
         glossary: batchGlossary, baseUrl: settings.openaiBaseUrl, apiKey: key,
@@ -604,7 +680,7 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
       lockedPronounPair: ctx.lockedPronounPair, softenProfanity: settings.softenProfanity !== false,
       multiSpeakerSplit: splitMulti
     };
-    return prov === "groq" ? self.VieGroq.translateWithGroqAuto(common) : self.VieGemini.translateWithGeminiAuto(common);
+    return usedProvider === "groq" ? self.VieGroq.translateWithGroqAuto(common) : self.VieGemini.translateWithGeminiAuto(common);
   };
 
   const batchExecutionPromise = (async () => {
@@ -616,7 +692,7 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
         ? await batchCall(rawKey, "openai")
         : await withKeyPool(settings, rawKey, batchCall);
       engineStats.aiCalls++;
-      engineStats.lastProvider = provider;
+      engineStats.lastProvider = usedProvider;
       if (batchRes.modelUsed) engineStats.lastModel = batchRes.modelUsed;
       const translations = batchRes.translations || [];
       const missingSrcs = [];
@@ -627,15 +703,16 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
         const vi = postProcessTranslation(rawVi, src, settings, ctx, persona, targetLang, batchGlossary, splitMulti);
         if (vi) {
           setCached(`${provider}:${self.VieStorage.getCacheKey(src, settings)}`, vi);
+          if (usedProvider !== provider) setCached(`${usedProvider}:${self.VieStorage.getCacheKey(src, settings)}`, vi);
           pushTabContext(tabId, videoTitle, src, vi);
           results[src] = vi;
-          itemProviders[src] = provider;
+          itemProviders[src] = usedProvider;
         } else {
           missingSrcs.push(src);
         }
       }
 
-      if (missingSrcs.length > 0) {
+      if (missingSrcs.length > 0 && settings.fallbackToFree !== false) {
         try {
           const recovered = await translateGtxBatch(missingSrcs, targetLang, batchGlossary);
           for (let j = 0; j < missingSrcs.length; j++) {
@@ -650,8 +727,17 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
         } catch {}
       }
 
-      return { results, provider, modelUsed: batchRes.modelUsed, itemProviders };
-    } catch {
+      return { results, provider: usedProvider, modelUsed: batchRes.modelUsed, itemProviders };
+    } catch (err) {
+      if (settings.fallbackToFree === false) {
+        return {
+          results,
+          provider,
+          modelUsed: "",
+          itemProviders,
+          error: err?.message || "Lỗi dịch hàng loạt (Dự phòng Google Translate đang tắt)"
+        };
+      }
       try {
         const recovered = await translateGtxBatch(uncached, targetLang, batchGlossary);
         for (let i = 0; i < uncached.length; i++) {
@@ -687,7 +773,9 @@ async function handleTranslateBatch(rawTexts, videoTitle, tabId) {
   }
 
   const [batchOut] = await Promise.all([batchExecutionPromise, sub2BatchPromise]);
-  return { results: batchOut.results, sub2Results, provider: batchOut.provider, modelUsed: batchOut.modelUsed };
+  const out = { results: batchOut.results, sub2Results, provider: batchOut.provider, modelUsed: batchOut.modelUsed };
+  if (batchOut.error) out.error = batchOut.error;
+  return out;
 }
 
 // Message Dispatcher
@@ -1195,8 +1283,10 @@ If text exists, return ONLY JSON: {"hasText":true,"orig":"...","vi":"...","scene
       if (!uncached.length) return { ok: true, results, provider, cached: true };
 
       if (provider !== "gtx" && rawKey) {
+        let usedProvider = provider;
         try {
           const callPageAi = (key, prov) => {
+            usedProvider = prov || provider;
             const common = {
               texts: uncached,
               glossary,
@@ -1206,9 +1296,9 @@ If text exists, return ONLY JSON: {"hasText":true,"orig":"...","vi":"...","scene
               softenProfanity: s.softenProfanity !== false,
               multiSpeakerSplit: false
             };
-            if (prov === "ollama") return self.VieOllama.translateWithOllama({ ...common, baseUrl: s.ollamaBaseUrl, preferredModel: s.ollamaModel });
-            if (prov === "openai") return self.VieOpenAI.translateWithOpenAIAuto({ ...common, baseUrl: s.openaiBaseUrl, apiKey: key, preferredModel: s.openaiModel || s.model });
-            return prov === "groq"
+            if (usedProvider === "ollama") return self.VieOllama.translateWithOllama({ ...common, baseUrl: s.ollamaBaseUrl, preferredModel: s.ollamaModel });
+            if (usedProvider === "openai") return self.VieOpenAI.translateWithOpenAIAuto({ ...common, baseUrl: s.openaiBaseUrl, apiKey: key, preferredModel: s.openaiModel || s.model });
+            return usedProvider === "groq"
               ? self.VieGroq.translateWithGroqAuto({ ...common, apiKey: key, preferredModel: s.model || "auto" })
               : self.VieGemini.translateWithGeminiAuto({ ...common, apiKey: key, preferredModel: s.model || "auto" });
           };
@@ -1229,9 +1319,9 @@ If text exists, return ONLY JSON: {"hasText":true,"orig":"...","vi":"...","scene
             }
           }
           engineStats.aiCalls++;
-          engineStats.lastProvider = provider;
+          engineStats.lastProvider = usedProvider;
           if (out?.modelUsed) engineStats.lastModel = out.modelUsed;
-          if (missing.length > 0) {
+          if (missing.length > 0 && s.fallbackToFree !== false) {
             const rec = await translateGtxBatch(missing, targetLang, glossary).catch(() => []);
             for (let j = 0; j < missing.length; j++) {
               const v = applyGlossaryOverrides((rec[j] || "").trim(), glossary, missing[j]);
@@ -1239,8 +1329,14 @@ If text exists, return ONLY JSON: {"hasText":true,"orig":"...","vi":"...","scene
             }
           }
           engineStats.totalTranslated += uncached.length;
-          return { ok: true, results, provider, modelUsed: out?.modelUsed };
-        } catch {}
+          return { ok: true, results, provider: usedProvider, modelUsed: out?.modelUsed };
+        } catch (err) {
+          if (s.fallbackToFree === false) {
+            return { ok: false, results, provider, error: err?.message || "Lỗi dịch trang web (Dự phòng Google Translate đang tắt)" };
+          }
+        }
+      } else if (provider !== "gtx" && !rawKey && s.fallbackToFree === false) {
+        return { ok: false, results, provider, error: "Chưa có API Key và chế độ Dự phòng Google Translate đang tắt." };
       }
 
       engineStats.gtxFallbacks++;

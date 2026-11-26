@@ -241,10 +241,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     const secondColor = subSecondColorInput.value || "#e2e8f0";
     const bgStyle = subBgStyleSelect.value || "toad";
 
-    if (overlayWidthVal) overlayWidthVal.textContent = `${overlayWidthInput.value}%`;
-    subSizeVal.textContent = `${subSizeInput.value}%`;
-    subBottomVal.textContent = `${subBottomPosInput.value}%`;
+    const widthPct = Math.max(35, Math.min(98, Number(overlayWidthInput?.value) || 72));
+    const bottomPct = Math.max(3, Math.min(45, Number(subBottomPosInput?.value) || 12));
 
+    if (overlayWidthVal) overlayWidthVal.textContent = `${widthPct}%`;
+    subSizeVal.textContent = `${subSizeInput.value}%`;
+    subBottomVal.textContent = `${bottomPct}%`;
+
+    previewBox.style.width = `${widthPct}%`;
+    previewBox.style.maxWidth = "96%";
+    previewBox.style.position = "absolute";
+    previewBox.style.left = "50%";
+    previewBox.style.transform = "translateX(-50%)";
+    previewBox.style.bottom = `${bottomPct}%`;
     previewBox.style.fontFamily = fontStack;
     previewOrig.style.color = secondColor;
     previewOrig.style.fontSize = `${Math.round(11 * scale)}px`;
@@ -518,12 +527,29 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   });
 
+  function isRestrictedTabUrl(url) {
+    const tabUrl = String(url || "").trim();
+    if (!tabUrl) return true;
+    return (
+      /^(chrome|edge|about|chrome-extension|moz-extension|devtools|view-source):/i.test(tabUrl) ||
+      /^https?:\/\/chromewebstore\.google\.com/i.test(tabUrl) ||
+      /^https?:\/\/microsoftedge\.microsoft\.com\/addons/i.test(tabUrl)
+    );
+  }
+
   function sendToActiveTab(payload, onDone) {
     if (!chrome.tabs?.query) return;
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tab = tabs?.[0];
       if (!tab?.id) {
         showStatus("⚠ Không tìm thấy tab đang mở.", "err");
+        return;
+      }
+      if (isRestrictedTabUrl(tab.url)) {
+        showStatus(
+          "⚠ Không thể chạy trên trang nội bộ hoặc trang được trình duyệt bảo vệ (chrome://, edge://, New Tab...). Hãy mở một trang web thông thường!",
+          "err"
+        );
         return;
       }
       chrome.tabs.sendMessage(tab.id, payload, (res) => {
@@ -745,10 +771,41 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
+  function applyDetectedOpenAiKey(val, triggerTest = true) {
+    const openaiKeyEl = document.getElementById("openaiApiKey");
+    const openaiUrlEl = document.getElementById("openaiBaseUrl");
+    if (openaiKeyEl) {
+      openaiKeyEl.value = val;
+      openaiKeyEl.dispatchEvent(new Event("change"));
+    }
+    if (openaiUrlEl && !openaiUrlEl.value.trim()) {
+      openaiUrlEl.value = "https://openrouter.ai/api/v1";
+      openaiUrlEl.dispatchEvent(new Event("change"));
+    }
+    if (providerSelect.value !== "openai") {
+      providerSelect.value = "openai";
+      providerSelect.dispatchEvent(new Event("change"));
+    } else {
+      updateProviderUI("openai", true);
+    }
+    apiKeyInput.value = "";
+    if (triggerTest && val.length >= 20) {
+      autoDetectTimer = setTimeout(() => {
+        document.getElementById("openaiTestBtn")?.click();
+      }, 600);
+    }
+  }
+
   let autoDetectTimer = null;
   apiKeyInput.addEventListener("input", () => {
     const val = apiKeyInput.value.trim();
     const detected = detectProviderFromKey(val);
+    if (detected === "openai") {
+      if (autoDetectTimer) clearTimeout(autoDetectTimer);
+      verifyToken++;
+      applyDetectedOpenAiKey(val, true);
+      return;
+    }
     if (detected && providerSelect.value !== detected) {
       providerSelect.value = detected;
       updateProviderUI(detected, true);
@@ -915,6 +972,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (match) {
         const foundKey = match[1];
         const detected = detectProviderFromKey(foundKey);
+        if (detected === "openai") {
+          applyDetectedOpenAiKey(foundKey, true);
+          return true;
+        }
         if (detected) {
           providerSelect.value = detected;
           keysByProvider[detected] = foundKey;
@@ -951,6 +1012,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (match && match[1] !== apiKeyInput.value.trim()) {
         const foundKey = match[1];
         const detected = detectProviderFromKey(foundKey);
+        if (detected === "openai") {
+          applyDetectedOpenAiKey(foundKey, true);
+          return;
+        }
         if (detected) {
           providerSelect.value = detected;
           keysByProvider[detected] = foundKey;
@@ -1222,22 +1287,22 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function getVocabPosClass(posText) {
     const p = (posText || "").toLowerCase();
+    if (/cụm động từ|phrasal/.test(p)) return "pos-phrasal";
+    if (/thành ngữ|\bidiom\b/.test(p)) return "pos-idiom";
+    if (/lóng|\bslang\b/.test(p)) return "pos-slang";
     if (/động từ|\bverb\b/.test(p)) return "pos-verb";
     if (/danh từ|\bnoun\b/.test(p)) return "pos-noun";
     if (/tính từ|\badj/.test(p)) return "pos-adj";
     if (/trạng từ|\badv/.test(p)) return "pos-adv";
-    if (/thành ngữ|\bidiom\b/.test(p)) return "pos-idiom";
-    if (/lóng|\bslang\b/.test(p)) return "pos-slang";
-    if (/cụm động từ|phrasal/.test(p)) return "pos-phrasal";
     return "";
   }
 
   function categorizeVocabPos(posText) {
     const p = (posText || "").toLowerCase();
-    if (/động từ|\bverb\b/.test(p) && !/thành ngữ|idiom/.test(p)) return "verb";
+    if (/phrasal|cụm|thành ngữ|idiom|lóng|slang/.test(p)) return "idiom";
+    if (/động từ|\bverb\b/.test(p)) return "verb";
     if (/danh từ|\bnoun\b/.test(p)) return "noun";
     if (/tính từ|\badjective\b|\badj\b/.test(p)) return "adj";
-    if (/thành ngữ|idiom|lóng|slang|phrasal|cụm/.test(p)) return "idiom";
     return "other";
   }
 
@@ -1326,9 +1391,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       const posClass = getVocabPosClass(item.pos);
       const posVariants = Array.isArray(item.posVariants) ? item.posVariants : [];
       const examplesList = Array.isArray(item.examples) ? item.examples : [];
-      const synonymList = Array.isArray(item.synonyms)
+      const rawRelated = Array.isArray(item.collocations) && item.collocations.length
+        ? item.collocations
+        : Array.isArray(item.synonyms) && item.synonyms.length
         ? item.synonyms
-        : (typeof item.synonyms === "string" ? item.synonyms.split(",").map((s) => s.trim()).filter(Boolean) : []);
+        : typeof item.collocations === "string"
+        ? item.collocations.split(",").map((s) => s.trim()).filter(Boolean)
+        : typeof item.synonyms === "string"
+        ? item.synonyms.split(",").map((s) => s.trim()).filter(Boolean)
+        : [];
+      const synonymList = rawRelated.filter(Boolean);
 
       card.innerHTML = `
         <div class="vocab-item-top">
@@ -1525,8 +1597,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
       }
       const lines = list.map((v, i) => {
+        const cleanPron = v.pron ? String(v.pron).replace(/^\/+|\/+$/g, "") : "";
         const parts = [
-          `${i + 1}. ${v.word} ${v.pron ? `(/${v.pron}/)` : ""} [${v.pos || "Từ vựng"}]`,
+          `${i + 1}. ${v.word} ${cleanPron ? `(/${cleanPron}/)` : ""} [${v.pos || "Từ vựng"}]`,
           `   • Nghĩa: ${v.meaning}`
         ];
         if (v.sentence) parts.push(`   • Ngữ cảnh phim: "${v.sentence}"`);
@@ -1542,9 +1615,15 @@ document.addEventListener("DOMContentLoaded", async () => {
             parts.push(`     - ${ex.orig || ""}${ex.trans ? ` ➔ ${ex.trans}` : ""}`);
           });
         }
-        if (v.fact) parts.push(`   • Fact thú vị & Mẹo nhớ: ${v.fact}`);
-        if (Array.isArray(v.synonyms) && v.synonyms.length) {
-          parts.push(`   • Đồng nghĩa / Đi kèm: ${v.synonyms.join(", ")}`);
+        const factText = v.funFact || v.fact;
+        if (factText) parts.push(`   • Fact thú vị & Mẹo nhớ: ${factText}`);
+        const relatedList = Array.isArray(v.collocations) && v.collocations.length
+          ? v.collocations
+          : Array.isArray(v.synonyms)
+          ? v.synonyms
+          : [];
+        if (relatedList.length) {
+          parts.push(`   • Đồng nghĩa / Đi kèm: ${relatedList.join(", ")}`);
         }
         return parts.join("\n");
       });
@@ -1632,6 +1711,38 @@ document.addEventListener("DOMContentLoaded", async () => {
       triggerMicroToast("💾 Đã tải file sao lưu JSON!");
     });
 
+    function applySettingsToForm(s) {
+      if (!s || typeof s !== "object") return;
+      if ("enabled" in s && enabledInput) enabledInput.checked = Boolean(s.enabled);
+      if ("dualSub" in s && dualSubInput) dualSubInput.checked = Boolean(s.dualSub);
+      if ("provider" in s && providerSelect && s.provider) {
+        providerSelect.value = s.provider;
+        providerSelect.dispatchEvent(new Event("change"));
+      }
+      if ("fallbackToFree" in s && fallbackInput) fallbackInput.checked = Boolean(s.fallbackToFree);
+      if ("autoAudioNoCC" in s && autoAudioNoCCInput) autoAudioNoCCInput.checked = Boolean(s.autoAudioNoCC);
+      if ("softenProfanity" in s && softenProfanityInput) softenProfanityInput.checked = s.softenProfanity !== false;
+      if ("hoverPauseDict" in s && hoverPauseDictInput) hoverPauseDictInput.checked = s.hoverPauseDict !== false;
+      if ("selectionTranslate" in s && selectionTranslateInput) selectionTranslateInput.checked = s.selectionTranslate !== false;
+      if ("hotkeysEnabled" in s && hotkeysEnabledInput) hotkeysEnabledInput.checked = s.hotkeysEnabled !== false;
+      if ("autoCheckUpdates" in s && autoCheckUpdatesInput) autoCheckUpdatesInput.checked = s.autoCheckUpdates !== false;
+      if ("autoPersona" in s && autoPersonaInput) autoPersonaInput.checked = s.autoPersona !== false;
+      if ("smartMergeCaptions" in s && smartMergeCaptionsInput) smartMergeCaptionsInput.checked = s.smartMergeCaptions !== false;
+      if ("multiSpeakerSplit" in s && multiSpeakerSplitInput) multiSpeakerSplitInput.checked = s.multiSpeakerSplit !== false;
+      if ("targetLang" in s && targetLangSelect && s.targetLang) targetLangSelect.value = s.targetLang;
+      if ("secondaryLang" in s && secondaryLangSelect && s.secondaryLang) secondaryLangSelect.value = s.secondaryLang;
+      if ("pronounStyle" in s && pronounStyleSelect && s.pronounStyle) pronounStyleSelect.value = s.pronounStyle;
+      if ("translationStyle" in s && translationStyleSelect && s.translationStyle) translationStyleSelect.value = s.translationStyle;
+      if ("subBgStyle" in s && subBgStyleSelect && s.subBgStyle) subBgStyleSelect.value = s.subBgStyle;
+      if ("subFont" in s && subFontSelect && s.subFont) subFontSelect.value = s.subFont;
+      if ("overlayWidth" in s && overlayWidthInput && s.overlayWidth != null) overlayWidthInput.value = String(s.overlayWidth);
+      if ("subSize" in s && subSizeInput && s.subSize != null) subSizeInput.value = String(s.subSize);
+      if ("subBottomPos" in s && subBottomPosInput && s.subBottomPos != null) subBottomPosInput.value = String(s.subBottomPos);
+      if ("subColor" in s && subColorInput && s.subColor) subColorInput.value = s.subColor;
+      if ("subSecondColor" in s && subSecondColorInput && s.subSecondColor) subSecondColorInput.value = s.subSecondColor;
+      updateLivePreview();
+    }
+
     importBackupBtn.addEventListener("click", () => importBackupFile.click());
     importBackupFile.addEventListener("change", async (e) => {
       const file = e.target.files?.[0];
@@ -1640,9 +1751,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         const raw = await file.text();
         const data = JSON.parse(raw);
         const updates = { ...(data.settings || {}) };
+        if (updates.subSize != null) updates.overlayScale = Number(updates.subSize) || 100;
+        if (updates.subBottomPos != null) updates.overlayBottom = Number(updates.subBottomPos) || 12;
         if (Array.isArray(data.customGlossary)) updates.customGlossary = data.customGlossary;
         if (Array.isArray(data.savedVocab)) updates.savedVocab = data.savedVocab;
         await chrome.storage.local.set(updates);
+        applySettingsToForm(updates);
         triggerMicroToast("📂 Đã khôi phục dữ liệu!");
         showStatus("✓ Đã khôi phục Sổ từ, Glossary & Cài đặt thành công!", "ok");
         if (updates.savedVocab) renderVocabNotebook(updates.savedVocab);
@@ -1656,7 +1770,27 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   if (clearVocabBtn) {
+    let clearConfirmTimer = null;
     clearVocabBtn.addEventListener("click", async () => {
+      if (!cachedVocabList.length) {
+        showStatus("⚠ Sổ từ vựng đang trống.", "err");
+        return;
+      }
+      if (clearVocabBtn.dataset.confirmPending !== "1") {
+        clearVocabBtn.dataset.confirmPending = "1";
+        clearVocabBtn.dataset.origLabel = clearVocabBtn.textContent;
+        clearVocabBtn.textContent = "⚠ Xác nhận xóa?";
+        showStatus("⚠ Bấm nút 'Xác nhận xóa?' thêm lần nữa trong 4 giây để xóa toàn bộ Sổ từ vựng.", "wait");
+        if (clearConfirmTimer) clearTimeout(clearConfirmTimer);
+        clearConfirmTimer = setTimeout(() => {
+          delete clearVocabBtn.dataset.confirmPending;
+          clearVocabBtn.textContent = clearVocabBtn.dataset.origLabel || "🗑️ Xóa hết";
+        }, 4000);
+        return;
+      }
+      if (clearConfirmTimer) clearTimeout(clearConfirmTimer);
+      delete clearVocabBtn.dataset.confirmPending;
+      clearVocabBtn.textContent = clearVocabBtn.dataset.origLabel || "🗑️ Xóa hết";
       await chrome.storage.local.set({ savedVocab: [] });
       renderVocabNotebook([]);
       showStatus("✓ Đã xóa sạch Sổ từ vựng.", "ok");
@@ -1732,6 +1866,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!src) {
       showStatus("⚠ Vui lòng nhập từ hoặc cụm từ gốc cần khóa!", "err");
       glossarySrcInput.focus();
+      return;
+    }
+    if (!target) {
+      showStatus("⚠ Vui lòng nhập nghĩa / cách dịch mong muốn!", "err");
+      glossaryTargetInput.focus();
       return;
     }
     const s = await chrome.storage.local.get({ customGlossary: [] });

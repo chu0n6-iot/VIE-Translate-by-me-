@@ -12,6 +12,15 @@
   const presetBtns = document.querySelectorAll(".ollama-preset-btn");
   if (!providerSel || !section) return;
 
+  function escapeHtml(str) {
+    return String(str || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   const toggle = () => {
     section.style.display = providerSel.value === "ollama" ? "block" : "none";
   };
@@ -52,17 +61,17 @@
 
   function testConnection() {
     const rawUrl = urlInput.value.trim() || "http://localhost:11434";
-    statusEl.innerHTML = `⏳ Đang kết nối Local AI tại <code>${rawUrl}</code>...`;
+    statusEl.innerHTML = `⏳ Đang kết nối Local AI tại <code>${escapeHtml(rawUrl)}</code>...`;
     chrome.runtime.sendMessage(
       { type: "TEST_API", provider: "ollama", baseUrl: rawUrl, model: modelSel.value },
       (res) => {
         if (chrome.runtime.lastError || !res?.ok) {
           const errText = res?.error || chrome.runtime.lastError?.message || "Lỗi kết nối Local AI";
-          statusEl.innerHTML = `<span style="color:#f87171">✗ ${errText}</span>`;
+          statusEl.innerHTML = `<span style="color:#f87171">✗ ${escapeHtml(errText)}</span>`;
           return;
         }
         fillModels(res.availableModels || [], modelSel.value || res.modelUsed);
-        statusEl.innerHTML = `<span style="color:#34d399;font-weight:600">✓ Kết nối thành công! [${res.modelUsed}]</span><br/><span style="opacity:0.9">Bản dịch thử: "${res.sample}"</span>`;
+        statusEl.innerHTML = `<span style="color:#34d399;font-weight:600">✓ Kết nối thành công! [${escapeHtml(res.modelUsed || "")}]</span><br/><span style="opacity:0.9">Bản dịch thử: "${escapeHtml(res.sample || "")}"</span>`;
         save();
       }
     );

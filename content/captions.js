@@ -950,13 +950,27 @@
     return true;
   }
 
-  function startYouTubePrefetch(video) {
-    if (location.hostname.includes("youtube.com")) {
-      loadYouTubeCues(video);
+  function isYouTube() {
+    return typeof location !== "undefined" && String(location.hostname || "").includes("youtube.com");
+  }
+
+  function stopYouTubePrefetch() {
+    if (ytCueState.timer) {
+      clearInterval(ytCueState.timer);
+      ytCueState.timer = null;
     }
+    if (ytCueState.renderTimer) {
+      clearInterval(ytCueState.renderTimer);
+      ytCueState.renderTimer = null;
+    }
+  }
+
+  function startYouTubePrefetch(video) {
+    if (!isYouTube()) return;
+    loadYouTubeCues(video);
     if (!ytCueState.timer) {
       ytCueState.timer = setInterval(() => {
-        if (location.hostname.includes("youtube.com")) loadYouTubeCues(getActiveVideo(video));
+        if (isYouTube()) loadYouTubeCues(getActiveVideo(video));
       }, 1500);
     }
     if (!ytCueState.renderTimer) {
@@ -1179,6 +1193,125 @@
     recordNext();
   }
 
+  function resyncActiveCaptions(video) {
+    if (!video) return false;
+    if (renderYouTubeByTime(video)) return true;
+
+    const st = getVideoState(video);
+    if (st.subMuted) return false;
+    const cb = st.onCaptionCallback || root.VieContent?.onCaptionReceived;
+    if (typeof cb !== "function") return false;
+
+    if (video.textTracks) {
+      const t = Math.max(0, Number(video.currentTime) || 0);
+      for (const track of video.textTracks) {
+        if (!track || (track.kind !== "subtitles" && track.kind !== "captions")) continue;
+        if (track.mode === "disabled") continue;
+        if (track.mode === "showing") track.mode = "hidden";
+
+        let cues = track.activeCues ? Array.from(track.activeCues) : [];
+        if (!cues.length && track.cues && track.cues.length) {
+          cues = Array.from(track.cues).filter(
+            (c) => c && Number.isFinite(c.startTime) && Number.isFinite(c.endTime) && c.startTime <= t && t < c.endTime
+          );
+        }
+        const text = cues.map((c) => normalizeSubtitleText(c.text || "")).filter(Boolean).join(" ");
+        if (text) {
+          st.hasReceivedAnySubtitle = true;
+          let nextText = "";
+          if (track.cues && track.cues.length > 1) {
+            const allCues = Array.from(track.cues);
+            const lastActive = cues[cues.length - 1];
+            const curIdx = allCues.indexOf(lastActive);
+            if (curIdx >= 0 && curIdx + 1 < allCues.length) {
+              nextText = normalizeSubtitleText(allCues[curIdx + 1].text || "");
+            }
+          }
+          cb(video, text, true, nextText);
+          return true;
+        }
+      }
+    }
+
+    if (typeof document !== "undefined") {
+      const scopeRoot =
+        (root.VieDOM?.getContainer && root.VieDOM.getContainer(video)) ||
+        (root.VieDOM?.findBestVideoContainer && root.VieDOM.findBestVideoContainer(video)) ||
+        video.parentElement ||
+        document;
+      for (const cfg of PLATFORM_CAPTION_CONFIGS) {
+        if (cfg.name === "youtube" && ytCueState.cues.length) continue;
+        const player = video.closest?.(cfg.playerSelector) || (cfg.name === "generic" ? scopeRoot : (scopeRoot || document));
+        if (!player || typeof player.querySelectorAll !== "function") continue;
+        const containers = player.querySelectorAll(cfg.containerSelector);
+        for (const captionContainer of containers) {
+          if (!captionContainer || captionContainer.closest?.(".vie-overlay, .vie-toad-audio-btn, .vie-quick-sub-toggle")) continue;
+          const text = extractCaptionContainerText(captionContainer, cfg);
+          if (text) {
+            st.hasReceivedAnySubtitle = true;
+            cb(video, text, true);
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
+  function toggleQuickSubMute(video, toggleBtnEl = null) {
+    if (!video) return false;
+    const st = getVideoState(video);
+    st.subMuted = !st.subMuted;
+    const container =
+      (root.VieDOM?.getContainer && root.VieDOM.getContainer(video)) ||
+      video.parentElement ||
+      null;
+    const ov =
+      video._vieOverlay ||
+      container?.querySelector?.(".vie-overlay") ||
+      (typeof document !== "undefined" ? document.querySelector(".vie-overlay") : null);
+    if (ov) ov._subMuted = st.subMuted;
+
+    const toggleBtn =
+      toggleBtnEl ||
+      st.subToggleBtnEl ||
+      (typeof document !== "undefined" ? document.querySelector(".vie-quick-sub-toggle") : null);
+
+    if (st.subMuted) {
+      root.VieDOM?.playUiSound?.("toggle_off");
+      if (toggleBtn) {
+        toggleBtn.classList.add("vie-sub-off");
+        toggleBtn.innerHTML = `<span>🙈 Sub: TẮT</span>`;
+      }
+      root.VieDOM?.hideOverlay(video);
+      showSyncToast(video, "🙈 Đã tạm ẩn phụ đề trên video");
+    } else {
+      root.VieDOM?.playUiSound?.("toggle_on");
+      if (toggleBtn) {
+        toggleBtn.classList.remove("vie-sub-off");
+        toggleBtn.innerHTML = `<span>👁️ Sub: BẬT</span>`;
+      }
+      st.lastCueText = "";
+      st.lastText = "";
+      st.lastRenderedSeq = 0;
+      if (st.hideTimer) {
+        clearTimeout(st.hideTimer);
+        st.hideTimer = null;
+      }
+      if (st.throttleTimer) {
+        clearTimeout(st.throttleTimer);
+        st.throttleTimer = null;
+      }
+      const restored = resyncActiveCaptions(video);
+      if (!restored && st.audioCaptureActive && ov?.querySelector?.(".vie-vi")?.textContent?.trim()) {
+        ov.classList.remove("vie-hidden");
+      }
+      showSyncToast(video, "👁️ Đã bật lại phụ đề — Bắt kịp ngay nhịp phim hiện tại!");
+    }
+    return st.subMuted;
+  }
+
   function ensureToadAudioButton(video) {
     const state = getVideoState(video);
     const container =
@@ -1239,27 +1372,7 @@
         toggleBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           e.preventDefault();
-          const st = getVideoState(video);
-          st.subMuted = !st.subMuted;
-          const ov = video._vieOverlay || document.querySelector(".vie-overlay");
-          if (ov) ov._subMuted = st.subMuted;
-
-          if (st.subMuted) {
-            root.VieDOM?.playUiSound?.("toggle_off");
-            toggleBtn.classList.add("vie-sub-off");
-            toggleBtn.innerHTML = `<span>🙈 Sub: TẮT</span>`;
-            root.VieDOM?.hideOverlay(video);
-            showSyncToast(video, "🙈 Đã tạm ẩn phụ đề trên video");
-          } else {
-            root.VieDOM?.playUiSound?.("toggle_on");
-            toggleBtn.classList.remove("vie-sub-off");
-            toggleBtn.innerHTML = `<span>👁️ Sub: BẬT</span>`;
-            st.lastCueText = "";
-            st.lastText = "";
-            st.lastRenderedSeq = 0;
-            renderYouTubeByTime(video);
-            showSyncToast(video, "👁️ Đã bật lại phụ đề — Bắt kịp ngay nhịp phim hiện tại!");
-          }
+          toggleQuickSubMute(video, toggleBtn);
         });
         container.appendChild(toggleBtn);
       }
@@ -1430,7 +1543,7 @@
     }
 
     observePlatformCaptions(video, onCaption);
-    startYouTubePrefetch(video);
+    if (isYouTube()) startYouTubePrefetch(video);
     autoEnsureYouTubeCC(video);
     ensureToadAudioButton(video);
 
@@ -1487,7 +1600,7 @@
     video.addEventListener("playing", checkAutoTranslate);
     video.addEventListener("loadeddata", () => {
       autoEnsureYouTubeCC(video);
-      startYouTubePrefetch(video);
+      if (isYouTube()) startYouTubePrefetch(video);
     });
 
     video.addEventListener("timeupdate", () => renderYouTubeByTime(video));
@@ -1506,6 +1619,7 @@
     getVideoState,
     autoEnsureYouTubeCC,
     loadYouTubeCues,
+    stopYouTubePrefetch,
     renderYouTubeByTime,
     ensureToadAudioButton,
     updateToadButtonUI,
@@ -1525,6 +1639,8 @@
     ingestYouTubeTimedtext,
     observePlatformCaptions,
     extractCaptionContainerText,
+    resyncActiveCaptions,
+    toggleQuickSubMute,
     ytCueState
   };
 })(typeof self !== "undefined" ? self : this);

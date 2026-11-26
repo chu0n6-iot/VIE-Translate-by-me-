@@ -54,6 +54,11 @@
     return (url || DEFAULT_BASE_URL).trim().replace(/\/+$/, "");
   }
 
+  function isOpenAiHint(base) {
+    const b = String(base || "").toLowerCase();
+    return b.endsWith("/v1") || b.includes(":1234") || b.includes(":1337") || b.includes(":8080") || b.includes("lmstudio");
+  }
+
   async function localAiFetch(url, opts, timeoutMs = 15000) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -90,10 +95,10 @@
     let names = [];
     let detectedProto = "ollama";
 
-    // 1. Nếu URL chỉ định rõ /v1 hoặc cổng LM Studio (1234) / Jan (1337), ưu tiên thử endpoint OpenAI trước
-    const isOpenAiHint = base.endsWith("/v1") || base.includes(":1234") || base.includes(":1337") || base.includes(":8080");
+    // 1. Nếu URL chỉ định rõ /v1 hoặc cổng LM Studio (1234) / Jan (1337) / 8080, ưu tiên thử endpoint OpenAI trước
+    const preferOpenAi = isOpenAiHint(base);
 
-    if (isOpenAiHint) {
+    if (preferOpenAi) {
       try {
         const openAiUrl = `${base.replace(/\/v1$/, "")}/v1/models`;
         const data = await localAiFetch(openAiUrl, {}, 3500);
@@ -204,7 +209,7 @@
       { role: "user", content: userPrompt }
     ];
 
-    const detectedProto = serverProtocolMap.get(base) || (base.endsWith("/v1") || base.includes(":1234") || base.includes(":1337") ? "openai" : "ollama");
+    const detectedProto = serverProtocolMap.get(base) || (isOpenAiHint(base) ? "openai" : "ollama");
 
     const out = await withLocalSlot(async () => {
       if (detectedProto === "openai") {
@@ -257,7 +262,7 @@
       if (!list.length) throw new Error("Local AI chưa có model nào.");
       model = list[0];
     }
-    const detectedProto = serverProtocolMap.get(base) || (base.endsWith("/v1") || base.includes(":1234") || base.includes(":1337") ? "openai" : "ollama");
+    const detectedProto = serverProtocolMap.get(base) || (isOpenAiHint(base) ? "openai" : "ollama");
     const sysMsg = model.toLowerCase().includes("qwen3")
       ? "Return ONLY valid JSON without markdown fences or notes. /no_think"
       : "Return ONLY valid JSON without markdown fences or notes.";
@@ -322,7 +327,7 @@
       model = list.find((m) => visionRegex.test(m)) || list[0];
     }
 
-    const detectedProto = serverProtocolMap.get(base) || (base.endsWith("/v1") || base.includes(":1234") || base.includes(":1337") ? "openai" : "ollama");
+    const detectedProto = serverProtocolMap.get(base) || (isOpenAiHint(base) ? "openai" : "ollama");
     const finalPrompt = model.toLowerCase().includes("qwen3") ? `${prompt}\n/no_think` : prompt;
 
     const out = await withLocalSlot(async () => {
@@ -372,6 +377,7 @@
   root.VieOllama = {
     DEFAULT_BASE_URL,
     MAX_LOCAL_CONCURRENT,
+    isOpenAiHint,
     discoverOllamaModels,
     translateWithOllama,
     lookupWordWithOllama,

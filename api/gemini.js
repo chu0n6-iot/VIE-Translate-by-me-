@@ -171,12 +171,13 @@
         workingEndpointByKey.set(cleanKey, ep.type);
         const data = await res.json();
         const parts = data?.candidates?.[0]?.content?.parts || [];
+        const nonThoughtText = parts
+          .filter((p) => !p?.thought && typeof p?.text === "string")
+          .map((p) => p.text)
+          .join("");
         const text =
-          parts
-            .filter((p) => !p?.thought && typeof p?.text === "string")
-            .map((p) => p.text)
-            .join("") ||
-          parts[0]?.text ||
+          nonThoughtText ||
+          (!parts[0]?.thought && typeof parts[0]?.text === "string" ? parts[0].text : "") ||
           "";
         return text.trim();
       } catch (err) {

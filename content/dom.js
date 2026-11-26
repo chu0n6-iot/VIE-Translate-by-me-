@@ -330,8 +330,7 @@
     "div[class*='video-player-container']",
     // Classic Cinema & Streaming Wrappers (Easter Egg Support: rổ phim & phim mới)
     "#box-player",
-    ".watch-player",
-    "article"
+    ".watch-player"
   ].join(", ");
 
   function getContainer(video) {
@@ -399,9 +398,14 @@
       }
     });
 
+    const showSecondary = Boolean(settings?.dualSub) && settings?.secondaryLang !== "none";
     document.querySelectorAll(".vie-overlay").forEach((overlay) => {
       if (!isEnabled) {
         overlay.classList.add("vie-hidden");
+      }
+      const origEl = overlay.querySelector(".vie-orig");
+      if (origEl) {
+        origEl.style.display = showSecondary ? "block" : "none";
       }
       applyOverlayVisualStyle(overlay, settings);
     });
@@ -948,6 +952,13 @@
       const examplesList = Array.isArray(res.examples)
         ? res.examples.map((ex) => (typeof ex === "string" ? { orig: ex, trans: "" } : ex))
         : [];
+      const collocationsList = Array.isArray(res.collocations)
+        ? res.collocations.filter(Boolean)
+        : typeof res.collocations === "string"
+        ? res.collocations.split(",").map((s) => s.trim()).filter(Boolean)
+        : Array.isArray(res.synonyms)
+        ? res.synonyms.filter(Boolean)
+        : [];
 
       dictCard.innerHTML = `
         <div class="vie-dict-header">
@@ -1002,6 +1013,17 @@
               )
               .join("")}
           </div>
+        </div>`
+            : ""
+        }
+        ${
+          collocationsList.length > 0
+            ? `
+        <div class="vie-dict-synonyms-box">
+          <span class="vie-dict-syn-label">🧩 Cụm đi kèm:</span>
+          <span class="vie-dict-syn-tags">
+            ${collocationsList.map((c) => `<span class="vie-dict-syn-tag">${escapeHtml(c)}</span>`).join("")}
+          </span>
         </div>`
             : ""
         }
@@ -1072,17 +1094,19 @@
 
     chrome.runtime.sendMessage({ type: "EXPLAIN_SCENE", sentence, vi: viText, focusWord }, (res) => {
       if (chrome.runtime.lastError || !res?.ok) {
+        const errMsg = res?.error || chrome.runtime.lastError?.message || "Không thể phân tích ngữ cảnh lúc này.";
         dictCard.innerHTML = `
           <div class="vie-dict-header">
             <span class="vie-dict-word">🎓 Phân tích ngữ cảnh</span>
             <button type="button" class="vie-dict-close">✕</button>
           </div>
-          <div class="vie-dict-meaning">Không thể phân tích ngữ cảnh lúc này.</div>
+          <div class="vie-dict-meaning">⚠️ ${escapeHtml(errMsg)}</div>
         `;
         dictCard.querySelector(".vie-dict-close")?.addEventListener("click", () => closeDictAndCoach(video, overlay, dictCard, false));
         return;
       }
 
+      const keyPoints = Array.isArray(res.keyPoints) ? res.keyPoints.filter(Boolean) : [];
       dictCard.innerHTML = `
         <div class="vie-dict-header">
           <div class="vie-dict-title">
@@ -1097,6 +1121,7 @@
         </div>
         ${res.nuance ? `<div class="vie-scene-block"><div class="vie-scene-label">🎭 Sắc thái &amp; Cảm xúc:</div><div class="vie-scene-text">${escapeHtml(res.nuance)}</div></div>` : ""}
         ${res.realLife ? `<div class="vie-scene-block"><div class="vie-scene-label">🗣️ Người bản xứ dùng thực tế thế nào:</div><div class="vie-scene-text">${escapeHtml(res.realLife)}</div></div>` : ""}
+        ${keyPoints.length > 0 ? `<div class="vie-scene-block"><div class="vie-scene-label">🔑 Điểm đáng nhớ:</div><ul class="vie-scene-keypoints">${keyPoints.map((kp) => `<li>${escapeHtml(kp)}</li>`).join("")}</ul></div>` : ""}
       `;
 
       dictCard.querySelector(".vie-dict-close")?.addEventListener("click", (e) => {
@@ -1118,6 +1143,33 @@
     return selectionBubbleEl;
   }
 
+  function positionSelectionBubble(el, coords, fallbackW, fallbackH) {
+    const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
+    const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+    const scrollX = typeof window !== "undefined" ? window.scrollX : 0;
+    const scrollY = typeof window !== "undefined" ? window.scrollY : 0;
+    const pad = 12;
+    const boxW = el.offsetWidth || fallbackW || 280;
+    const boxH = el.offsetHeight || fallbackH || 160;
+
+    // CSS .vie-selection-bubble uses transform: translate(-50%, -100%),
+    // so visual left = left - boxW/2, visual top = top - boxH, visual bottom = top.
+    const minLeft = scrollX + boxW / 2 + pad;
+    const maxLeft = Math.max(minLeft, scrollX + vw - boxW / 2 - pad);
+    const safeLeft = Math.max(minLeft, Math.min(maxLeft, coords.x));
+
+    let anchorTop = coords.y - 14;
+    if (anchorTop - boxH < scrollY + pad) {
+      anchorTop = Math.min(scrollY + vh - pad, coords.y + 24 + boxH);
+    }
+    const minTop = scrollY + boxH + pad;
+    const maxTop = Math.max(minTop, scrollY + vh - pad);
+    const safeTop = Math.max(minTop, Math.min(maxTop, anchorTop));
+
+    el.style.left = `${safeLeft}px`;
+    el.style.top = `${safeTop}px`;
+  }
+
   function showSelectionBubble(text, coords, onAction) {
     const el = ensureSelectionBubble();
     el.innerHTML = `
@@ -1127,9 +1179,8 @@
       </button>
     `;
 
-    el.style.left = `${Math.max(10, coords.x)}px`;
-    el.style.top = `${Math.max(10, coords.y - 42)}px`;
     el.classList.remove("vie-bubble-hidden");
+    positionSelectionBubble(el, coords, 120, 36);
 
     el.querySelector(".vie-bubble-btn")?.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1182,15 +1233,8 @@
       </div>
     `;
 
-    const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
-    const scrollX = typeof window !== "undefined" ? window.scrollX : 0;
-    const scrollY = typeof window !== "undefined" ? window.scrollY : 0;
-    const safeLeft = Math.max(scrollX + 12, Math.min(scrollX + vw - 350, coords.x - 40));
-    const preferredTop = coords.y - 135;
-    const safeTop = preferredTop > scrollY + 12 ? preferredTop : coords.y + 24;
-    el.style.left = `${safeLeft}px`;
-    el.style.top = `${safeTop}px`;
     el.classList.remove("vie-bubble-hidden");
+    positionSelectionBubble(el, coords, 290, 175);
 
     el.querySelector(".vie-quick-close")?.addEventListener("click", () => {
       hideSelectionBubble();
@@ -1238,6 +1282,7 @@
           ${exList.length ? `<div style="margin-top:5px;font-size:11.5px;color:#93c5fd;">${exList.map((ex) => `• ${escapeHtml(typeof ex === "string" ? ex : ex.orig || "")}`).join("<br>")}</div>` : ""}
           <button type="button" class="vie-dict-save" style="margin-top:6px;">⭐ Lưu từ</button>
         `;
+        positionSelectionBubble(el, coords, 290, 220);
         const saveBtn = dictBox.querySelector(".vie-dict-save");
         saveBtn?.addEventListener("click", (ev) => {
           ev.stopPropagation();

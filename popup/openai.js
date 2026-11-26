@@ -14,6 +14,15 @@
   const presetBtns = document.querySelectorAll(".openai-preset-btn");
   if (!providerSel || !section) return;
 
+  function escapeHtml(str) {
+    return String(str || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   const toggle = () => {
     section.style.display = providerSel.value === "openai" ? "block" : "none";
   };
@@ -55,17 +64,17 @@
       keyInput.focus();
       return;
     }
-    statusEl.innerHTML = `⏳ Đang kết nối tới <code>${baseUrl}</code>...`;
+    statusEl.innerHTML = `⏳ Đang kết nối tới <code>${escapeHtml(baseUrl)}</code>...`;
     chrome.runtime.sendMessage(
       { type: "TEST_API", provider: "openai", baseUrl, apiKey, model: modelSel.value || "auto" },
       (res) => {
         if (chrome.runtime.lastError || !res?.ok) {
           const errText = res?.error || chrome.runtime.lastError?.message || "Lỗi kết nối API";
-          statusEl.innerHTML = `<span style="color:#f87171">✗ ${errText}</span>`;
+          statusEl.innerHTML = `<span style="color:#f87171">✗ ${escapeHtml(errText)}</span>`;
           return;
         }
         fillModels(res.availableModels || [], modelSel.value || res.modelUsed);
-        statusEl.innerHTML = `<span style="color:#34d399;font-weight:600">✓ Kết nối thành công! [${res.modelUsed}]</span><br/><span style="opacity:0.9">Bản dịch thử: "${res.sample}"</span>`;
+        statusEl.innerHTML = `<span style="color:#34d399;font-weight:600">✓ Kết nối thành công! [${escapeHtml(res.modelUsed || "")}]</span><br/><span style="opacity:0.9">Bản dịch thử: "${escapeHtml(res.sample || "")}"</span>`;
         save();
       }
     );

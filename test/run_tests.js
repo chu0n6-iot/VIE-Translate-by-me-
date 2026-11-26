@@ -1861,6 +1861,10 @@ await (async () => {
   assert.ok(C.ytCueState.cues.length >= 1, "ingestYouTubeTimedtext phải nạp được cues từ MAIN world!");
   assert.strictEqual(C.ytCueState.cues[0].text, "Never gonna give you up.");
 
+  C.stopYouTubePrefetch?.();
+  if (C.ytCueState.timer) { clearInterval(C.ytCueState.timer); C.ytCueState.timer = null; }
+  if (C.ytCueState.renderTimer) { clearInterval(C.ytCueState.renderTimer); C.ytCueState.renderTimer = null; }
+
   console.log("   ✅ Đã kiểm tra bắt phụ đề trễ, trích xuất visual-line & hook timedtext chuẩn 100%!\n");
 })();
 
@@ -1926,6 +1930,645 @@ await (async () => {
   console.log("   ✅ Đã kiểm tra chống rớt phụ đề streaming & dự phòng chống trống màn hình chuẩn 100%!\n");
 })();
 
-console.log("🎉 TOÀN BỘ 32 BÀI KIỂM TRA ĐỀU HOÀN TOÀN CHÍNH XÁC VÀ ĐẠT 100%!");
+// --- 33. Test background.js Error Hygiene (GTX 429, fallbackToFree:false, buildKeyPool Generic Key & lastProvider) ---
+console.log("3️⃣3️⃣ Kiểm tra background.js: GTX 429 an toàn, fallbackToFree:false & buildKeyPool generic key...");
+await (async () => {
+  let msgHandler = null;
+  let storedSettings = {
+    provider: "gtx",
+    apiKey: "",
+    targetLang: "vi",
+    fallbackToFree: true
+  };
+  let fetchMode = "gtx429";
+  const mockFetch = async (url) => {
+    if (String(url).includes("translate.googleapis.com")) {
+      if (fetchMode === "gtx429") {
+        return makeMockResponse({ ok: false, status: 429, jsonData: {} });
+      }
+      return makeMockResponse({ ok: true, status: 200, jsonData: [[["Xin chào", "Hello", null, null, 10]]] });
+    }
+    if (String(url).includes("generativelanguage.googleapis.com")) {
+      return makeMockResponse({ ok: false, status: 429, jsonData: { error: { message: "quota exceeded" } } });
+    }
+    if (String(url).includes("api.groq.com/openai/v1/models")) {
+      return makeMockResponse({ ok: true, status: 200, jsonData: { data: [{ id: "llama-3.3-70b-versatile" }] } });
+    }
+    if (String(url).includes("api.groq.com/openai/v1/chat/completions")) {
+      return makeMockResponse({ ok: true, status: 200, jsonData: { choices: [{ message: { content: "Xin chào từ Groq" } }] } });
+    }
+    return makeMockResponse({ ok: false, status: 404, jsonData: {} });
+  };
+  const storageListeners = [];
+  const chromeMock = {
+    storage: {
+      local: {
+        get: (keys, cb) => cb(keys && "translationCache" in keys ? { translationCache: [] } : { ...keys, ...storedSettings }),
+        set: (u, cb) => {
+          const changes = {};
+          for (const [k, v] of Object.entries(u || {})) {
+            changes[k] = { oldValue: storedSettings[k], newValue: v };
+          }
+          storedSettings = { ...storedSettings, ...u };
+          for (const fn of storageListeners) fn(changes, "local");
+          cb && cb();
+        },
+        remove: () => {}
+      },
+      onChanged: { addListener: (fn) => storageListeners.push(fn) }
+    },
+    runtime: {
+      onMessage: { addListener: (fn) => { msgHandler = fn; } },
+      onInstalled: { addListener: () => {} },
+      lastError: null
+    },
+    contextMenus: { create: () => {}, onClicked: { addListener: () => {} } }
+  };
+  const ctx = createSandbox({
+    chrome: chromeMock,
+    fetch: mockFetch,
+    importScripts: (...paths) => paths.forEach((p) => loadModule(ctx, p.replace(/^\//, "")))
+  });
+  loadModule(ctx, "background/background.js");
+  const sendMsg = (m) => new Promise((r) => msgHandler(m, { tab: { id: 88 } }, r));
+  const updateSettings = (u) => ctx.VieStorage.setSettings(u);
+
+  // 33A: GTX HTTP 429 must resolve cleanly without unhandled rejection
+  const gtx429Res = await sendMsg({ type: "TRANSLATE", text: "Rate limited line" });
+  assert.strictEqual(gtx429Res.vi, "");
+  assert.strictEqual(gtx429Res.provider, "gtx");
+  assert.strictEqual(gtx429Res.rateLimited, true);
+  assert.ok(/429/.test(gtx429Res.error || ""));
+
+  // 33B: fallbackToFree: false with no key must NOT call GTX
+  fetchMode = "gtx_ok";
+  await updateSettings({ provider: "gemini", apiKey: "", geminiApiKey: "", groqApiKey: "", targetLang: "vi", fallbackToFree: false });
+  const noKeyRes = await sendMsg({ type: "TRANSLATE", text: "No key no fallback" });
+  assert.strictEqual(noKeyRes.vi, "");
+  assert.ok(noKeyRes.error, "Khi fallbackToFree=false và thiếu key phải trả về error rõ ràng!");
+
+  const noKeyBatchRes = await sendMsg({ type: "TRANSLATE_BATCH", texts: ["Batch line one"] });
+  assert.strictEqual(Object.keys(noKeyBatchRes.results || {}).length, 0);
+  assert.ok(noKeyBatchRes.error, "TRANSLATE_BATCH khi fallbackToFree=false và thiếu key phải trả về error!");
+
+  // 33C: buildKeyPool keeps generic key when provider is gemini/groq, and fallbackToFree:false blocks GTX on AI error
+  const poolGemini = ctx.buildKeyPool({ provider: "gemini", backupKeys: "", geminiApiKey: "", groqApiKey: "" }, "custom-unprefixed-key-123");
+  assert.deepStrictEqual(Array.from(poolGemini), ["custom-unprefixed-key-123"]);
+  await updateSettings({
+    provider: "gemini",
+    apiKey: "custom-unprefixed-key-123",
+    geminiApiKey: "custom-unprefixed-key-123",
+    groqApiKey: "",
+    targetLang: "vi",
+    fallbackToFree: false
+  });
+  const aiFailRes = await sendMsg({ type: "TRANSLATE", text: "AI fail no GTX" });
+  assert.strictEqual(aiFailRes.vi, "");
+  assert.ok(aiFailRes.error, "Khi fallbackToFree=false và AI lỗi không được âm thầm rơi về GTX!");
+
+  // 33D: Key pool rotation from Gemini -> Groq updates engineStats.lastProvider to "groq"
+  await updateSettings({
+    provider: "gemini",
+    apiKey: "AIzaFailingKey1234567890",
+    geminiApiKey: "AIzaFailingKey1234567890",
+    groqApiKey: "gsk_BackupGroqKey1234567890",
+    targetLang: "vi",
+    fallbackToFree: true
+  });
+  const rotatedRes = await sendMsg({ type: "TRANSLATE", text: "Rotate to Groq" });
+  assert.strictEqual(rotatedRes.vi, "Xin chào từ Groq");
+  assert.strictEqual(rotatedRes.provider, "groq");
+  const stats33 = await sendMsg({ type: "GET_ENGINE_STATS" });
+  assert.strictEqual(stats33.stats.lastProvider, "groq", "engineStats.lastProvider phải ghi nhận provider thực sự được callAI sử dụng!");
+  console.log("   ✅ Đã kiểm tra GTX 429, fallbackToFree:false, buildKeyPool & lastProvider chuẩn 100%!\n");
+})();
+
+// --- 34. Test api/gemini.js Thought-Only Safety & api/ollama.js :8080 Hint Consistency ---
+console.log("3️⃣4️⃣ Kiểm tra gemini.js (thought-only safety) & ollama.js (:8080 isOpenAiHint)...");
+await (async () => {
+  // 34A: gemini.js must NOT fall back to parts[0].text when parts[0].thought is true
+  const ctxGem = createSandbox({
+    fetch: async () =>
+      makeMockResponse({
+        ok: true,
+        status: 200,
+        jsonData: {
+          candidates: [{ content: { parts: [{ text: "SECRET INTERNAL THOUGHT", thought: true }] } }]
+        }
+      })
+  });
+  loadModule(ctxGem, "utils/storage.js");
+  loadModule(ctxGem, "api/gemini.js");
+  await assert.rejects(
+    () => ctxGem.VieGemini.translateWithGeminiAuto({ text: "Hello", apiKey: "AIzaTestOnlyThought", preferredModel: "gemini-2.5-flash" }),
+    /empty|refused|rỗng|failed/i,
+    "Khi Gemini chỉ trả part thought:true thì tuyệt đối không được rò rỉ parts[0].text!"
+  );
+
+  // 34B: ollama.js isOpenAiHint covers :8080 even when preferredModel skips discovery
+  const hitUrls = [];
+  const ctxOl = createSandbox({
+    fetch: async (url) => {
+      hitUrls.push(url);
+      return makeMockResponse({ ok: true, status: 200, jsonData: { choices: [{ message: { content: "Xin chào 8080" } }] } });
+    }
+  });
+  loadModule(ctxOl, "utils/storage.js");
+  loadModule(ctxOl, "api/ollama.js");
+  assert.strictEqual(ctxOl.VieOllama.isOpenAiHint("http://localhost:8080"), true);
+  assert.strictEqual(ctxOl.VieOllama.isOpenAiHint("http://127.0.0.1:1234"), true);
+  assert.strictEqual(ctxOl.VieOllama.isOpenAiHint("http://localhost:11434"), false);
+  const res8080 = await ctxOl.VieOllama.translateWithOllama({
+    text: "Hi",
+    baseUrl: "http://localhost:8080",
+    preferredModel: "local-gguf",
+    targetLang: "vi"
+  });
+  assert.strictEqual(res8080.vi, "Xin chào 8080");
+  assert.ok(hitUrls[0].endsWith("/v1/chat/completions"), "Port :8080 phải đi qua endpoint /v1/chat/completions ngay cả khi có preferredModel!");
+  console.log("   ✅ Đã kiểm tra thought-part safety & :8080 OpenAI-hint chuẩn 100%!\n");
+})();
+
+// --- 35. Test content/content.js Async exportBilingualSrt & Non-YouTube Prefetch Guard ---
+console.log("3️⃣5️⃣ Kiểm tra exportBilingualSrt (async batch + không drop khi dualSub=false) & guard non-YouTube...");
+await (async () => {
+  const sentBatches = [];
+  let downloadedText = "";
+  const ctx = createSandbox({
+    location: { hostname: "example.com", href: "https://example.com/video" },
+    Blob: class MockBlob {
+      constructor(parts) { downloadedText = parts.join(""); }
+    },
+    URL: {
+      createObjectURL: () => "blob:mock",
+      revokeObjectURL: () => {}
+    },
+    document: {
+      readyState: "loading",
+      title: "Sample Video",
+      addEventListener: () => {},
+      querySelector: () => null,
+      querySelectorAll: () => [],
+      createElement: () => ({
+        style: {},
+        className: "",
+        innerHTML: "",
+        title: "",
+        type: "",
+        href: "",
+        download: "",
+        click: () => {},
+        classList: { add: () => {}, remove: () => {} },
+        setAttribute: () => {},
+        querySelector: () => ({ textContent: "" }),
+        addEventListener: () => {}
+      })
+    },
+    chrome: {
+      storage: {
+        local: { get: (d, cb) => cb({ ...d, dualSub: false }), set: (_u, cb) => cb && cb() },
+        onChanged: { addListener: () => {} }
+      },
+      runtime: {
+        lastError: null,
+        getURL: (p) => `chrome-extension://mock/${p}`,
+        sendMessage: (msg, cb) => {
+          if (msg.type === "TRANSLATE_BATCH") {
+            sentBatches.push(msg.texts);
+            cb({ results: { "Cue 1": "Câu 1" } }); // Cue 2 intentionally empty!
+          }
+        }
+      }
+    }
+  });
+  const fakePlayer = {
+    classList: { add: () => {} },
+    appendChild: () => {},
+    querySelector: () => null,
+    querySelectorAll: () => []
+  };
+  ctx.VieDOM = {
+    getContainer: () => fakePlayer,
+    hideOverlay: () => {},
+    applySettingsToDOM: () => {}
+  };
+  loadModule(ctx, "utils/storage.js");
+  loadModule(ctx, "content/captions.js");
+  loadModule(ctx, "content/content.js");
+
+  // Guard: watchVideo on non-YouTube must NOT start YouTube prefetch intervals
+  const fakeTracks = [];
+  fakeTracks.addEventListener = () => {};
+  const fakeVid = { currentTime: 0, parentElement: fakePlayer, closest: () => null, addEventListener: () => {}, textTracks: fakeTracks };
+  ctx.VieCaptions.watchVideo(fakeVid, () => {});
+  assert.strictEqual(ctx.VieCaptions.ytCueState.timer, null, "Non-YouTube không được bật ytCueState.timer!");
+  assert.strictEqual(ctx.VieCaptions.ytCueState.renderTimer, null, "Non-YouTube không được bật ytCueState.renderTimer!");
+
+  // Async exportBilingualSrt must batch-translate uncached cues and keep Cue 2 fallback when dualSub=false
+  ctx.VieCaptions.ytCueState.cues = [
+    { start: 0, end: 2, text: "Cue 1" },
+    { start: 2, end: 4, text: "Cue 2" }
+  ];
+  await new Promise((r) => setTimeout(r, 10));
+  const srtRes = await ctx.VieContent.exportBilingualSrt(fakeVid);
+  assert.strictEqual(srtRes.ok, true);
+  assert.strictEqual(srtRes.count, 2);
+  assert.strictEqual(sentBatches.length, 1);
+  assert.ok(downloadedText.includes("Câu 1"), "Phải dịch các cue chưa có trong localCache!");
+  assert.ok(downloadedText.includes("Cue 2"), "Khi dualSub=false và dịch rỗng, vẫn phải giữ cue gốc chứ không được drop!");
+  console.log("   ✅ Đã kiểm tra exportBilingualSrt async & non-YouTube prefetch guard chuẩn 100%!\n");
+})();
+
+// --- 36. Test dom.js (.vie-orig toggle & article removal), selection.js scroll offset & webpage.js pill/nested li ---
+console.log("3️⃣6️⃣ Kiểm tra dom.js (.vie-orig toggle), selection.js (scroll offset) & webpage.js (pill/nested li)...");
+await (async () => {
+  // 36A: dom.js applySettingsToDOM updates .vie-orig display & PLAYER_WRAPPER_SELECTORS excludes bare article
+  const origNode = { style: { display: "block" } };
+  const overlayNode = {
+    classList: { add: () => {}, remove: () => {}, toggle: () => {} },
+    style: { setProperty: () => {} },
+    setAttribute: () => {},
+    closest: () => null,
+    dataset: {},
+    querySelector: (s) => (s === ".vie-orig" ? origNode : null)
+  };
+  const domCtx = createSandbox({
+    window: { getComputedStyle: () => ({ position: "relative" }) },
+    document: {
+      addEventListener: () => {},
+      querySelectorAll: (sel) => {
+        if (sel === ".vie-overlay") return [overlayNode];
+        assert.strictEqual(/(?:^|,)\s*article\s*(?:,|$)/.test(sel), false, "PLAYER_WRAPPER_SELECTORS không được chứa bare 'article'!");
+        return [];
+      }
+    }
+  });
+  loadModule(domCtx, "utils/storage.js");
+  loadModule(domCtx, "content/dom.js");
+  domCtx.VieDOM.applySettingsToDOM({ enabled: true, dualSub: false, secondaryLang: "orig" });
+  assert.strictEqual(origNode.style.display, "none", "applySettingsToDOM phải ẩn .vie-orig ngay lập tức khi dualSub=false!");
+  domCtx.VieDOM.applySettingsToDOM({ enabled: true, dualSub: true, secondaryLang: "orig" });
+  assert.strictEqual(origNode.style.display, "block", "applySettingsToDOM phải hiện .vie-orig ngay lập tức khi dualSub=true!");
+
+  // 36B: selection.js adds window.scrollX / window.scrollY on TRIGGER_SELECTION_TRANSLATE
+  let runtimeListener = null;
+  let capturedPopupCoords = null;
+  const selCtx = createSandbox({
+    scrollX: 120,
+    scrollY: 1500,
+    innerWidth: 1000,
+    innerHeight: 900,
+    document: { addEventListener: () => {} },
+    chrome: {
+      storage: { local: { get: (_d, cb) => cb({ enabled: true, selectionTranslate: true }) }, onChanged: { addListener: () => {} } },
+      runtime: {
+        lastError: null,
+        onMessage: { addListener: (fn) => { runtimeListener = fn; } },
+        sendMessage: (_m, _cb) => {}
+      }
+    }
+  });
+  selCtx.VieDOM = {
+    showQuickTranslatePopup: (_text, coords) => {
+      if (!capturedPopupCoords) capturedPopupCoords = coords;
+    }
+  };
+  loadModule(selCtx, "content/selection.js");
+  selCtx.VieSelection.init();
+  runtimeListener({ type: "TRIGGER_SELECTION_TRANSLATE", text: "scrolled text" });
+  assert.ok(capturedPopupCoords.x >= 120 && capturedPopupCoords.y >= 1500, "TRIGGER_SELECTION_TRANSLATE phải cộng scrollX/scrollY vào coords!");
+
+  // 36C: webpage.js skips nested <li> and finishes pill state on empty/error responses
+  const outerLi = {
+    innerText: "Outer list item with inner list",
+    closest: () => null,
+    querySelector: (q) => (q.includes("li") ? {} : null)
+  };
+  const innerLi = {
+    innerText: "Inner nested item to translate",
+    closest: () => null,
+    querySelector: () => null
+  };
+  const pillStatusEl = { textContent: "" };
+  const pillRetryBtn = { style: { display: "none" } };
+  const pillToggleBtn = { textContent: "" };
+  const pillEl = {
+    innerHTML: "",
+    addEventListener: () => {},
+    querySelector: (s) =>
+      s === ".vie-web-pill-status" ? pillStatusEl : s === "[data-action='retry']" ? pillRetryBtn : s === "[data-action='toggle-hide']" ? pillToggleBtn : null
+  };
+  const webCtx = createSandbox({
+    document: {
+      documentElement: { classList: { toggle: () => {}, remove: () => {} } },
+      body: { contains: () => true, appendChild: () => {} },
+      querySelectorAll: () => [outerLi, innerLi],
+      createElement: () => pillEl
+    },
+    chrome: {
+      runtime: {
+        lastError: null,
+        sendMessage: (_msg, cb) => cb({ ok: false, results: {} })
+      }
+    }
+  });
+  loadModule(webCtx, "content/webpage.js");
+  const eligible = webCtx.VieWebpage.collectTranslatableBlocks(webCtx.document, "vi");
+  assert.strictEqual(eligible.length, 1);
+  assert.strictEqual(eligible[0].el, innerLi, "Phải bỏ qua outer <li> chứa inner <li> để tránh dịch trùng!");
+  await webCtx.VieWebpage.enable();
+  await new Promise((r) => setTimeout(r, 200));
+  assert.ok(pillStatusEl.textContent.includes("Lỗi dịch"), `Pill không được kẹt ở 'Đang dịch', nhận được: ${pillStatusEl.textContent}`);
+  assert.strictEqual(pillRetryBtn.style.display, "inline-flex", "Nút thử lại trên pill phải hiện khi có đoạn dịch lỗi!");
+  console.log("   ✅ Đã kiểm tra dom.js, selection.js & webpage.js chuẩn 100%!\n");
+})();
+
+// --- 37. Test Popup XSS Escaping, Slider Step, Vocab Phrasal/Schema & Glossary Empty Target ---
+console.log("3️⃣7️⃣ Kiểm tra Popup: XSS escaping, overlayWidth step=1, Phrasal/Collocations & Glossary guard...");
+(() => {
+  const popupHtml = fs.readFileSync(path.join(ROOT_DIR, "popup/popup.html"), "utf8");
+  const popupJs = fs.readFileSync(path.join(ROOT_DIR, "popup/popup.js"), "utf8");
+  const popupOllama = fs.readFileSync(path.join(ROOT_DIR, "popup/ollama.js"), "utf8");
+  const popupOpenai = fs.readFileSync(path.join(ROOT_DIR, "popup/openai.js"), "utf8");
+
+  assert.ok(popupOllama.includes("escapeHtml(rawUrl)") && popupOllama.includes("escapeHtml(res.sample"), "popup/ollama.js phải escape HTML!");
+  assert.ok(popupOpenai.includes("escapeHtml(baseUrl)") && popupOpenai.includes("escapeHtml(res.sample"), "popup/openai.js phải escape HTML!");
+  assert.ok(/id="overlayWidth"[^>]*step="1"/.test(popupHtml), "overlayWidth slider phải dùng step='1' để mặc định 72 không bị snap về 71!");
+  assert.ok(popupJs.includes("item.collocations") && popupJs.includes("v.collocations") && popupJs.includes("v.funFact"), "popup.js phải hỗ trợ cả collocations và funFact!");
+  assert.ok(popupJs.includes("if (!target)"), "handleAddGlossary phải từ chối target rỗng!");
+
+  // Verify categorizeVocabPos ordering directly from popup.js
+  const fnMatch = popupJs.match(/function categorizeVocabPos\(posText\)\s*\{[\s\S]*?\n\s*\}/);
+  assert.ok(fnMatch, "Phải tìm thấy hàm categorizeVocabPos!");
+  const categorizeFn = vm.runInNewContext(`(${fnMatch[0]})`);
+  assert.strictEqual(categorizeFn("Cụm động từ (Phrasal Verb)"), "idiom", "Phrasal Verb phải vào nhóm idiom/cụm thay vì bị nuốt bởi verb!");
+  assert.strictEqual(categorizeFn("Động từ (Verb)"), "verb");
+  console.log("   ✅ Đã kiểm tra toàn bộ nâng cấp Popup Studio chuẩn 100%!\n");
+})();
+
+// --- 38. Test Popup Restricted Tab Detection (tab.url undefined) & Quick Popup Viewport Clamping ---
+console.log("3️⃣8️⃣ Kiểm tra phát hiện tab nội bộ (tab.url=undefined) & kẹp viewport popup dưới translate(-50%, -100%)...");
+(() => {
+  // 38A: popup.js isRestrictedTabUrl handles undefined/empty/edge:// vs normal https://
+  const popupJs = fs.readFileSync(path.join(ROOT_DIR, "popup/popup.js"), "utf8");
+  const restrictedFnMatch = popupJs.match(/function isRestrictedTabUrl\(url\)\s*\{[\s\S]*?\n\s*\}/);
+  assert.ok(restrictedFnMatch, "Phải tìm thấy hàm isRestrictedTabUrl trong popup/popup.js!");
+  const isRestrictedFn = vm.runInNewContext(`(${restrictedFnMatch[0]})`);
+  assert.strictEqual(isRestrictedFn(undefined), true, "tab.url === undefined (edge://settings, chrome://settings) phải bị coi là trang nội bộ!");
+  assert.strictEqual(isRestrictedFn(""), true, "tab.url rỗng phải bị coi là trang nội bộ!");
+  assert.strictEqual(isRestrictedFn("edge://settings"), true);
+  assert.strictEqual(isRestrictedFn("chrome://settings"), true);
+  assert.strictEqual(isRestrictedFn("about:blank"), true);
+  assert.strictEqual(isRestrictedFn("https://example.com/article"), false, "Trang web thường phải được phép chạy!");
+  assert.strictEqual(isRestrictedFn("http://127.0.0.1:8080/test/test_bench.html"), false);
+
+  // 38B: content/dom.js showQuickTranslatePopup keeps top - offsetHeight >= scrollY + 12 under translate(-50%, -100%)
+  const fakeBubble = {
+    id: "",
+    className: "",
+    innerHTML: "",
+    offsetWidth: 280,
+    offsetHeight: 172,
+    style: {},
+    classList: { add: () => {}, remove: () => {} },
+    querySelector: () => null
+  };
+  const domCtx = createSandbox({
+    scrollX: 0,
+    scrollY: 1123,
+    innerWidth: 1280,
+    innerHeight: 808,
+    window: {
+      scrollX: 0,
+      scrollY: 1123,
+      innerWidth: 1280,
+      innerHeight: 808,
+      getComputedStyle: () => ({ position: "relative" })
+    },
+    document: {
+      body: { contains: () => true, appendChild: () => {} },
+      addEventListener: () => {},
+      createElement: () => fakeBubble,
+      querySelectorAll: () => []
+    }
+  });
+  loadModule(domCtx, "utils/storage.js");
+  loadModule(domCtx, "content/dom.js");
+
+  // Case 1: Near top of scrolled viewport where coords.y - 14 - 172 < scrollY + 12 -> must flip below and stay >= scrollY + 12
+  domCtx.VieDOM.showQuickTranslatePopup("Hello world", { x: 288, y: 1123 + 120 }, { vi: "Xin chào", provider: "gtx" });
+  const topPx1 = parseFloat(fakeBubble.style.top);
+  assert.ok(topPx1 - fakeBubble.offsetHeight >= 1123 + 12, `Top trực quan (${topPx1 - fakeBubble.offsetHeight}) không được tràn lên trên scrollY + 12!`);
+  assert.ok(topPx1 <= 1123 + 808 - 12, `Bottom trực quan (${topPx1}) không được tràn xuống dưới viewport!`);
+
+  // Case 2: Mid-viewport -> stays above anchor with visual top >= scrollY + 12
+  domCtx.VieDOM.showQuickTranslatePopup("Scrolled popup test", { x: 288, y: 1123 + 350 }, { vi: "Kiểm tra cuộn", provider: "gtx" });
+  const topPx2 = parseFloat(fakeBubble.style.top);
+  assert.ok(topPx2 - fakeBubble.offsetHeight >= 1123 + 12, `Top trực quan (${topPx2 - fakeBubble.offsetHeight}) phải nằm gọn trong viewport!`);
+  assert.ok(topPx2 <= 1123 + 808 - 12);
+
+  // Case 3: Horizontal left edge clamping under translateX(-50%)
+  const leftPx = parseFloat(fakeBubble.style.left);
+  assert.ok(leftPx - fakeBubble.offsetWidth / 2 >= 12, `Left trực quan (${leftPx - fakeBubble.offsetWidth / 2}) không được tràn mép trái!`);
+  console.log("   ✅ Đã kiểm tra isRestrictedTabUrl & kẹp viewport showQuickTranslatePopup chuẩn 100%!\n");
+})();
+
+// --- 39. Test Non-YouTube <video> + <track> & Platform DOM Caption Alt+V / toggleQuickSubMute Un-Mute Resync ---
+console.log("3️⃣9️⃣ Kiểm tra bật lại phụ đề (Alt+V / toggleQuickSubMute) trên <video>+<track> & DOM caption non-YouTube...");
+await (async () => {
+  const makeClassList = (initial = []) => {
+    const set = new Set(initial);
+    return {
+      add: (...cls) => cls.forEach((c) => set.add(c)),
+      remove: (...cls) => cls.forEach((c) => set.delete(c)),
+      toggle: (c, force) => {
+        if (force === undefined) {
+          if (set.has(c)) set.delete(c);
+          else set.add(c);
+        } else if (force) set.add(c);
+        else set.delete(c);
+      },
+      contains: (c) => set.has(c)
+    };
+  };
+
+  const makeButton = () => {
+    const listeners = {};
+    return {
+      type: "",
+      className: "",
+      title: "",
+      innerHTML: "",
+      isConnected: true,
+      parentElement: null,
+      classList: makeClassList(),
+      querySelector: () => ({ textContent: "" }),
+      addEventListener: (ev, fn) => {
+        listeners[ev] = listeners[ev] || [];
+        listeners[ev].push(fn);
+      },
+      click: () => {
+        (listeners.click || []).forEach((fn) => fn({ stopPropagation: () => {}, preventDefault: () => {} }));
+      },
+      remove: () => {}
+    };
+  };
+
+  const viEl = { textContent: "", dataset: {}, classList: makeClassList(["vie-vi"]) };
+  const origEl = { style: {}, dataset: {}, textContent: "" };
+  const tipEl = { textContent: "💡", style: {} };
+  const overlay = {
+    _subMuted: false,
+    _isDictPinned: false,
+    classList: makeClassList(["vie-overlay", "vie-hidden"]),
+    querySelector: (sel) => (sel === ".vie-vi" ? viEl : sel === ".vie-orig" ? origEl : sel === ".vie-learn-tip" ? tipEl : null)
+  };
+
+  const createdButtons = [];
+  let platformCapText = "";
+  const vimeoCapContainer = {
+    closest: () => null,
+    querySelectorAll: () => [],
+    get textContent() { return platformCapText; }
+  };
+
+  const container = {
+    classList: makeClassList(),
+    appendChild: (el) => {
+      el.parentElement = container;
+      createdButtons.push(el);
+    },
+    querySelector: (sel) => (sel.includes(".vie-overlay") ? overlay : null),
+    querySelectorAll: (sel) => (sel.includes("vp-captions") && platformCapText ? [vimeoCapContainer] : [])
+  };
+
+  const trackListeners = {};
+  const cue1 = { startTime: 0.5, endTime: 4.5, text: "Hello from track cue one." };
+  const cue2 = { startTime: 4.5, endTime: 9.5, text: "- Hey, what are you doing here?\n- I am testing bilingual subtitles live!" };
+  const cue3 = { startTime: 9.5, endTime: 14.5, text: "Third cue arrives while muted." };
+  const fakeTrack = {
+    kind: "subtitles",
+    mode: "showing",
+    cues: [cue1, cue2, cue3],
+    activeCues: [cue2],
+    addEventListener: (ev, fn) => {
+      trackListeners[ev] = trackListeners[ev] || [];
+      trackListeners[ev].push(fn);
+    }
+  };
+  const fakeTracks = [fakeTrack];
+  fakeTracks.addEventListener = () => {};
+
+  const fakeVideo = {
+    currentTime: 5.5,
+    paused: true,
+    parentElement: container,
+    _vieOverlay: overlay,
+    textTracks: fakeTracks,
+    closest: (sel) => (sel.includes(".vp-video-wrapper") && platformCapText ? container : null),
+    addEventListener: () => {}
+  };
+
+  const ctx = createSandbox({
+    location: { hostname: "example.com", href: "https://example.com/bench.html" },
+    document: {
+      readyState: "loading",
+      title: "Non-YouTube Bench",
+      addEventListener: () => {},
+      querySelector: (sel) => (sel === ".vie-quick-sub-toggle" ? createdButtons.find((b) => b.className === "vie-quick-sub-toggle") || null : sel === ".vie-overlay" ? overlay : null),
+      querySelectorAll: () => [],
+      createElement: () => makeButton()
+    },
+    chrome: {
+      storage: {
+        local: { get: (d, cb) => cb({ ...d, enabled: true, provider: "gtx", dualSub: true }), set: (_u, cb) => cb && cb() },
+        onChanged: { addListener: () => {} }
+      },
+      runtime: {
+        lastError: null,
+        getURL: (p) => `chrome-extension://mock/${p}`,
+        sendMessage: (msg, cb) => {
+          if (msg.type === "TRANSLATE") {
+            cb && cb({ vi: `[VI] ${msg.text}`, sub2: "", provider: "gtx" });
+            return;
+          }
+          cb && cb({ results: {} });
+        }
+      }
+    }
+  });
+
+  ctx.VieDOM = {
+    getContainer: () => container,
+    getOrCreateOverlay: () => overlay,
+    hideOverlay: () => {
+      if (!overlay.classList.contains("vie-dict-open") && !overlay._isDictPinned) {
+        overlay.classList.add("vie-hidden");
+      }
+    },
+    formatSubtitleDecorations: (o, v) => ({ formattedOrig: o, formattedVi: v }),
+    renderInteractiveWords: (el, txt) => { el.textContent = txt; },
+    renderStableViText: (el, txt) => { el.textContent = txt; },
+    applySettingsToDOM: () => {},
+    playUiSound: () => {}
+  };
+
+  loadModule(ctx, "utils/storage.js");
+  loadModule(ctx, "content/captions.js");
+  loadModule(ctx, "content/content.js");
+
+  // Trigger init() so settings and localCache are active, and attach watchVideo
+  ctx.VieCaptions.watchVideo(fakeVideo, ctx.VieContent.onCaptionReceived);
+  await new Promise((r) => setTimeout(r, 15));
+
+  assert.strictEqual(ctx.VieCaptions.ytCueState.cues.length, 0, "Non-YouTube phải có ytCueState.cues.length === 0!");
+  assert.strictEqual(overlay.classList.contains("vie-hidden"), false, "Cue 2 ban đầu phải hiển thị!");
+  assert.ok(viEl.textContent.includes("[VI]"), "Overlay phải hiển thị bản dịch Cue 2!");
+
+  const toggleBtn = createdButtons.find((b) => b.className === "vie-quick-sub-toggle");
+  assert.ok(toggleBtn, "Phải tạo nút .vie-quick-sub-toggle!");
+
+  // 39A: Paused mute -> un-mute on <video> + <track>
+  toggleBtn.click(); // Mute ON
+  assert.strictEqual(ctx.VieCaptions.getVideoState(fakeVideo).subMuted, true);
+  assert.strictEqual(overlay.classList.contains("vie-hidden"), true, "Sau Alt+V lần 1 phải ẩn .vie-overlay!");
+
+  toggleBtn.click(); // Mute OFF (paused on Cue 2)
+  assert.strictEqual(ctx.VieCaptions.getVideoState(fakeVideo).subMuted, false);
+  assert.strictEqual(overlay.classList.contains("vie-hidden"), false, "Sau Alt+V lần 2 trên <video>+<track> phải bỏ .vie-hidden ngay lập tức!");
+  assert.ok(viEl.textContent.includes("testing bilingual subtitles live!"), "Phải khôi phục đúng nội dung Cue 2 đang active!");
+
+  // 39B: Cue advances while muted -> un-mute must immediately render the NEW active cue (Cue 3)
+  toggleBtn.click(); // Mute ON
+  assert.strictEqual(overlay.classList.contains("vie-hidden"), true);
+  fakeVideo.currentTime = 10.5;
+  fakeTrack.activeCues = [cue3];
+  (trackListeners.cuechange || []).forEach((fn) => fn());
+  assert.strictEqual(overlay.classList.contains("vie-hidden"), true, "Khi đang tắt sub mà chuyển cue vẫn phải giữ ẩn!");
+  toggleBtn.click(); // Mute OFF
+  assert.strictEqual(overlay.classList.contains("vie-hidden"), false, "Khi bật lại sub phải hiện ngay Cue 3 mới!");
+  assert.ok(viEl.textContent.includes("Third cue arrives while muted."), "Nội dung sau khi bật lại phải là Cue 3!");
+
+  // 39C: Silent gap (no active cue) -> mute -> un-mute must stay cleanly hidden (no stale cue!)
+  fakeVideo.currentTime = 0.1;
+  fakeTrack.activeCues = [];
+  overlay.classList.add("vie-hidden");
+  toggleBtn.click(); // Mute ON
+  toggleBtn.click(); // Mute OFF
+  assert.strictEqual(overlay.classList.contains("vie-hidden"), true, "Khi ở khoảng lặng không có cue active, bật lại sub không được hiện cue cũ!");
+
+  // 39D: Platform DOM caption fallback (e.g. Vimeo .vp-captions without <track>)
+  fakeTrack.cues = [];
+  platformCapText = "Visible platform caption line";
+  ctx.VieCaptions.toggleQuickSubMute(fakeVideo, toggleBtn); // Mute ON
+  assert.strictEqual(overlay.classList.contains("vie-hidden"), true);
+  ctx.VieCaptions.toggleQuickSubMute(fakeVideo, toggleBtn); // Mute OFF
+  assert.strictEqual(overlay.classList.contains("vie-hidden"), false, "Platform DOM caption phải hiển thị lại ngay khi un-mute!");
+  assert.ok(viEl.textContent.includes("Visible platform caption line"));
+
+  console.log("   ✅ Đã kiểm tra bật lại phụ đề (Alt+V) trên <video>+<track> & DOM caption chuẩn 100%!\n");
+})();
+
+console.log("🎉 TOÀN BỘ 39 BÀI KIỂM TRA ĐỀU HOÀN TOÀN CHÍNH XÁC VÀ ĐẠT 100%!");
 
 })();

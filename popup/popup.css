@@ -613,13 +613,13 @@
     /* LIVE SUBTITLE PREVIEW */
     .preview-stage {
       position: relative;
-      height: 82px;
+      height: 96px;
       border-radius: 10px;
       background: linear-gradient(160deg, #243656 0%, #131f36 55%, #272252 100%);
       border: 1.5px solid var(--border-subtle);
       margin-bottom: 9px;
       display: flex;
-      align-items: center;
+      align-items: flex-end;
       justify-content: center;
       overflow: hidden;
       padding: 6px;

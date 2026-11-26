@@ -43,13 +43,14 @@
       const lines = [];
       if (includeOrig && orig) lines.push(orig);
       if (trans) lines.push(trans);
+      if (!lines.length && orig) lines.push(orig);
       if (!lines.length) continue;
       blocks.push(`${blocks.length + 1}\n${start} --> ${end}\n${lines.join("\n")}`);
     }
     return blocks.join("\n\n");
   }
 
-  function exportBilingualSrt(video) {
+  async function exportBilingualSrt(video) {
     const activeVideo = video || (typeof document !== "undefined" ? document.querySelector("video.html5-main-video") || document.querySelector("video") : null);
     let cues = root.VieCaptions?.ytCueState?.cues || [];
     if ((!cues || !cues.length) && activeVideo?.textTracks) {
@@ -71,23 +72,64 @@
 
     const splitMulti = settings.multiSpeakerSplit !== false;
     const lookup = (raw) => {
-      const clean = root.VieCaptions?.normalizeSubtitleText?.(raw, splitMulti) || raw.trim();
+      const clean = root.VieCaptions?.normalizeSubtitleText?.(raw, splitMulti) || String(raw || "").trim();
       const ck = root.VieStorage?.getCacheKey?.(clean, settings);
       return ck ? localCache.get(ck) : null;
     };
+
+    const missingTexts = [];
+    const seenMissing = new Set();
+    for (const c of cues) {
+      const clean = root.VieCaptions?.normalizeSubtitleText?.(c?.text || "", splitMulti) || String(c?.text || "").trim();
+      if (!clean || seenMissing.has(clean)) continue;
+      const entry = lookup(clean);
+      const hasTrans = Boolean(entry && (typeof entry === "string" ? entry : entry.vi));
+      if (!hasTrans && !c.vi) {
+        seenMissing.add(clean);
+        missingTexts.push(clean);
+      }
+    }
+
+    if (missingTexts.length > 0 && typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
+      const videoTitle = root.VieCaptions?.getVideoTitle?.() || "";
+      const videoContext = root.VieCaptions?.getVideoContext?.() || "";
+      for (let i = 0; i < missingTexts.length; i += 12) {
+        const chunk = missingTexts.slice(i, i + 12);
+        if (activeVideo) {
+          root.VieCaptions?.showSyncToast?.(activeVideo, `⏳ Đang dịch ${Math.min(i + chunk.length, missingTexts.length)}/${missingTexts.length} câu phụ đề để xuất .SRT...`);
+        }
+        try {
+          const res = await new Promise((resolve) => {
+            chrome.runtime.sendMessage(
+              { type: "TRANSLATE_BATCH", texts: chunk, videoTitle, videoContext },
+              (resp) => {
+                if (chrome.runtime.lastError) resolve(null);
+                else resolve(resp);
+              }
+            );
+          });
+          if (res?.results) {
+            ingestBatchTranslations(res.results, res.sub2Results || {});
+          }
+        } catch {}
+      }
+    }
+
     const srtContent = buildBilingualSrt(cues, lookup, settings.dualSub !== false);
     if (!srtContent) return { ok: false, count: 0, error: "Không tạo được nội dung SRT." };
 
     const title = (root.VieCaptions?.getVideoTitle?.() || "subtitles")
       .replace(/[\\/:*?"<>|]+/g, "_")
       .slice(0, 60);
-    const blob = new Blob(["\uFEFF" + srtContent], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `VIE-Translate-${title}.srt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    if (typeof Blob !== "undefined" && typeof URL !== "undefined" && typeof URL.createObjectURL === "function" && typeof document !== "undefined") {
+      const blob = new Blob(["\uFEFF" + srtContent], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `VIE-Translate-${title}.srt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
     if (activeVideo) root.VieCaptions?.showSyncToast?.(activeVideo, `📥 Đã tải ${cues.length} dòng phụ đề (.SRT)!`);
     return { ok: true, count: cues.length };
   }
@@ -126,7 +168,9 @@
     if (!settings.enabled) return;
     const overlay = root.VieDOM?.getOrCreateOverlay(video, settings);
     if (!overlay) return;
-    if (overlay._subMuted) {
+    const st = root.VieCaptions?.getVideoState?.(video);
+    if (overlay._subMuted || st?.subMuted) {
+      overlay._subMuted = true;
       overlay.classList.add("vie-hidden");
       return;
     }
@@ -195,6 +239,7 @@
   // Nếu video đã chạy một lúc mà vẫn chưa có phụ đề, gợi ý người dùng tải lại trang
   function startNoSubWatchdog() {
     setInterval(() => {
+      if (settings.enabled === false) return;
       const video = document.querySelector("video.html5-main-video") || document.querySelector("video");
       if (!video) return;
       const key = location.href;
@@ -649,8 +694,10 @@
     chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (!msg?.type) return;
       if (msg.type === "EXPORT_VIDEO_SRT") {
-        sendResponse(exportBilingualSrt());
-        return false;
+        Promise.resolve(exportBilingualSrt())
+          .then(sendResponse)
+          .catch((err) => sendResponse({ ok: false, count: 0, error: err?.message || "Lỗi xuất SRT." }));
+        return true;
       }
       if (msg.type === "TRIGGER_SCREEN_OCR") {
         const video = document.querySelector("video.html5-main-video") || document.querySelector("video");

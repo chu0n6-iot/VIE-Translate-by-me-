@@ -83,9 +83,11 @@
 
     chrome.runtime.onMessage.addListener((msg) => {
       if (msg?.type === "TRIGGER_SELECTION_TRANSLATE" && msg.text) {
+        const scrollX = window.scrollX || window.pageXOffset || 0;
+        const scrollY = window.scrollY || window.pageYOffset || 0;
         const coords = {
-          x: Math.max(20, window.innerWidth / 2 - 140),
-          y: Math.max(50, window.innerHeight / 3)
+          x: scrollX + Math.max(20, window.innerWidth / 2 - 140),
+          y: scrollY + Math.max(50, window.innerHeight / 3)
         };
         handleSelectionAction(msg.text, coords);
       }
